@@ -1,8 +1,8 @@
 {
-  "name": "Projects — Byzantivm & Demya",
-  "short_name": "Projects",
-  "description": "Project management for Byzantivm and Demya",
-  "start_url": "./#/dashboard",
+  "name": "Studio — Byzantivm & Demya",
+  "short_name": "Studio",
+  "description": "Projects, clients and team for Byzantivm and Demya",
+  "start_url": "./#/overview",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

@@ -1,44 +1,85 @@
-# Projects — Byzantivm & Demya
+# Studio — Byzantivm & Demya
 
-A project-management app for iPad, covering both **Byzantivm** and **Demya**.
-It's an installable web app (PWA): add it to the iPad home screen and it opens
-full-screen like a native app and works offline. No build step and no server-side code.
+A project-management app for the Byzantivm and Demya creative studios, built for iPad.
+It's an installable web app (PWA): team members add it to their iPad home screen and
+it opens full-screen like a native app. Everyone signs in, and changes show up live for the whole team.
 
-## Features
+## What's in it (step 1 of 4)
 
-- **Company switcher**: view All companies, Byzantivm only, or Demya only. Every screen follows the switch.
-- **Overview**: stats per company (live projects, open tasks, overdue, done this week), tasks due in the next 7 days, and progress on live projects.
-- **Projects**: grouped by company, with status (Planning / Active / On hold / Completed), start and due dates, a description, and a progress bar.
-- **Kanban board** for each project (To Do → In Progress → Review → Done). On iPad, **press and hold a card to drag it**; with a mouse or trackpad, just drag. A List view is also available.
-- **Tasks**: every task in one place, grouped by Overdue / Today / Next 7 days / Later, with search and filters for status, priority, and assignee.
-- Tasks have a priority, due date, assignee, and notes, and you can tick them done with Undo.
-- **Backup**: export to a JSON file through the iPad share sheet (Files, iCloud Drive, AirDrop) and import it again.
-- Light and dark mode, sized for touch, and laid out for landscape, portrait, Split View, and phone.
+- **Two companies, one app**: switch between All, Byzantivm, or Demya. Every screen follows the switch.
+- **Overview**: stats per company, your tasks, the team's tasks due this week, the project pipeline, and upcoming deadlines.
+- **Projects**: a pipeline board across the agency stages
+  **Brief → Concept → Design → Client review → Revisions → Delivered**.
+  Press and hold a card to move it. There's also a list view and a status filter (current / completed / cancelled).
+- **Project page**: a stage stepper, a task board by phase, and a details tab (brief, team, facts, client contacts).
+  Each project has its own currency (₺, $, €, £).
+- **Tasks**: phase, priority, assignee, due date, notes, done/undo, and **comments with @mentions**.
+  The Tasks screen shows *My tasks* / everyone / a specific person, grouped by Overdue / Today / Next 7 days.
+- **Clients**: company details, contacts with tap-to-email and tap-to-call, and all of a client's projects across both companies.
+- **Team & settings**: your name and colour, the team list (who may sign in), company names and colours.
+- **Activity log**: the database already records who created, moved, or completed what. The feed screen comes in step 4.
 
-## Install on your iPad
+Coming next: **(2)** deliverables with client feedback rounds, plus file and photo uploads ·
+**(3)** quotes → costs → invoices and profit per project · **(4)** calendar, timeline, and activity feed.
+The database tables for all of these are already created by `supabase/schema.sql`.
 
-1. Host these files on any static host over HTTPS, for example:
-   - **GitHub Pages**: repo *Settings → Pages → Deploy from a branch*, then choose the branch and `/ (root)`.
-     (Private repos need a paid GitHub plan for Pages.)
-   - **Netlify / Cloudflare Pages / Vercel**: point it at this repo with no build command and `/` as the output directory.
-2. Open the URL in **Safari** on the iPad.
-3. Tap **Share → Add to Home Screen**.
-4. Launch it from the home screen icon.
+## One-time setup
 
-To try it locally, run `python3 -m http.server 8000` in this folder and open <http://localhost:8000>.
+### 1. Create the database (Supabase)
 
-## Where the data lives
+1. Open your Supabase project → **SQL Editor** → **New query**.
+2. Paste the whole of [`supabase/schema.sql`](supabase/schema.sql).
+3. **Near the bottom, replace `YOUR_EMAIL@example.com` with your own email**, then click **Run**.
+   This puts you on the team. Nobody else can see any data until you add them in the app.
+4. **Authentication → URL Configuration**: set **Site URL** to the address where the app is hosted (step 3 below),
+   so confirmation and password-reset emails link back to the app.
 
-Data is stored **on the device** (browser storage for the installed app). Nothing is sent to a server,
-so it is not shared between devices or teammates automatically. Use **Settings → Export backup**
-regularly, and **Import backup** to restore or to move data to another device.
+The script is safe to run again later. It only creates things that are missing.
 
-## Files
+### 2. Connect the app
 
-| File | Purpose |
+In [`js/config.js`](js/config.js), paste the project's **anon public** key
+(Supabase → Project Settings → API → *Project API keys* → `anon` `public`):
+
+```js
+export const SUPABASE_URL = 'https://ehvzfpnsiklpjgweeijf.supabase.co';
+export const SUPABASE_ANON_KEY = 'eyJ...';
+```
+
+The anon key is designed to be public. The data is protected by the database's row-level security rules,
+which only let signed-in emails on the team list read or write. **Never** put the `service_role` key in the app.
+
+### 3. Host it
+
+This is a static site with no build step. You can use any of these:
+- **Cloudflare Pages / Netlify / Vercel**: connect this GitHub repo, with no build command and `/` as the output directory. (Free.)
+- **GitHub Pages**: Settings → Pages → Deploy from a branch → `/ (root)`. Private repos need a paid GitHub plan.
+
+### 4. Install on each iPad
+
+Open the app's address in **Safari** → **Share** → **Add to Home Screen**.
+
+### 5. Add your team
+
+Sign in → **Team** → add each teammate's email. They then open the app, tap **Create account** with that email,
+confirm the email, and sign in.
+
+## Demo mode
+
+Without a key, or by tapping **Try demo mode** on the sign-in screen, the app runs with data stored only on that device.
+Use **Load sample data** to look around. Sign out from the Team screen to leave demo mode.
+
+## Project layout
+
+| Path | Purpose |
 | --- | --- |
-| `index.html` | App shell |
-| `styles.css` | Styles (light/dark, iPad layout) |
-| `app.js` | All app logic: data, views, drag & drop, backup |
-| `sw.js` | Service worker for offline use. **Bump `VERSION` when you change files.** |
-| `manifest.webmanifest`, `icons/` | Home-screen install metadata and icons |
+| `index.html`, `styles.css` | App shell and styles (light/dark, iPad, phone) |
+| `js/main.js` | Startup, sign-in flow, routing, actions, drag & drop, live-update handling |
+| `js/backend.js` | Supabase backend and the on-device demo backend (same interface) |
+| `js/store.js` | In-memory data with optimistic saves and live updates from teammates |
+| `js/forms.js` | Create/edit sheets: projects, tasks (with comments), clients, contacts |
+| `js/views/*.js` | Screens: overview, projects, project, clients, tasks, team, sign-in |
+| `js/config.js` | Supabase URL and anon key |
+| `supabase/schema.sql` | Database tables, security rules, activity log, live updates, file storage |
+| `vendor/supabase.js` | Supabase JS client v2.117.2 (MIT), bundled so the app needs no CDN |
+| `sw.js` | Offline caching of the app files. **Bump `VERSION` when you change any file.** |

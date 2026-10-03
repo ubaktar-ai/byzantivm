@@ -1,0 +1,186 @@
+// In-memory copy of the team's data. Changes are applied optimistically
+// (the screen updates at once), then saved; on failure they are rolled back.
+// Live updates from teammates arrive through applyRemote().
+import { keyOf } from './backend.js';
+import { uuid, toast, daysUntil, priorityRank } from './lib.js';
+
+const TABLES = ['companies', 'profiles', 'team_members', 'clients', 'contacts', 'projects', 'tasks', 'comments'];
+
+export const store = {
+  backend: null,
+  user: null,
+  data: Object.fromEntries(TABLES.map(t => [t, new Map()])),
+  listeners: new Set(),
+  loaded: false,
+
+  async loadAll() {
+    const results = await Promise.all(TABLES.map(t => this.backend.selectAll(t)));
+    TABLES.forEach((t, i) => {
+      const m = new Map();
+      results[i].forEach(r => m.set(r[keyOf(t)], r));
+      this.data[t] = m;
+    });
+    this.loaded = true;
+    this.emit();
+  },
+
+  clear() {
+    TABLES.forEach(t => { this.data[t] = new Map(); });
+    this.loaded = false;
+  },
+
+  // ---------- Reading ----------
+
+  all(table) { return Array.from(this.data[table].values()); },
+  get(table, id) { return id == null ? null : this.data[table].get(id) || null; },
+
+  // ---------- Change notifications (batched to one render per frame) ----------
+
+  onChange(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); },
+  emit() {
+    if (this._pending) return;
+    this._pending = true;
+    requestAnimationFrame(() => {
+      this._pending = false;
+      this.listeners.forEach(fn => fn());
+    });
+  },
+
+  // ---------- Writing ----------
+
+  async insert(table, row) {
+    const key = keyOf(table);
+    if (key === 'id' && !row.id) row = { id: uuid(), ...row };
+    const now = new Date().toISOString();
+    const optimistic = { created_at: now, updated_at: now, ...row };
+    this.data[table].set(row[key], optimistic);
+    this.emit();
+    try {
+      const saved = await this.backend.insert(table, row);
+      this.data[table].set(saved[key], { ...this.data[table].get(saved[key]), ...saved });
+      this.emit();
+      return saved;
+    } catch (err) {
+      this.data[table].delete(row[key]);
+      this.emit();
+      fail(err);
+      throw err;
+    }
+  },
+
+  async update(table, id, patch) {
+    const before = this.get(table, id);
+    if (!before) return;
+    this.data[table].set(id, { ...before, ...patch });
+    this.emit();
+    try {
+      const saved = await this.backend.update(table, id, patch);
+      // Local state wins (it may hold newer edits made while saving); the server fills in the rest.
+      this.data[table].set(id, { ...saved, ...this.get(table, id), updated_at: saved.updated_at });
+      this.emit();
+      return saved;
+    } catch (err) {
+      this.data[table].set(id, before);
+      this.emit();
+      fail(err);
+      throw err;
+    }
+  },
+
+  async remove(table, id) {
+    const before = this.get(table, id);
+    if (!before) return;
+    const snapshot = this.cascade(table, id);
+    this.emit();
+    try {
+      await this.backend.remove(table, id);
+    } catch (err) {
+      snapshot.restore();
+      this.emit();
+      fail(err);
+      throw err;
+    }
+  },
+
+  // Remove a row and (locally) everything the database would cascade.
+  cascade(table, id) {
+    const removed = [];
+    const nulled = [];
+    const drop = (t, k) => { const r = this.get(t, k); if (r) { removed.push([t, r]); this.data[t].delete(k); } };
+    drop(table, id);
+    if (table === 'projects') {
+      this.all('tasks').filter(t => t.project_id === id).forEach(t => drop('tasks', t.id));
+      this.all('comments').filter(c => c.project_id === id).forEach(c => drop('comments', c.id));
+    } else if (table === 'tasks') {
+      this.all('comments').filter(c => c.task_id === id).forEach(c => drop('comments', c.id));
+    } else if (table === 'clients') {
+      this.all('contacts').filter(c => c.client_id === id).forEach(c => drop('contacts', c.id));
+      this.all('projects').filter(p => p.client_id === id).forEach(p => {
+        nulled.push(p);
+        this.data.projects.set(p.id, { ...p, client_id: null });
+      });
+    }
+    return {
+      restore: () => {
+        removed.forEach(([t, r]) => this.data[t].set(r[keyOf(t)], r));
+        nulled.forEach(p => this.data.projects.set(p.id, p));
+      },
+    };
+  },
+
+  applyRemote(table, type, row, old) {
+    if (!this.data[table]) return;
+    const key = keyOf(table);
+    if (type === 'DELETE') {
+      const id = old && old[key];
+      if (id != null && this.data[table].has(id)) { this.cascade(table, id); this.emit(); }
+      return;
+    }
+    if (!row || row[key] == null) return;
+    const current = this.data[table].get(row[key]);
+    // Ignore stale echoes older than what we already have.
+    if (current && current.updated_at && row.updated_at && row.updated_at < current.updated_at) return;
+    this.data[table].set(row[key], { ...current, ...row });
+    this.emit();
+  },
+};
+
+function fail(err) {
+  console.error(err);
+  const msg = err && err.message ? err.message : String(err);
+  toast(/fetch|network/i.test(msg) ? 'No connection — change not saved' : `Couldn't save: ${msg}`);
+}
+
+// ---------- Derived data helpers used across screens ----------
+
+export const companies = () => store.all('companies').sort((a, b) => a.sort_order - b.sort_order);
+export const profiles = () => store.all('profiles').filter(p => store.data.team_members.has(p.email)).sort((a, b) => (a.full_name || a.email).localeCompare(b.full_name || b.email));
+export const me = () => store.get('profiles', store.user && store.user.id);
+export const personName = id => { const p = store.get('profiles', id); return p ? p.full_name || p.email : ''; };
+
+export const tasksOf = projectId => store.all('tasks').filter(t => t.project_id === projectId);
+export const projectsOfClient = clientId => store.all('projects').filter(p => p.client_id === clientId);
+export const contactsOf = clientId => store.all('contacts').filter(c => c.client_id === clientId).sort((a, b) => a.name.localeCompare(b.name));
+export const commentsOf = taskId => store.all('comments').filter(c => c.task_id === taskId).sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
+export const commentCount = taskId => { let n = 0; store.data.comments.forEach(c => { if (c.task_id === taskId) n++; }); return n; };
+
+export const isOverdue = t => !t.done && t.due_date && daysUntil(t.due_date) < 0;
+export const isLive = p => p.status === 'active' || p.status === 'on_hold';
+
+export function progress(projectId) {
+  const ts = tasksOf(projectId);
+  const done = ts.filter(t => t.done).length;
+  return { total: ts.length, done, pct: ts.length ? Math.round((done / ts.length) * 100) : 0 };
+}
+
+export function byDueThenPriority(a, b) {
+  const da = a.due_date || '9999-12-31';
+  const db = b.due_date || '9999-12-31';
+  if (da !== db) return da < db ? -1 : 1;
+  return priorityRank(a.priority) - priorityRank(b.priority);
+}
+
+export function nextSortOrder(rows) {
+  return rows.length ? Math.max(...rows.map(r => r.sort_order || 0)) + 1 : 0;
+}
+

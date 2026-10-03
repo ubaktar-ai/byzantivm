@@ -1,13 +1,29 @@
 // Offline support: serve the app shell from cache, refresh it in the background.
+// Only same-origin files are cached; Supabase API calls always go to the network.
 // Bump VERSION whenever you change any file below.
-const VERSION = 'v1';
-const CACHE = `projects-${VERSION}`;
+const VERSION = 'v2';
+const CACHE = `studio-${VERSION}`;
 const SHELL = [
   './',
   './index.html',
   './styles.css',
-  './app.js',
   './manifest.webmanifest',
+  './vendor/supabase.js',
+  './js/main.js',
+  './js/config.js',
+  './js/lib.js',
+  './js/backend.js',
+  './js/store.js',
+  './js/ui-state.js',
+  './js/forms.js',
+  './js/views/common.js',
+  './js/views/auth.js',
+  './js/views/overview.js',
+  './js/views/projects.js',
+  './js/views/project.js',
+  './js/views/clients.js',
+  './js/views/tasks.js',
+  './js/views/team.js',
   './icons/icon.svg',
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',
