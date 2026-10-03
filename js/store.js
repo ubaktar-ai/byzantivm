@@ -1,10 +1,11 @@
 // In-memory copy of the team's data. Changes are applied optimistically
 // (the screen updates at once), then saved; on failure they are rolled back.
 // Live updates from teammates arrive through applyRemote().
-import { keyOf } from './backend.js';
+import { keyOf, RELATIONS } from './backend.js';
 import { uuid, toast, daysUntil, priorityRank } from './lib.js';
 
-const TABLES = ['companies', 'profiles', 'team_members', 'clients', 'contacts', 'projects', 'tasks', 'comments'];
+const TABLES = ['companies', 'profiles', 'team_members', 'clients', 'contacts', 'projects', 'tasks', 'comments',
+  'deliverables', 'feedback_rounds', 'attachments'];
 
 export const store = {
   backend: null,
@@ -106,24 +107,23 @@ export const store = {
   cascade(table, id) {
     const removed = [];
     const nulled = [];
-    const drop = (t, k) => { const r = this.get(t, k); if (r) { removed.push([t, r]); this.data[t].delete(k); } };
+    const drop = (t, k) => {
+      const r = this.get(t, k);
+      if (!r) return;
+      removed.push([t, r]);
+      this.data[t].delete(k);
+      for (const [child, fk, rule] of RELATIONS[t] || []) {
+        this.all(child).filter(c => c[fk] === k).forEach(c => {
+          if (rule === 'cascade') drop(child, c.id);
+          else { nulled.push([child, c]); this.data[child].set(c.id, { ...c, [fk]: null }); }
+        });
+      }
+    };
     drop(table, id);
-    if (table === 'projects') {
-      this.all('tasks').filter(t => t.project_id === id).forEach(t => drop('tasks', t.id));
-      this.all('comments').filter(c => c.project_id === id).forEach(c => drop('comments', c.id));
-    } else if (table === 'tasks') {
-      this.all('comments').filter(c => c.task_id === id).forEach(c => drop('comments', c.id));
-    } else if (table === 'clients') {
-      this.all('contacts').filter(c => c.client_id === id).forEach(c => drop('contacts', c.id));
-      this.all('projects').filter(p => p.client_id === id).forEach(p => {
-        nulled.push(p);
-        this.data.projects.set(p.id, { ...p, client_id: null });
-      });
-    }
     return {
       restore: () => {
         removed.forEach(([t, r]) => this.data[t].set(r[keyOf(t)], r));
-        nulled.forEach(p => this.data.projects.set(p.id, p));
+        nulled.forEach(([t, r]) => this.data[t].set(r.id, r));
       },
     };
   },
@@ -163,6 +163,10 @@ export const projectsOfClient = clientId => store.all('projects').filter(p => p.
 export const contactsOf = clientId => store.all('contacts').filter(c => c.client_id === clientId).sort((a, b) => a.name.localeCompare(b.name));
 export const commentsOf = taskId => store.all('comments').filter(c => c.task_id === taskId).sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
 export const commentCount = taskId => { let n = 0; store.data.comments.forEach(c => { if (c.task_id === taskId) n++; }); return n; };
+
+export const deliverablesOf = projectId => store.all('deliverables').filter(d => d.project_id === projectId).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || (a.created_at < b.created_at ? -1 : 1));
+export const roundsOf = deliverableId => store.all('feedback_rounds').filter(r => r.deliverable_id === deliverableId).sort((a, b) => a.round_no - b.round_no);
+export const attachmentsWhere = (field, id) => store.all('attachments').filter(a => a[field] === id).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 
 export const isOverdue = t => !t.done && t.due_date && daysUntil(t.due_date) < 0;
 export const isLive = p => p.status === 'active' || p.status === 'on_hold';

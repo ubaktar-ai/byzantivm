@@ -4,7 +4,7 @@ A project-management app for the Byzantivm and Demya creative studios, built for
 It's an installable web app (PWA): team members add it to their iPad home screen and
 it opens full-screen like a native app. Everyone signs in, and changes show up live for the whole team.
 
-## What's in it (step 1 of 4)
+## What's in it (steps 1–2 of 4)
 
 - **Two companies, one app**: switch between All, Byzantivm, or Demya. Every screen follows the switch.
 - **Overview**: stats per company, your tasks, the team's tasks due this week, the project pipeline, and upcoming deadlines.
@@ -17,10 +17,16 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
   The Tasks screen shows *My tasks* / everyone / a specific person, grouped by Overdue / Today / Next 7 days.
 - **Clients**: company details, contacts with tap-to-email and tap-to-call, and all of a client's projects across both companies.
 - **Team & settings**: your name and colour, the team list (who may sign in), company names and colours.
+- **Deliverables & feedback rounds** (project → Deliverables): set how many revision rounds are included,
+  then **Send to client**, followed by **Record client feedback** (waiting / changes requested / approved) for each round.
+  Files are attached to each round. The app warns when a round goes past what's included, and offers to move the
+  project to *Client review* or *Revisions* when that fits. The Overview lists everything **waiting on clients** and for how long.
+- **Files & photos**: upload from the iPad camera, photo library, or Files. Big photos are shrunk to 2400px automatically.
+  Files can belong to a project, a task, or a feedback round. They're kept in a private storage bucket and only
+  shown to the team through temporary links. The project → Files tab gathers everything.
 - **Activity log**: the database already records who created, moved, or completed what. The feed screen comes in step 4.
 
-Coming next: **(2)** deliverables with client feedback rounds, plus file and photo uploads ·
-**(3)** quotes → costs → invoices and profit per project · **(4)** calendar, timeline, and activity feed.
+Coming next: **(3)** quotes → costs → invoices and profit per project · **(4)** calendar, timeline, and activity feed.
 The database tables for all of these are already created by `supabase/schema.sql`.
 
 ## One-time setup
@@ -77,8 +83,9 @@ Use **Load sample data** to look around. Sign out from the Team screen to leave 
 | `js/main.js` | Startup, sign-in flow, routing, actions, drag & drop, live-update handling |
 | `js/backend.js` | Supabase backend and the on-device demo backend (same interface) |
 | `js/store.js` | In-memory data with optimistic saves and live updates from teammates |
-| `js/forms.js` | Create/edit sheets: projects, tasks (with comments), clients, contacts |
-| `js/views/*.js` | Screens: overview, projects, project, clients, tasks, team, sign-in |
+| `js/forms.js` | Create/edit sheets: projects, tasks (with comments and files), clients, contacts |
+| `js/files.js` | File uploads (photo downscaling), thumbnails, viewer, delete |
+| `js/views/*.js` | Screens: overview, projects, project, deliverables, clients, tasks, team, sign-in |
 | `js/config.js` | Supabase URL and anon key |
 | `supabase/schema.sql` | Database tables, security rules, activity log, live updates, file storage |
 | `vendor/supabase.js` | Supabase JS client v2.117.2 (MIT), bundled so the app needs no CDN |

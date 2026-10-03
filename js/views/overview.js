@@ -2,6 +2,7 @@ import { STAGES, esc, icon, addDays, todayStr, daysUntil } from '../lib.js';
 import { store, companies, me, isOverdue, isLive, progress, byDueThenPriority } from '../store.js';
 import { ui, inScope } from '../ui-state.js';
 import { taskRow, companySegmented, companyColor, dueChip, emptyState } from './common.js';
+import { waitingOnClients, daysSince } from './deliverables.js';
 
 export function viewOverview() {
   const now = new Date();
@@ -80,6 +81,18 @@ export function viewOverview() {
           <div class="task-list card-surface">${teamSoon.map(t => taskRow(t)).join('')}</div>` : ''}
       </div>
       <div>
+        ${(() => {
+          const waiting = waitingOnClients(p => inScope(p.company_id));
+          if (!waiting.length) return '';
+          return `
+            <h2 class="section">Waiting on clients</h2>
+            <div class="card-surface">${waiting.slice(0, 8).map(({ d, p, r }) => `
+              <a class="project-mini" href="#/project/${p.id}/deliverables">
+                <div class="row"><b><span class="dot" style="background:${esc(companyColor(p.company_id))}"></span> ${esc(d.name)}</b>
+                  <span class="chip ${r.sent_date && daysUntil(r.sent_date) <= -5 ? 'soon' : ''}">${esc(r.sent_date ? daysSince(r.sent_date) : 'sent')}</span></div>
+                <div class="row sub-row"><span>${esc(p.name)}${store.get('clients', p.client_id) ? ` · ${esc(store.get('clients', p.client_id).name)}` : ''}</span><span>Round ${r.round_no} of ${d.max_rounds}</span></div>
+              </a>`).join('')}</div>`;
+        })()}
         <h2 class="section">Pipeline</h2>
         <a class="card-surface pipeline-summary" href="#/projects">
           ${stageCounts.map(s => `

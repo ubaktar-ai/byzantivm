@@ -9,6 +9,8 @@ import {
   openProjectSheet, openTaskSheet, openClientSheet, openContactSheet, toggleTaskDone,
 } from './forms.js';
 import { authScreen } from './views/auth.js';
+import { initFiles, openFileSheet } from './files.js';
+import { openDeliverableSheet, openSendRoundSheet, openRoundSheet } from './views/deliverables.js';
 import { viewOverview } from './views/overview.js';
 import { viewProjects } from './views/projects.js';
 import { viewProject } from './views/project.js';
@@ -79,6 +81,7 @@ function ensureProfileColor() {
 
 async function boot() {
   initSheet();
+  initFiles();
   const hash = location.hash;
   const urlError = /error_description=([^&]+)/.exec(hash);
   const isRecovery = /type=recovery/.test(hash);
@@ -310,6 +313,12 @@ document.addEventListener('click', e => {
     case 'remove-member':
       if (confirm(`Remove ${id} from the team? They will lose access immediately.`)) store.remove('team_members', id).catch(() => {});
       break;
+    case 'new-deliverable': openDeliverableSheet(el.dataset.project); break;
+    case 'edit-deliverable': { const d = store.get('deliverables', id); if (d) openDeliverableSheet(d.project_id, d); break; }
+    case 'send-round': { const d = store.get('deliverables', id); if (d) openSendRoundSheet(d); break; }
+    case 'edit-round': { const r = store.get('feedback_rounds', id); if (r) openRoundSheet(r, { feedbackMode: !!el.dataset.feedback }); break; }
+    case 'open-file': { const a = store.get('attachments', id); if (a) openFileSheet(a); break; }
+    case 'file-filter': setUi({ fileFilter: id }); render(); break;
     case 'load-sample': loadSample(); break;
     case 'reset-demo':
       if (confirm('Erase all demo data on this iPad?')) { store.backend.reset(); store.loadAll(); toast('Demo data reset'); }
@@ -575,6 +584,22 @@ async function loadSample() {
   await project({ company_id: 'demya', client_id: olive, name: 'Olive & Stone website', stage: 'delivered', status: 'completed', currency: 'EUR', due_date: d(-10) }, [
     ['Launch', 'delivered', true, 'high', -10, mert],
   ]);
+
+  const deliverable = (project_id, name, max_rounds, due, rounds, extra = {}) => store.insert('deliverables', {
+    project_id, name, max_rounds, due_date: d(due), description: '', sort_order: 0, status: 'in_progress', ...extra,
+  }).then(async del => {
+    for (const [round_no, sent, status, received, feedback] of rounds) {
+      await store.insert('feedback_rounds', { deliverable_id: del.id, round_no, sent_date: d(sent), status, received_date: received === null ? null : d(received), feedback });
+    }
+  });
+  await deliverable(p1, 'Logo', 3, 6, [
+    [1, -9, 'changes_requested', -7, 'Direction B is the favourite. Can we try the wordmark in a warmer gold, and drop the tagline?'],
+    [2, -3, 'awaiting', null, ''],
+  ]);
+  await deliverable(p1, 'Brand guidelines PDF', 2, 16, []);
+  await deliverable(p1, 'Business cards', 2, 12, [[1, -2, 'approved', -1, 'Perfect — please send to print.']], { status: 'approved' });
+  const packaging = store.all('projects').find(x => x.name === 'Olive & Stone packaging');
+  if (packaging) await deliverable(packaging.id, 'Label artwork', 2, 10, [[1, -6, 'awaiting', null, '']]);
 
   const firstTask = store.all('tasks').find(t => t.project_id === p1 && t.title === 'Present logo concepts');
   if (firstTask) {

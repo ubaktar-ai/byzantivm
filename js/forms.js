@@ -4,8 +4,9 @@ import {
   sheetHeader, options, todayStr, timeAgo, avatar, label, $,
 } from './lib.js';
 import {
-  store, companies, profiles, me, tasksOf, commentsOf, projectsOfClient, nextSortOrder,
+  store, companies, profiles, me, tasksOf, commentsOf, projectsOfClient, nextSortOrder, attachmentsWhere,
 } from './store.js';
+import { fileStrip, removeProjectFiles } from './files.js';
 import { ui } from './ui-state.js';
 
 const go = hash => { location.hash = hash; };
@@ -74,6 +75,7 @@ export function openProjectSheet(existing, defaults = {}) {
         if (!confirm(`Delete “${existing.name}”${n ? ` and its ${n} task${n === 1 ? '' : 's'}` : ''}? This can't be undone.`)) return;
         closeSheet();
         go('#/projects');
+        await removeProjectFiles(existing.id);
         await store.remove('projects', existing.id).catch(() => {});
         toast('Project deleted');
       });
@@ -155,6 +157,7 @@ export function openTaskSheet(existing, defaults = {}) {
             <label class="field"><span>Due date</span><input type="date" name="due_date" value="${esc(t.due_date || '')}"></label>
           </div>
           <label class="field"><span>Notes</span><textarea name="notes" placeholder="Details, links, references…">${esc(t.notes)}</textarea></label>
+          ${existing ? `<div class="field"><span>Files</span><div id="task-files"></div></div>` : ''}
           <label class="toggle"><input type="checkbox" name="done" ${t.done ? 'checked' : ''}><span>Done</span></label>
         </div>
         ${existing ? `
@@ -186,11 +189,17 @@ export function openTaskSheet(existing, defaults = {}) {
         box.innerHTML = list.length ? list.map(c => commentHtml(c)).join('') : `<div class="muted small">No comments yet.</div>`;
         if (atBottom) box.scrollTop = box.scrollHeight;
       };
+      const renderFiles = () => {
+        const box = $('#task-files', sheet);
+        if (box) box.innerHTML = fileStrip(attachmentsWhere('task_id', existing.id), { project_id: existing.project_id, task_id: existing.id });
+      };
       renderComments();
+      renderFiles();
       $('#comments', sheet).scrollTop = 1e6;
       unsubscribe = store.onChange(() => {
         if (!store.get('tasks', existing.id)) { closeSheet(); return; }
         renderComments();
+        renderFiles();
       });
       wireCommentBox(sheet, existing);
 
@@ -243,6 +252,15 @@ export function toggleTaskDone(task) {
 }
 
 export function deleteTask(task) {
+  const files = attachmentsWhere('task_id', task.id);
+  if (files.length) {
+    if (!confirm(`Delete “${task.title}” and its ${files.length} file${files.length === 1 ? '' : 's'}?`)) return;
+    store.remove('tasks', task.id).then(() => {
+      store.backend.removeFiles(files.map(f => f.path)).catch(() => {});
+      toast('Task deleted');
+    }).catch(() => {});
+    return;
+  }
   const comments = commentsOf(task.id);
   store.remove('tasks', task.id).then(() => {
     toast('Task deleted', {

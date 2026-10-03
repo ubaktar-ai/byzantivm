@@ -1,5 +1,7 @@
 import { STAGES, CURRENCIES, esc, icon, avatar, fmtDate, label, stageIndex } from '../lib.js';
-import { store, tasksOf, progress, contactsOf, commentCount } from '../store.js';
+import { store, tasksOf, progress, contactsOf, commentCount, deliverablesOf, attachmentsWhere } from '../store.js';
+import { deliverablesTab } from './deliverables.js';
+import { fileTile, uploadButton, isImage } from '../files.js';
 import { ui } from '../ui-state.js';
 import { companyChip, statusChip, dueChip, prioDot, companyColor, taskRow, emptyState } from './common.js';
 
@@ -25,10 +27,18 @@ export function viewProject(id, tab = 'tasks') {
         </button>`).join('')}
     </div>`;
 
+  const nDeliv = deliverablesOf(p.id).length;
+  const nFiles = attachmentsWhere('project_id', p.id).length;
   const tabs = [
     { id: 'tasks', label: `Tasks <span class="tab-count">${pr.total}</span>` },
+    { id: 'deliverables', label: `Deliverables${nDeliv ? ` <span class="tab-count">${nDeliv}</span>` : ''}` },
+    { id: 'files', label: `Files${nFiles ? ` <span class="tab-count">${nFiles}</span>` : ''}` },
     { id: 'details', label: 'Details' },
   ];
+  const body = tab === 'details' ? detailsTab(p, client, pr)
+    : tab === 'deliverables' ? deliverablesTab(p)
+    : tab === 'files' ? filesTab(p)
+    : tasksTab(p);
 
   return `
     <a class="crumbs" href="#/projects">${icon.back}Projects</a>
@@ -52,7 +62,7 @@ export function viewProject(id, tab = 'tasks') {
     <div class="tabs" role="tablist">
       ${tabs.map(t => `<a role="tab" href="#/project/${p.id}/${t.id}" aria-selected="${tab === t.id}">${t.label}</a>`).join('')}
     </div>
-    ${tab === 'details' ? detailsTab(p, client, pr) : tasksTab(p)}`;
+    ${body}`;
 }
 
 function tasksTab(p) {
@@ -90,9 +100,27 @@ function tasksTab(p) {
     </div>`;
 }
 
+function filesTab(p) {
+  const all = attachmentsWhere('project_id', p.id);
+  const filter = ui.fileFilter || 'all';
+  const shown = all.filter(a => filter === 'all' || (filter === 'photos' ? isImage(a) : !isImage(a)));
+  const toolbar = `
+    <div class="toolbar">
+      ${uploadButton({ project_id: p.id }, { label: 'Upload files or photos', primary: true })}
+      ${all.length ? `<div class="segmented">
+        ${[['all', 'All'], ['photos', 'Photos'], ['docs', 'Documents']].map(([id, l]) => `<button type="button" data-action="file-filter" data-id="${id}" aria-pressed="${filter === id}">${l}</button>`).join('')}
+      </div>` : ''}
+    </div>`;
+  if (!all.length) {
+    return toolbar + emptyState('No files yet', 'Upload briefs, references, drafts, photos from site visits — anything the team needs for this project. Files attached to tasks and feedback rounds also show up here.');
+  }
+  return toolbar + (shown.length ? `<div class="file-grid">${shown.map(a => fileTile(a, { context: true })).join('')}</div>` : emptyState('Nothing here', ''));
+}
+
 function taskCard(t) {
   const assignee = store.get('profiles', t.assignee_id);
   const n = commentCount(t.id);
+  const nf = attachmentsWhere('task_id', t.id).length;
   return `
     <div class="task-card ${t.done ? 'is-done' : ''}" data-drag="tasks" data-id="${t.id}" data-action="edit-task">
       <div class="tc-top">
@@ -103,6 +131,7 @@ function taskCard(t) {
         ${prioDot(t.priority)}
         ${dueChip(t.due_date, t.done)}
         ${n ? `<span class="comments-count">${icon.chat}${n}</span>` : ''}
+        ${nf ? `<span class="comments-count">${icon.clip}${nf}</span>` : ''}
         ${assignee ? avatar(assignee, 24) : ''}
       </div>
     </div>`;

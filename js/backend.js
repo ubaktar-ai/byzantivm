@@ -5,6 +5,17 @@ import { uuid } from './lib.js';
 
 export const keyOf = table => (table === 'team_members' ? 'email' : 'id');
 
+// Foreign keys, mirroring supabase/schema.sql: when a parent row is deleted,
+// children are deleted ('cascade') or have the link cleared ('null').
+export const RELATIONS = {
+  projects: [['tasks', 'project_id', 'cascade'], ['comments', 'project_id', 'cascade'],
+    ['deliverables', 'project_id', 'cascade'], ['attachments', 'project_id', 'cascade']],
+  tasks: [['comments', 'task_id', 'cascade'], ['attachments', 'task_id', 'cascade']],
+  clients: [['contacts', 'client_id', 'cascade'], ['projects', 'client_id', 'null']],
+  deliverables: [['feedback_rounds', 'deliverable_id', 'cascade']],
+  feedback_rounds: [['attachments', 'round_id', 'cascade']],
+};
+
 // ---------------------------------------------------------------------
 // Supabase
 // ---------------------------------------------------------------------
@@ -92,6 +103,29 @@ export class SupabaseBackend {
     if (error) throw error;
   }
 
+  // ---------- Files (private "files" storage bucket) ----------
+
+  async uploadFile(path, blob, contentType) {
+    const { error } = await this.sb.storage.from('files').upload(path, blob, { contentType, upsert: false });
+    if (error) throw error;
+  }
+
+  // Temporary links (valid 1 hour) for showing / opening files.
+  async signedUrls(paths) {
+    if (!paths.length) return {};
+    const { data, error } = await this.sb.storage.from('files').createSignedUrls(paths, 3600);
+    if (error) throw error;
+    const out = {};
+    data.forEach(d => { if (d.signedUrl && !d.error) out[d.path] = d.signedUrl; });
+    return out;
+  }
+
+  async removeFiles(paths) {
+    if (!paths.length) return;
+    const { error } = await this.sb.storage.from('files').remove(paths);
+    if (error) throw error;
+  }
+
   subscribe(cb, onStatus) {
     if (this.channel) this.sb.removeChannel(this.channel);
     this.channel = this.sb
@@ -124,6 +158,9 @@ const DEFAULTS = {
   projects: () => ({ description: '', stage: 'brief', status: 'active', currency: 'TRY', lead_id: null, client_id: null, start_date: null, due_date: null, sort_order: 0 }),
   tasks: () => ({ notes: '', stage: 'brief', done: false, priority: 'medium', assignee_id: null, due_date: null, completed_at: null, sort_order: 0 }),
   comments: () => ({ task_id: null, mentions: [], author_id: DEMO_USER.id }),
+  deliverables: () => ({ description: '', max_rounds: 3, status: 'in_progress', due_date: null, sort_order: 0 }),
+  feedback_rounds: () => ({ sent_date: null, received_date: null, status: 'awaiting', feedback: '' }),
+  attachments: () => ({ task_id: null, round_id: null, mime: '', size: 0 }),
   team_members: () => ({}),
   profiles: () => ({ full_name: '', color: '#64748b' }),
 };
@@ -209,33 +246,72 @@ export class LocalBackend {
   async remove(table, id) {
     const key = keyOf(table);
     const row = (this.db[table] || []).find(r => r[key] === id);
-    this.db[table] = (this.db[table] || []).filter(r => r[key] !== id);
-    // Mirror the database's ON DELETE CASCADE / SET NULL rules.
-    if (table === 'projects') {
-      const taskIds = new Set(this.db.tasks.filter(t => t.project_id === id).map(t => t.id));
-      this.db.tasks = this.db.tasks.filter(t => t.project_id !== id);
-      this.db.comments = this.db.comments.filter(c => c.project_id !== id && !taskIds.has(c.task_id));
-    } else if (table === 'tasks') {
-      this.db.comments = this.db.comments.filter(c => c.task_id !== id);
-    } else if (table === 'clients') {
-      this.db.contacts = this.db.contacts.filter(c => c.client_id !== id);
-      this.db.projects.forEach(p => { if (p.client_id === id) p.client_id = null; });
-    }
+    const drop = (t, rowId) => {
+      this.db[t] = (this.db[t] || []).filter(r => r.id !== rowId);
+      // Mirror the database's ON DELETE CASCADE / SET NULL rules.
+      for (const [child, fk, rule] of RELATIONS[t] || []) {
+        for (const c of (this.db[child] || []).filter(r => r[fk] === rowId)) {
+          if (rule === 'cascade') { drop(child, c.id); if (child === 'attachments') this.deleteBlob(c.path); }
+          else c[fk] = null;
+        }
+      }
+    };
+    if (key === 'id') drop(table, id);
+    else this.db[table] = (this.db[table] || []).filter(r => r[key] !== id);
     if (row) this.log(table, 'deleted', row);
     this.persist();
   }
 
+  // ---------- Files (kept in IndexedDB on this device) ----------
+
+  idb() {
+    this._idb ||= new Promise((resolve, reject) => {
+      const req = indexedDB.open('studio-demo-files', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('files');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return this._idb;
+  }
+
+  async idbRun(mode, fn) {
+    const db = await this.idb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('files', mode);
+      const req = fn(tx.objectStore('files'));
+      tx.oncomplete = () => resolve(req && req.result);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async uploadFile(path, blob) { await this.idbRun('readwrite', s => s.put(blob, path)); }
+
+  async signedUrls(paths) {
+    const out = {};
+    for (const path of paths) {
+      const blob = await this.idbRun('readonly', s => s.get(path));
+      if (blob) out[path] = URL.createObjectURL(blob);
+    }
+    return out;
+  }
+
+  async removeFiles(paths) { for (const p of paths) await this.deleteBlob(p); }
+
+  deleteBlob(path) { return this.idbRun('readwrite', s => s.delete(path)).catch(() => {}); }
+
   log(table, action, row, details = {}) {
-    if (!['clients', 'projects', 'tasks', 'comments'].includes(table)) return;
+    if (!['clients', 'projects', 'tasks', 'comments', 'deliverables', 'feedback_rounds', 'attachments'].includes(table)) return;
     this.db.activity.push({
       id: this.db.activity.length + 1,
       at: new Date().toISOString(),
       actor_id: DEMO_USER.id,
       entity: table,
       entity_id: row.id,
-      project_id: table === 'projects' ? row.id : row.project_id || null,
+      project_id: table === 'projects' ? row.id
+        : table === 'feedback_rounds' ? (this.db.deliverables.find(d => d.id === row.deliverable_id) || {}).project_id || null
+        : row.project_id || null,
       action,
-      summary: row.name || row.title || (row.body || '').slice(0, 140) || '',
+      summary: row.name || row.title || (row.body || '').slice(0, 140) || (row.round_no ? `Round ${row.round_no}` : ''),
       details,
     });
   }
