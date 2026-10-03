@@ -47,6 +47,7 @@ export function moneyTab(p) {
         <div class="money-row" data-action="edit-quote" data-id="${q.id}">
           <div class="mr-main"><b>${esc(q.title || 'Quote')}</b><span class="muted small">${esc(q.number)}${q.issue_date ? ` · ${esc(fmtDate(q.issue_date))}` : ''} · ${itemsOf(q.id).length} line${itemsOf(q.id).length === 1 ? '' : 's'}</span></div>
           <span class="chip quote-${q.status}">${esc(label(QUOTE_STATUSES, q.status))}</span>
+          <button class="btn small pdf-btn" data-action="pdf-quote" data-id="${q.id}" aria-label="PDF of quote ${esc(q.number)}">PDF</button>
           <b class="mr-amount">${m(quoteTotal(q))}</b>
         </div>`).join('')}</div>`
         : `<div class="empty small-empty">No quotes yet. An <b>approved</b> quote sets the project budget.</div>`}
@@ -62,6 +63,7 @@ export function moneyTab(p) {
           <div class="mr-main"><b>${esc(inv.title || 'Invoice')}</b><span class="muted small">${esc(inv.number)}${inv.issue_date ? ` · issued ${esc(fmtDate(inv.issue_date))}` : ''}${s === 'paid' && inv.paid_date ? ` · paid ${esc(fmtDate(inv.paid_date))}` : inv.due_date && s !== 'cancelled' && s !== 'draft' ? ` · due ${esc(fmtDate(inv.due_date))}` : ''}</span></div>
           ${invoiceChip(inv)}
           ${s === 'sent' || s === 'overdue' ? `<button class="btn small" data-action="invoice-paid" data-id="${inv.id}">${icon.check} Paid</button>` : ''}
+          <button class="btn small pdf-btn" data-action="pdf-invoice" data-id="${inv.id}" aria-label="PDF of invoice ${esc(inv.number)}">PDF</button>
           <b class="mr-amount ${s === 'cancelled' ? 'struck' : ''}">${m(inv.amount)}</b>
         </div>`;
       }).join('')}</div>`
@@ -81,7 +83,7 @@ export function moneyTab(p) {
     </section>`;
 
   return `
-    <div class="toolbar"><span class="muted small">All amounts in ${esc(p.currency)}. Change the currency in <button class="link-btn" data-action="edit-project" data-id="${p.id}">project settings</button>.</span></div>
+    <div class="toolbar"><span class="muted small">All amounts in ${esc(p.currency)}, excluding VAT. Change the currency in <button class="link-btn" data-action="edit-project" data-id="${p.id}">project settings</button>.</span></div>
     ${summary}
     <div class="two-col">
       <div>${invoicesSection}${quotesSection}</div>

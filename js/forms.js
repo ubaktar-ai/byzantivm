@@ -7,6 +7,7 @@ import {
   store, companies, profiles, me, tasksOf, commentsOf, projectsOfClient, nextSortOrder, attachmentsWhere,
 } from './store.js';
 import { fileStrip, removeProjectFiles } from './files.js';
+import { docsReady } from './money.js';
 import { ui } from './ui-state.js';
 
 const go = hash => { location.hash = hash; };
@@ -376,6 +377,10 @@ export function openClientSheet(existing) {
         </div>
         <label class="field"><span>Website</span><input name="website" value="${esc(c.website)}" placeholder="example.com" autocapitalize="off"></label>
         <label class="field"><span>Address</span><textarea name="address" rows="2">${esc(c.address)}</textarea></label>
+        ${docsReady() ? `<div class="field-row">
+          <label class="field"><span>Tax / VAT number</span><input name="tax_id" value="${esc(c.tax_id || '')}"></label>
+          <label class="field"><span>Tax office</span><input name="tax_office" value="${esc(c.tax_office || '')}"></label>
+        </div>` : ''}
         <label class="field"><span>Notes</span><textarea name="notes" placeholder="Billing details, preferences, history…">${esc(c.notes)}</textarea></label>
       </div>
       <footer>
@@ -397,7 +402,8 @@ export function openClientSheet(existing) {
       });
     },
     onSubmit(fd) {
-      const data = Object.fromEntries(['name', 'email', 'phone', 'website', 'address', 'notes'].map(k => [k, String(fd.get(k) || '').trim()]));
+      const keys = ['name', 'email', 'phone', 'website', 'address', 'notes', ...(docsReady() ? ['tax_id', 'tax_office'] : [])];
+      const data = Object.fromEntries(keys.map(k => [k, String(fd.get(k) || '').trim()]));
       if (!data.name) return false;
       if (existing) store.update('clients', existing.id, data).catch(() => {});
       else store.insert('clients', data).then(saved => go(`#/client/${saved.id}`)).catch(() => {});

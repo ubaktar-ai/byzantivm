@@ -14,7 +14,8 @@ import { openDeliverableSheet, openSendRoundSheet, openRoundSheet } from './view
 import { viewMoney } from './views/money.js';
 import { viewCalendar } from './views/calendar.js';
 import { viewActivity } from './views/activity.js';
-import { openQuoteSheet, openCostSheet, openInvoiceSheet, markInvoicePaid, toggleCostPaid } from './money.js';
+import { openQuoteSheet, openCostSheet, openInvoiceSheet, markInvoicePaid, toggleCostPaid, makePdf } from './money.js';
+import { openCompanySheet } from './views/team.js';
 import { viewOverview } from './views/overview.js';
 import { viewProjects } from './views/projects.js';
 import { viewProject } from './views/project.js';
@@ -345,6 +346,9 @@ document.addEventListener('click', e => {
     case 'new-cost': openCostSheet(el.dataset.project); break;
     case 'edit-cost': { const c = store.get('costs', id); if (c) openCostSheet(c.project_id, c); break; }
     case 'cost-paid': { const c = store.get('costs', id); if (c) toggleCostPaid(c); break; }
+    case 'pdf-quote': makePdf('quote', id); break;
+    case 'pdf-invoice': makePdf('invoice', id); break;
+    case 'edit-company': { const c = store.get('companies', id); if (c) openCompanySheet(c); break; }
     case 'load-sample': loadSample(); break;
     case 'reset-demo':
       if (confirm('Erase all demo data on this iPad?')) { store.backend.reset(); store.loadAll(); toast('Demo data reset'); }
@@ -653,6 +657,29 @@ async function loadSample() {
     await quote(appProject.id, 'DEM-Q-2026-001', 'App UI — iOS & Android', 'sent', [['UX research & wireframes', 1, 6500], ['UI design — 24 screens', 24, 450], ['Design system', 1, 4000]]);
     await cost(appProject.id, 'User testing incentives', 'other', '', 300, true, -5);
   }
+
+  // Example document details so PDFs look complete in the demo
+  await store.update('companies', 'byzantivm', {
+    legal_name: 'Byzantivm Tasarım Ltd. Şti.', address: 'Büyükdere Cad. No: 123\nŞişli 34394 İstanbul\nTürkiye',
+    email: 'hello@byzantivm.example', phone: '+90 212 555 0100', website: 'byzantivm.example',
+    tax_id: '1234567890', tax_office: 'Şişli', registration: '0123-4567-8901-2345', bank_name: 'Örnek Bank',
+    iban: 'TR00 0000 0000 0000 0000 0000 00', swift: 'ORNKTRIS', default_vat: 20, doc_language: 'en',
+    payment_terms: 'Payment within 14 days of the invoice date. Prices exclude VAT unless stated.',
+  }).catch(() => {});
+  await store.update('companies', 'demya', {
+    legal_name: 'Demya B.V.', address: 'Keizersgracht 100\n1015 AA Amsterdam\nNederland', email: 'info@demya.example',
+    tax_id: 'NL000000000B01', registration: 'KvK 12345678', bank_name: 'Voorbeeld Bank', iban: 'NL00 BANK 0000 0000 00',
+    default_vat: 21, doc_language: 'nl', payment_terms: 'Betaling binnen 30 dagen na factuurdatum.',
+  }).catch(() => {});
+  for (const inv of store.all('invoices')) {
+    const proj = store.get('projects', inv.project_id);
+    await store.update('invoices', inv.id, { vat_rate: proj && proj.company_id === 'demya' ? 21 : 20 }).catch(() => {});
+  }
+  for (const q of store.all('quotes')) {
+    const proj = store.get('projects', q.project_id);
+    await store.update('quotes', q.id, { vat_rate: proj && proj.company_id === 'demya' ? 21 : 20, language: proj && proj.company_id === 'demya' ? 'nl' : 'en' }).catch(() => {});
+  }
+  await store.update('clients', aurora, { address: 'Bağdat Cad. 45\nKadıköy 34710 İstanbul', tax_id: '9876543210', tax_office: 'Kadıköy' }).catch(() => {});
 
   const firstTask = store.all('tasks').find(t => t.project_id === p1 && t.title === 'Present logo concepts');
   if (firstTask) {

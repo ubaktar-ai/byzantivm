@@ -166,7 +166,7 @@ export function openSheet(html, { onSubmit, onOpen, onClose, wide = false } = {}
       const btn = form.querySelector('button[type=submit]');
       if (btn) btn.disabled = true;
       try {
-        const keepOpen = await onSubmit(new FormData(form), form);
+        const keepOpen = await onSubmit(new FormData(form), form, e.submitter);
         if (keepOpen !== false) closeSheet();
       } finally {
         if (btn) btn.disabled = false;

@@ -30,6 +30,13 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
   - **Invoices** for milestones, with quick-fill buttons (30% / 50% deposit, remaining amount), draft/sent/paid, and automatic *overdue*.
   - A summary on top: budget, costs, profit and margin, invoiced, paid, and outstanding.
   - Numbers are suggested per company (`BYZ-2026-001`, `DEM-Q-2026-001`). Amounts accept Turkish or English formats (`1.250,50` or `1,250.50`).
+- **PDF quotes & invoices**:
+  - **PDF** / **Save & PDF** create a real PDF with your logo, company and tax details, the client's details, line items,
+    subtotal, VAT/KDV and total, payment terms, and bank details (IBAN).
+  - Each document can be in **English, Türkçe or Nederlands**, and dates and amounts are formatted for that language.
+  - On the iPad, **Share / Save** sends it by Mail, WhatsApp or AirDrop, or saves it to Files.
+  - Set company details and the logo in **Team & settings → Companies → Document details**.
+  - These PDFs are commercial documents. In Türkiye they don't replace an official *e-Fatura / e-Arşiv* invoice.
 - **Money screen**: outstanding and overdue invoices, money received and costs this month, unpaid invoices with a one-tap *Paid*,
   and profit per project. Totals are kept **per currency** and never mixed. Overdue invoices also show on the Overview,
   and each client page shows what that client owes.
@@ -55,6 +62,10 @@ The database tables for all of these are already created by `supabase/schema.sql
    so confirmation and password-reset emails link back to the app.
 
 The script is safe to run again later. It only creates things that are missing.
+
+**Updating an existing database:** when a new feature needs database changes, run the matching file from
+[`supabase/migrations/`](supabase/migrations) in the SQL Editor (they're safe to run more than once):
+- `002_documents.sql` adds company/client document details, VAT and language, needed for PDF quotes and invoices.
 
 ### 2. Connect the app
 
@@ -100,8 +111,10 @@ Use **Load sample data** to look around. Sign out from the Team screen to leave 
 | `js/forms.js` | Create/edit sheets: projects, tasks (with comments and files), clients, contacts |
 | `js/files.js` | File uploads (photo downscaling), thumbnails, viewer, delete |
 | `js/money.js` | Quote / cost / invoice sheets, totals, numbering, amount parsing |
+| `js/pdf.js` | PDF quotes & invoices (jsPDF + Inter font), EN / TR / NL |
 | `js/views/*.js` | Screens: overview, projects, project, deliverables, money, calendar & timeline, activity, clients, tasks, team, sign-in |
 | `js/config.js` | Supabase URL and anon key |
 | `supabase/schema.sql` | Database tables, security rules, activity log, live updates, file storage |
 | `vendor/supabase.js` | Supabase JS client v2.117.2 (MIT), bundled so the app needs no CDN |
+| `vendor/jspdf.umd.min.js`, `vendor/fonts/` | jsPDF 4.2.1 (MIT) and the Inter font (SIL OFL), loaded only when a PDF is made |
 | `sw.js` | Offline caching of the app files. **Bump `VERSION` when you change any file.** |

@@ -845,3 +845,20 @@ select.filter { min-height: 44px; padding: 0 12px; border: 1px solid var(--borde
   .nav a { flex: none; min-width: 64px; }
   .new-task-btn { flex: none; }
 }
+
+/* ---------- PDF documents ---------- */
+
+.pdf-btn { min-width: 52px; font-weight: 700; letter-spacing: .02em; }
+.vat-line { border-top: 0 !important; padding-top: 0 !important; font-weight: 500; color: var(--text-2); }
+.logo-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.logo-row > div { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.logo-preview { height: 56px; min-width: 56px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: #fff; display: grid; place-items: center; }
+.logo-preview img { max-height: 44px; max-width: 180px; display: block; }
+.company-edit .btn { flex: none; }
+.pdf-ready { display: flex; flex-direction: column; outline: none; }
+.pdf-body { padding: 24px 20px; display: grid; justify-items: center; gap: 6px; text-align: center; }
+.pdf-body p { margin: 0; }
+.pdf-icon { width: 64px; height: 80px; border-radius: 8px; background: var(--danger); color: #fff; display: grid; place-items: center; font-weight: 800; letter-spacing: .05em; margin-bottom: 8px; box-shadow: var(--shadow); }
+@media (max-width: 600px) { .company-edit { flex-wrap: wrap; } }
+/* Keep the primary button first in the markup (Return key = Save) while showing it last. */
+.sheet footer > :not([style*="order"]) { order: 0; }

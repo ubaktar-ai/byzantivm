@@ -24,6 +24,34 @@ export const COST_CATEGORIES = [
   { id: 'other', label: 'Other' },
 ];
 
+// The document columns (VAT, language, company details) come from migrations/002_documents.sql.
+// Until it has been run, the app keeps working without them.
+export const docsReady = () => store.backend.mode === 'demo' || store.all('companies').some(c => 'legal_name' in c);
+
+const DOC_LANGS = [{ id: 'en', label: 'English' }, { id: 'tr', label: 'Türkçe' }, { id: 'nl', label: 'Nederlands' }];
+
+function docDefaults(projectId) {
+  const p = store.get('projects', projectId);
+  const c = p && store.get('companies', p.company_id);
+  return { vat_rate: c && c.default_vat != null ? Number(c.default_vat) : 0, language: (c && c.doc_language) || 'en' };
+}
+
+function docFields(rec) {
+  if (!docsReady()) return '';
+  return `
+    <div class="field-row">
+      <label class="field"><span>VAT / KDV %</span><input name="vat_rate" value="${esc(String(Number(rec.vat_rate) || 0))}" inputmode="decimal"></label>
+      <label class="field"><span>PDF language</span><select name="language">${options(DOC_LANGS, rec.language || 'en')}</select></label>
+    </div>`;
+}
+
+function readDocFields(fd) {
+  if (!docsReady()) return {};
+  return { vat_rate: Math.min(100, Math.max(0, parseAmount(fd.get('vat_rate')))), language: fd.get('language') || 'en' };
+}
+
+const makePdf = (kind, id) => import('./pdf.js').then(m => m.createPdf(kind, id));
+
 // ---------- Numbers ----------
 
 const num = v => Number(v) || 0;
@@ -115,7 +143,7 @@ function nextNumber(table, projectId) {
   return prefix + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, '0');
 }
 
-const currencyNote = p => `<span class="muted small">Amounts in ${esc(p.currency)}</span>`;
+const currencyNote = p => `<span class="muted small">${esc(p.currency)}</span>`;
 
 // ---------------------------------------------------------------------
 // Quote (with line items)
@@ -123,7 +151,7 @@ const currencyNote = p => `<span class="muted small">Amounts in ${esc(p.currency
 
 export function openQuoteSheet(projectId, existing) {
   const p = store.get('projects', projectId);
-  const q = existing || { number: nextNumber('quotes', projectId), title: p ? p.name : '', issue_date: todayStr(), valid_until: addDays(todayStr(), 30), status: 'draft', notes: '' };
+  const q = existing || { number: nextNumber('quotes', projectId), title: p ? p.name : '', issue_date: todayStr(), valid_until: addDays(todayStr(), 30), status: 'draft', notes: '', ...docDefaults(projectId) };
   const items = existing ? itemsOf(existing.id).map(i => ({ ...i })) : [{ id: null, description: '', quantity: 1, unit_price: 0 }];
 
   const itemRow = it => `
@@ -153,16 +181,19 @@ export function openQuoteSheet(projectId, existing) {
             <div class="item-row item-head"><span>Description</span><span>Qty</span><span>Unit price</span><span>Total</span><span></span></div>
             <div id="item-rows">${items.map(itemRow).join('')}</div>
             <button type="button" class="btn small" id="add-item">${icon.plus} Add line</button>
-            <div class="items-total"><span>Total ${currencyNote(p)}</span><b id="quote-total"></b></div>
+            <div class="items-total"><span>Total excl. VAT ${currencyNote(p)}</span><b id="quote-total"></b></div>
+            ${docsReady() ? `<div class="items-total vat-line"><span>Incl. VAT</span><span id="quote-gross"></span></div>` : ''}
           </div>
         </div>
+        ${docFields(q)}
         <label class="field"><span>Notes / terms</span><textarea name="notes" rows="3" placeholder="Payment terms, what's excluded, VAT…">${esc(q.notes)}</textarea></label>
       </div>
       <footer>
         ${existing ? `<button type="button" class="btn danger" data-delete>Delete</button>` : ''}
         <span class="spacer"></span>
         <button type="button" class="btn" data-close>Cancel</button>
-        <button type="submit" class="btn primary">${existing ? 'Save' : 'Create quote'}</button>
+        <button type="submit" class="btn primary" style="order:2">${existing ? 'Save' : 'Create quote'}</button>
+        <button type="submit" class="btn" data-pdf style="order:1">${existing ? 'Save & PDF' : 'Create & PDF'}</button>
       </footer>
     </form>`, {
     wide: true,
@@ -176,8 +207,15 @@ export function openQuoteSheet(projectId, existing) {
           $('.it-total', r).textContent = money(line, p.currency);
         });
         $('#quote-total', sheet).textContent = money(total, p.currency);
+        const gross = $('#quote-gross', sheet);
+        if (gross) {
+          const rate = parseAmount($('[name=vat_rate]', sheet).value);
+          gross.textContent = `${money(total * (1 + rate / 100), p.currency)} (${rate}% VAT)`;
+        }
       };
       rows.addEventListener('input', recalc);
+      const vatInput = $('[name=vat_rate]', sheet);
+      if (vatInput) vatInput.addEventListener('input', recalc);
       rows.addEventListener('click', e => {
         const rm = e.target.closest('.it-remove');
         if (!rm) return;
@@ -198,7 +236,7 @@ export function openQuoteSheet(projectId, existing) {
         store.remove('quotes', existing.id).catch(() => {});
       });
     },
-    async onSubmit(fd, form) {
+    async onSubmit(fd, form, submitter) {
       const lines = $$('#item-rows .item-row', form).map((r, i) => ({
         id: r.dataset.item || null,
         description: $('.it-desc', r).value.trim(),
@@ -213,6 +251,7 @@ export function openQuoteSheet(projectId, existing) {
         issue_date: fd.get('issue_date') || null,
         valid_until: fd.get('valid_until') || null,
         notes: fd.get('notes'),
+        ...readDocFields(fd),
       };
       let quoteId;
       try {
@@ -232,6 +271,7 @@ export function openQuoteSheet(projectId, existing) {
       if (data.status === 'approved' && (!existing || existing.status !== 'approved')) {
         toast(`Quote approved — budget is now ${money(projectFinance(projectId).budget, p.currency)}`);
       }
+      if (submitter && submitter.hasAttribute('data-pdf')) setTimeout(() => makePdf('quote', quoteId), 50);
     },
   });
 }
@@ -298,7 +338,7 @@ export function openCostSheet(projectId, existing) {
 export function openInvoiceSheet(projectId, existing) {
   const p = store.get('projects', projectId);
   const fin = projectFinance(projectId);
-  const inv = existing || { number: nextNumber('invoices', projectId), title: '', issue_date: todayStr(), due_date: addDays(todayStr(), 30), amount: 0, status: 'draft', paid_date: null, notes: '' };
+  const inv = existing || { number: nextNumber('invoices', projectId), title: '', issue_date: todayStr(), due_date: addDays(todayStr(), 30), amount: 0, status: 'draft', paid_date: null, notes: '', ...docDefaults(projectId) };
   const presets = !existing && fin.budget ? [
     { label: '30% deposit', title: 'Deposit (30%)', amount: fin.budget * 0.3 },
     { label: '50% deposit', title: 'Deposit (50%)', amount: fin.budget * 0.5 },
@@ -316,7 +356,8 @@ export function openInvoiceSheet(projectId, existing) {
           <label class="field"><span>Status</span><select name="status">${options(INVOICE_STATUSES, inv.status)}</select></label>
         </div>
         <label class="field"><span>Milestone / description</span><input name="title" value="${esc(inv.title)}" placeholder="e.g. Deposit (50%), Final delivery" ${existing ? '' : 'autofocus'}></label>
-        <label class="field"><span>Amount (${esc(p.currency)})</span><input name="amount" value="${esc(amountValue(inv.amount))}" inputmode="decimal" required placeholder="0"></label>
+        <label class="field"><span>Amount excl. VAT (${esc(p.currency)})</span><input name="amount" value="${esc(amountValue(inv.amount))}" inputmode="decimal" required placeholder="0"></label>
+        ${docFields(inv)}
         <div class="field-row">
           <label class="field"><span>Issued</span><input type="date" name="issue_date" value="${esc(inv.issue_date || '')}"></label>
           <label class="field"><span>Due</span><input type="date" name="due_date" value="${esc(inv.due_date || '')}"></label>
@@ -328,7 +369,8 @@ export function openInvoiceSheet(projectId, existing) {
         ${existing ? `<button type="button" class="btn danger" data-delete>Delete</button>` : ''}
         <span class="spacer"></span>
         <button type="button" class="btn" data-close>Cancel</button>
-        <button type="submit" class="btn primary">${existing ? 'Save' : 'Create invoice'}</button>
+        <button type="submit" class="btn primary" style="order:2">${existing ? 'Save' : 'Create invoice'}</button>
+        <button type="submit" class="btn" data-pdf style="order:1">${existing ? 'Save & PDF' : 'Create & PDF'}</button>
       </footer>
     </form>`, {
     onOpen(sheet) {
@@ -346,7 +388,7 @@ export function openInvoiceSheet(projectId, existing) {
         store.remove('invoices', existing.id).catch(() => {});
       });
     },
-    onSubmit(fd) {
+    async onSubmit(fd, form, submitter) {
       const status = fd.get('status');
       const data = {
         number: String(fd.get('number')).trim(),
@@ -357,9 +399,16 @@ export function openInvoiceSheet(projectId, existing) {
         due_date: fd.get('due_date') || null,
         paid_date: status === 'paid' ? (fd.get('paid_date') || todayStr()) : null,
         notes: fd.get('notes'),
+        ...readDocFields(fd),
       };
-      if (existing) store.update('invoices', existing.id, data).catch(() => {});
-      else store.insert('invoices', { ...data, project_id: projectId }).catch(() => {});
+      let id;
+      try {
+        if (existing) { await store.update('invoices', existing.id, data); id = existing.id; }
+        else id = (await store.insert('invoices', { ...data, id: uuid(), project_id: projectId })).id;
+      } catch (err) {
+        return false;
+      }
+      if (submitter && submitter.hasAttribute('data-pdf')) setTimeout(() => makePdf('invoice', id), 50);
     },
   });
 }
@@ -375,3 +424,5 @@ export function markInvoicePaid(inv) {
 export function toggleCostPaid(cost) {
   store.update('costs', cost.id, { paid: !cost.paid }).catch(() => {});
 }
+
+export { makePdf };
