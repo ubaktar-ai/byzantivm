@@ -555,20 +555,20 @@ async function loadSample() {
   const meId = store.user.id;
   const extra = [
     { id: 'aaaaaaaa-0000-4000-8000-000000000002', email: 'elena@demo.local', full_name: 'Elena Doukas', color: '#e11d48' },
-    { id: 'aaaaaaaa-0000-4000-8000-000000000003', email: 'mert@demo.local', full_name: 'Mert Aydın', color: '#16a34a' },
+    { id: 'aaaaaaaa-0000-4000-8000-000000000003', email: 'mark@demo.local', full_name: 'Mark de Vries', color: '#16a34a' },
   ];
   for (const p of extra) {
     if (!store.get('profiles', p.id)) await store.insert('profiles', p);
     if (!store.get('team_members', p.email)) await store.insert('team_members', { email: p.email });
   }
-  const [elena, mert] = extra.map(p => p.id);
+  const [elena, mark] = extra.map(p => p.id);
 
   const client = async (name, email, phone, contacts) => {
     const c = await store.insert('clients', { name, email, phone, website: '', address: '', notes: '' });
     for (const [n, role, em] of contacts) await store.insert('contacts', { client_id: c.id, name: n, role, email: em, phone: '', notes: '' });
     return c.id;
   };
-  const aurora = await client('Aurora Hotels', 'hello@aurorahotels.example', '+90 212 555 0101', [['Zeynep Arslan', 'Marketing director', 'zeynep@aurorahotels.example'], ['Can Öztürk', 'Brand manager', 'can@aurorahotels.example']]);
+  const aurora = await client('Aurora Hotels', 'hello@aurorahotels.example', '+31 20 555 0101', [['Sophie Jansen', 'Marketing director', 'sophie@aurorahotels.example'], ['Tom Bakker', 'Brand manager', 'tom@aurorahotels.example']]);
   const olive = await client('Olive & Stone', 'studio@oliveandstone.example', '+30 21 0555 0199', [['Maria Pappas', 'Founder', 'maria@oliveandstone.example']]);
   const nord = await client('Nordlicht GmbH', 'info@nordlicht.example', '+49 30 5550 1234', [['Jonas Weber', 'Head of product', 'jonas@nordlicht.example']]);
 
@@ -593,27 +593,27 @@ async function loadSample() {
     ['Moodboards — 3 directions', 'concept', true, 'high', -10, elena],
     ['Logo concepts round 1', 'design', true, 'high', -4, elena],
     ['Present logo concepts', 'client_review', false, 'urgent', 1, meId],
-    ['Typography pairing', 'design', false, 'medium', 5, mert],
+    ['Typography pairing', 'design', false, 'medium', 5, mark],
     ['Brand guidelines PDF', 'delivered', false, 'medium', 16, null],
   ]);
   await project({ company_id: 'byzantivm', client_id: olive, name: 'Olive & Stone packaging', stage: 'design', currency: 'EUR', due_date: d(30),
     description: 'Label and box design for the new olive oil range.' }, [
-    ['Dieline from printer', 'brief', true, 'medium', -12, mert],
+    ['Dieline from printer', 'brief', true, 'medium', -12, mark],
     ['Label illustrations', 'design', false, 'high', 3, elena],
-    ['Print proofs', 'revisions', false, 'medium', 20, mert],
+    ['Print proofs', 'revisions', false, 'medium', 20, mark],
   ]);
   await project({ company_id: 'demya', client_id: nord, name: 'Nordlicht app UI', stage: 'concept', currency: 'USD', due_date: d(45),
     description: 'UI design for the Nordlicht energy app — iOS and Android.' }, [
     ['User interviews summary', 'brief', true, 'medium', -6, meId],
-    ['Wireframes — onboarding', 'concept', false, 'high', -1, mert],
+    ['Wireframes — onboarding', 'concept', false, 'high', -1, mark],
     ['Design system tokens', 'design', false, 'medium', 12, elena],
   ]);
-  await project({ company_id: 'demya', client_id: aurora, name: 'Aurora social campaign', stage: 'brief', currency: 'TRY', due_date: d(60),
+  await project({ company_id: 'demya', client_id: aurora, name: 'Aurora social campaign', stage: 'brief', currency: 'EUR', due_date: d(60),
     description: 'Summer campaign: 30 posts, 6 reels.' }, [
-    ['Collect brief from Zeynep', 'brief', false, 'high', 2, meId],
+    ['Collect brief from Sophie', 'brief', false, 'high', 2, meId],
   ]);
   await project({ company_id: 'demya', client_id: olive, name: 'Olive & Stone website', stage: 'delivered', status: 'completed', currency: 'EUR', due_date: d(-10) }, [
-    ['Launch', 'delivered', true, 'high', -10, mert],
+    ['Launch', 'delivered', true, 'high', -10, mark],
   ]);
 
   const deliverable = (project_id, name, max_rounds, due, rounds, extra = {}) => store.insert('deliverables', {
@@ -644,12 +644,12 @@ async function loadSample() {
   await quote(p1, 'BYZ-Q-2026-001', 'Aurora brand refresh', 'approved', [['Discovery workshop & audit', 1, 1800], ['Logo design — 3 directions, 3 rounds', 1, 4200], ['Brand guidelines (40 pages)', 1, 3000], ['Business card design', 1, 600]]);
   await cost(p1, 'Illustrator — icon set', 'freelancer', 'Nikos Papadakis', 900, true, -12);
   await cost(p1, 'Font licence — Söhne family', 'software', 'Klim Type Foundry', 420, true, -9);
-  await cost(p1, 'Business card proofs', 'printing', 'Matbaa Istanbul', 150, false, -2);
+  await cost(p1, 'Business card proofs', 'printing', 'PrintHaus Amsterdam', 150, false, -2);
   await invoice(p1, 'BYZ-2026-001', 'Deposit (50%)', 4800, 'paid', -27, -13, -20);
   await invoice(p1, 'BYZ-2026-002', 'Logo approval (25%)', 2400, 'sent', -16, -2);
   if (packaging) {
     await quote(packaging.id, 'BYZ-Q-2026-002', 'Packaging — 3 SKUs', 'approved', [['Label design per SKU', 3, 1200], ['Box design', 1, 1500]]);
-    await cost(packaging.id, 'Print proofs', 'printing', 'Matbaa Istanbul', 380, false, -4);
+    await cost(packaging.id, 'Print proofs', 'printing', 'PrintHaus Amsterdam', 380, false, -4);
     await invoice(packaging.id, 'BYZ-2026-003', 'Deposit (50%)', 2550, 'sent', -5, 25);
   }
   const appProject = store.all('projects').find(x => x.name === 'Nordlicht app UI');
@@ -660,31 +660,30 @@ async function loadSample() {
 
   // Example document details so PDFs look complete in the demo
   await store.update('companies', 'byzantivm', {
-    legal_name: 'Byzantivm Tasarım Ltd. Şti.', address: 'Büyükdere Cad. No: 123\nŞişli 34394 İstanbul\nTürkiye',
-    email: 'hello@byzantivm.example', phone: '+90 212 555 0100', website: 'byzantivm.example',
-    tax_id: '1234567890', tax_office: 'Şişli', registration: '0123-4567-8901-2345', bank_name: 'Örnek Bank',
-    iban: 'TR00 0000 0000 0000 0000 0000 00', swift: 'ORNKTRIS', default_vat: 20, doc_language: 'en',
+    legal_name: 'Byzantivm B.V.', address: 'Example Street 1\n1000 AA Amsterdam\nNederland',
+    email: 'hello@byzantivm.example', phone: '+31 20 555 0100', website: 'byzantivm.example',
+    tax_id: 'NL000000000B01', registration: '12345678', bank_name: 'Example Bank',
+    iban: 'NL00 BANK 0000 0000 00', swift: 'BANKNL2A', default_vat: 21, doc_language: 'en',
     payment_terms: 'Payment within 14 days of the invoice date. Prices exclude VAT unless stated.',
   }).catch(() => {});
   await store.update('companies', 'demya', {
     legal_name: 'Demya B.V.', address: 'Keizersgracht 100\n1015 AA Amsterdam\nNederland', email: 'info@demya.example',
-    tax_id: 'NL000000000B01', registration: 'KvK 12345678', bank_name: 'Voorbeeld Bank', iban: 'NL00 BANK 0000 0000 00',
+    tax_id: 'NL000000000B02', registration: '87654321', bank_name: 'Voorbeeld Bank', iban: 'NL00 BANK 0000 0000 00',
     default_vat: 21, doc_language: 'nl', payment_terms: 'Betaling binnen 30 dagen na factuurdatum.',
   }).catch(() => {});
   for (const inv of store.all('invoices')) {
-    const proj = store.get('projects', inv.project_id);
-    await store.update('invoices', inv.id, { vat_rate: proj && proj.company_id === 'demya' ? 21 : 20 }).catch(() => {});
+    await store.update('invoices', inv.id, { vat_rate: 21 }).catch(() => {});
   }
   for (const q of store.all('quotes')) {
     const proj = store.get('projects', q.project_id);
-    await store.update('quotes', q.id, { vat_rate: proj && proj.company_id === 'demya' ? 21 : 20, language: proj && proj.company_id === 'demya' ? 'nl' : 'en' }).catch(() => {});
+    await store.update('quotes', q.id, { vat_rate: 21, language: proj && proj.company_id === 'demya' ? 'nl' : 'en' }).catch(() => {});
   }
-  await store.update('clients', aurora, { address: 'Bağdat Cad. 45\nKadıköy 34710 İstanbul', tax_id: '9876543210', tax_office: 'Kadıköy' }).catch(() => {});
+  await store.update('clients', aurora, { address: 'Herengracht 200\n1016 BS Amsterdam\nNederland', tax_id: 'NL000000000B03' }).catch(() => {});
 
   const firstTask = store.all('tasks').find(t => t.project_id === p1 && t.title === 'Present logo concepts');
   if (firstTask) {
     await store.insert('comments', { project_id: p1, task_id: firstTask.id, author_id: elena, body: 'Deck is ready in the shared folder — 3 directions, 2 colourways each.' });
-    await store.insert('comments', { project_id: p1, task_id: firstTask.id, author_id: meId, body: '@Elena Doukas great, I’ll walk Zeynep through it tomorrow.', mentions: [elena] });
+    await store.insert('comments', { project_id: p1, task_id: firstTask.id, author_id: meId, body: '@Elena Doukas great, I’ll walk Sophie through it tomorrow.', mentions: [elena] });
   }
   toast('Sample data added');
 }

@@ -21,7 +21,7 @@ export function openProjectSheet(existing, defaults = {}) {
     name: '', description: '',
     company_id: defaults.company_id || (ui.company !== 'all' ? ui.company : companies()[0]?.id),
     client_id: defaults.client_id || null,
-    stage: defaults.stage || 'brief', status: 'active', currency: 'TRY',
+    stage: defaults.stage || 'brief', status: 'active', currency: 'EUR',
     lead_id: me()?.id || null, start_date: todayStr(), due_date: null,
   };
   const clients = store.all('clients').sort((a, b) => a.name.localeCompare(b.name));
@@ -377,10 +377,7 @@ export function openClientSheet(existing) {
         </div>
         <label class="field"><span>Website</span><input name="website" value="${esc(c.website)}" placeholder="example.com" autocapitalize="off"></label>
         <label class="field"><span>Address</span><textarea name="address" rows="2">${esc(c.address)}</textarea></label>
-        ${docsReady() ? `<div class="field-row">
-          <label class="field"><span>Tax / VAT number</span><input name="tax_id" value="${esc(c.tax_id || '')}"></label>
-          <label class="field"><span>Tax office</span><input name="tax_office" value="${esc(c.tax_office || '')}"></label>
-        </div>` : ''}
+        ${docsReady() ? `<label class="field"><span>VAT number</span><input name="tax_id" value="${esc(c.tax_id || '')}" autocapitalize="characters"></label>` : ''}
         <label class="field"><span>Notes</span><textarea name="notes" placeholder="Billing details, preferences, history…">${esc(c.notes)}</textarea></label>
       </div>
       <footer>
@@ -402,7 +399,7 @@ export function openClientSheet(existing) {
       });
     },
     onSubmit(fd) {
-      const keys = ['name', 'email', 'phone', 'website', 'address', 'notes', ...(docsReady() ? ['tax_id', 'tax_office'] : [])];
+      const keys = ['name', 'email', 'phone', 'website', 'address', 'notes', ...(docsReady() ? ['tax_id'] : [])];
       const data = Object.fromEntries(keys.map(k => [k, String(fd.get(k) || '').trim()]));
       if (!data.name) return false;
       if (existing) store.update('clients', existing.id, data).catch(() => {});

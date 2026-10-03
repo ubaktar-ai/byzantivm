@@ -80,7 +80,7 @@ export function viewTeam() {
 
 // ---------- Company document details (printed on PDFs) ----------
 
-const LANGS = [{ id: 'en', label: 'English' }, { id: 'tr', label: 'Türkçe' }, { id: 'nl', label: 'Nederlands' }];
+const LANGS = [{ id: 'en', label: 'English' }, { id: 'nl', label: 'Nederlands' }];
 
 export function openCompanySheet(company) {
   const c = company;
@@ -97,7 +97,7 @@ export function openCompanySheet(company) {
             <label class="btn">${icon.upload}<span>Upload logo</span><input type="file" accept="image/*" hidden id="logo-input"></label>
           </div>
         </div>
-        <label class="field"><span>Legal company name</span><input name="legal_name" value="${esc(c.legal_name || '')}" placeholder="${esc(c.name)} Ltd. Şti. / B.V."></label>
+        <label class="field"><span>Legal company name</span><input name="legal_name" value="${esc(c.legal_name || '')}" placeholder="${esc(c.name)} B.V."></label>
         <label class="field"><span>Address</span><textarea name="address" rows="3" placeholder="Street, number\nPostcode City\nCountry">${esc(c.address || '')}</textarea></label>
         <div class="field-row">
           <label class="field"><span>Email</span><input type="email" name="email" value="${esc(c.email || '')}" autocomplete="off"></label>
@@ -105,17 +105,16 @@ export function openCompanySheet(company) {
         </div>
         <label class="field"><span>Website</span><input name="website" value="${esc(c.website || '')}" autocapitalize="off"></label>
         <div class="field-row">
-          <label class="field"><span>Tax / VAT number</span><input name="tax_id" value="${esc(c.tax_id || '')}" placeholder="Vergi No / BTW-id"></label>
-          <label class="field"><span>Tax office</span><input name="tax_office" value="${esc(c.tax_office || '')}" placeholder="Vergi Dairesi (TR)"></label>
+          <label class="field"><span>VAT number (BTW-id)</span><input name="tax_id" value="${esc(c.tax_id || '')}" placeholder="NL000000000B00" autocapitalize="characters"></label>
+          <label class="field"><span>Chamber of Commerce (KvK)</span><input name="registration" value="${esc(c.registration || '')}" placeholder="12345678" inputmode="numeric"></label>
         </div>
-        <label class="field"><span>Registration number</span><input name="registration" value="${esc(c.registration || '')}" placeholder="KvK / Mersis / Ticaret Sicil"></label>
         <div class="field-row">
           <label class="field"><span>Bank</span><input name="bank_name" value="${esc(c.bank_name || '')}"></label>
           <label class="field"><span>BIC / SWIFT</span><input name="swift" value="${esc(c.swift || '')}" autocapitalize="characters"></label>
         </div>
-        <label class="field"><span>IBAN</span><input name="iban" value="${esc(c.iban || '')}" autocapitalize="characters" placeholder="TR00 0000 … / NL00 BANK …"></label>
+        <label class="field"><span>IBAN</span><input name="iban" value="${esc(c.iban || '')}" autocapitalize="characters" placeholder="NL00 BANK 0000 0000 00"></label>
         <div class="field-row">
-          <label class="field"><span>Default VAT / KDV %</span><input name="default_vat" value="${esc(String(Number(c.default_vat) || 0))}" inputmode="decimal" placeholder="20 (TR) / 21 (NL)"></label>
+          <label class="field"><span>Default VAT %</span><input name="default_vat" value="${esc(String(Number(c.default_vat) || 0))}" inputmode="decimal" placeholder="21"></label>
           <label class="field"><span>Default PDF language</span><select name="doc_language">${options(LANGS, c.doc_language || 'en')}</select></label>
         </div>
         <label class="field"><span>Payment terms (printed on every quote & invoice)</span><textarea name="payment_terms" rows="2" placeholder="e.g. Payment within 30 days. 50% deposit before work starts.">${esc(c.payment_terms || '')}</textarea></label>
@@ -157,7 +156,7 @@ export function openCompanySheet(company) {
     },
     onClose() { unsubscribe && unsubscribe(); },
     onSubmit(fd) {
-      const data = Object.fromEntries(['legal_name', 'address', 'email', 'phone', 'website', 'tax_id', 'tax_office', 'registration', 'bank_name', 'iban', 'swift', 'payment_terms', 'doc_language']
+      const data = Object.fromEntries(['legal_name', 'address', 'email', 'phone', 'website', 'tax_id', 'registration', 'bank_name', 'iban', 'swift', 'payment_terms', 'doc_language']
         .map(k => [k, String(fd.get(k) || '').trim()]));
       data.iban = data.iban.toUpperCase();
       data.swift = data.swift.toUpperCase();

@@ -28,7 +28,7 @@ export const COST_CATEGORIES = [
 // Until it has been run, the app keeps working without them.
 export const docsReady = () => store.backend.mode === 'demo' || store.all('companies').some(c => 'legal_name' in c);
 
-const DOC_LANGS = [{ id: 'en', label: 'English' }, { id: 'tr', label: 'Türkçe' }, { id: 'nl', label: 'Nederlands' }];
+const DOC_LANGS = [{ id: 'en', label: 'English' }, { id: 'nl', label: 'Nederlands' }];
 
 function docDefaults(projectId) {
   const p = store.get('projects', projectId);
@@ -40,7 +40,7 @@ function docFields(rec) {
   if (!docsReady()) return '';
   return `
     <div class="field-row">
-      <label class="field"><span>VAT / KDV %</span><input name="vat_rate" value="${esc(String(Number(rec.vat_rate) || 0))}" inputmode="decimal"></label>
+      <label class="field"><span>VAT %</span><input name="vat_rate" value="${esc(String(Number(rec.vat_rate) || 0))}" inputmode="decimal"></label>
       <label class="field"><span>PDF language</span><select name="language">${options(DOC_LANGS, rec.language || 'en')}</select></label>
     </div>`;
 }
@@ -70,7 +70,7 @@ export function parseAmount(text) {
     // "1,500" (thousands) vs "1500,5" (decimal): three digits after a single comma = thousands
     s = /^\d{1,3}(,\d{3})+$/.test(s) ? s.replace(/,/g, '') : s.replace(',', '.');
   } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
-    s = s.replace(/\./g, ''); // "1.500", "1.500.000" (Turkish/European thousands)
+    s = s.replace(/\./g, ''); // "1.500", "1.500.000" (European thousands)
   }
   return round2(parseFloat(s) || 0);
 }
@@ -109,7 +109,7 @@ export function projectFinance(pid) {
   const revenue = budget || invoiced;
   const profit = round2(revenue - costTotal);
   return {
-    currency: p ? p.currency : 'TRY',
+    currency: p ? p.currency : 'EUR',
     budget, quotedPending, costs: costTotal, invoiced, paid,
     outstanding: round2(invoiced - paid), overdue,
     leftToInvoice: budget ? round2(Math.max(0, budget - invoiced)) : 0,

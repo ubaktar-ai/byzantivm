@@ -109,7 +109,7 @@ create table if not exists public.projects (
                check (stage in ('brief','concept','design','client_review','revisions','delivered')),
   status       text not null default 'active'
                check (status in ('active','on_hold','completed','cancelled')),
-  currency     text not null default 'TRY' check (currency in ('TRY','USD','EUR','GBP')),
+  currency     text not null default 'EUR' check (currency in ('EUR','USD','GBP')),
   lead_id      uuid references public.profiles (id) on delete set null,
   start_date   date,
   due_date     date,
@@ -463,9 +463,8 @@ alter table public.companies
   add column if not exists email         text not null default '',
   add column if not exists phone         text not null default '',
   add column if not exists website       text not null default '',
-  add column if not exists tax_id        text not null default '',   -- VAT / tax number (e.g. Vergi No, BTW-id)
-  add column if not exists tax_office    text not null default '',   -- e.g. Vergi Dairesi
-  add column if not exists registration  text not null default '',   -- e.g. KvK, Mersis, ticaret sicil
+  add column if not exists tax_id        text not null default '',   -- VAT number (BTW-id)
+  add column if not exists registration  text not null default '',   -- Chamber of Commerce (KvK) number
   add column if not exists bank_name     text not null default '',
   add column if not exists iban          text not null default '',
   add column if not exists swift         text not null default '',
@@ -476,8 +475,7 @@ alter table public.companies
 
 -- Client tax details (needed on business invoices)
 alter table public.clients
-  add column if not exists tax_id     text not null default '',
-  add column if not exists tax_office text not null default '';
+  add column if not exists tax_id     text not null default '';
 
 -- VAT and language per document (amounts stay net/excl. VAT)
 alter table public.quotes

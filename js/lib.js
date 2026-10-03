@@ -24,7 +24,6 @@ export const PROJECT_STATUSES = [
 ];
 
 export const CURRENCIES = [
-  { id: 'TRY', label: 'Turkish lira (₺)' },
   { id: 'USD', label: 'US dollar ($)' },
   { id: 'EUR', label: 'Euro (€)' },
   { id: 'GBP', label: 'British pound (£)' },
@@ -91,7 +90,7 @@ export function timeAgo(iso) {
 // ---------- Money ----------
 
 const moneyFormats = {};
-export function money(amount, currency = 'TRY') {
+export function money(amount, currency = 'EUR') {
   const key = currency;
   moneyFormats[key] ||= new Intl.NumberFormat(undefined, { style: 'currency', currency, maximumFractionDigits: 2 });
   return moneyFormats[key].format(Number(amount) || 0);

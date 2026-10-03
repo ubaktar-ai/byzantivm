@@ -1,7 +1,7 @@
 // Offline support: serve the app shell from cache, refresh it in the background.
 // Only same-origin files are cached; Supabase API calls always go to the network.
 // Bump VERSION whenever you change any file below.
-const VERSION = 'v7';
+const VERSION = 'v8';
 const CACHE = `studio-${VERSION}`;
 const SHELL = [
   './',

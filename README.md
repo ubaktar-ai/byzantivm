@@ -12,7 +12,7 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
   **Brief → Concept → Design → Client review → Revisions → Delivered**.
   Press and hold a card to move it. There's also a list view and a status filter (current / completed / cancelled).
 - **Project page**: a stage stepper, a task board by phase, and a details tab (brief, team, facts, client contacts).
-  Each project has its own currency (₺, $, €, £).
+  Each project has its own currency (€, $, £).
 - **Tasks**: phase, priority, assignee, due date, notes, done/undo, and **comments with @mentions**.
   The Tasks screen shows *My tasks* / everyone / a specific person, grouped by Overdue / Today / Next 7 days.
 - **Clients**: company details, contacts with tap-to-email and tap-to-call, and all of a client's projects across both companies.
@@ -29,14 +29,13 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
   - **Costs** (freelancers, printing, licences…) with paid/unpaid.
   - **Invoices** for milestones, with quick-fill buttons (30% / 50% deposit, remaining amount), draft/sent/paid, and automatic *overdue*.
   - A summary on top: budget, costs, profit and margin, invoiced, paid, and outstanding.
-  - Numbers are suggested per company (`BYZ-2026-001`, `DEM-Q-2026-001`). Amounts accept Turkish or English formats (`1.250,50` or `1,250.50`).
+  - Numbers are suggested per company (`BYZ-2026-001`, `DEM-Q-2026-001`). Amounts accept Dutch or English formats (`1.250,50` or `1,250.50`).
 - **PDF quotes & invoices**:
   - **PDF** / **Save & PDF** create a real PDF with your logo, company and tax details, the client's details, line items,
-    subtotal, VAT/KDV and total, payment terms, and bank details (IBAN).
-  - Each document can be in **English, Türkçe or Nederlands**, and dates and amounts are formatted for that language.
+    subtotal, VAT and total, payment terms, and bank details (IBAN).
+  - Each document can be in **English or Nederlands**, and dates and amounts are formatted for that language.
   - On the iPad, **Share / Save** sends it by Mail, WhatsApp or AirDrop, or saves it to Files.
   - Set company details and the logo in **Team & settings → Companies → Document details**.
-  - These PDFs are commercial documents. In Türkiye they don't replace an official *e-Fatura / e-Arşiv* invoice.
 - **Money screen**: outstanding and overdue invoices, money received and costs this month, unpaid invoices with a one-tap *Paid*,
   and profit per project. Totals are kept **per currency** and never mixed. Overdue invoices also show on the Overview,
   and each client page shows what that client owes.
@@ -66,6 +65,7 @@ The script is safe to run again later. It only creates things that are missing.
 **Updating an existing database:** when a new feature needs database changes, run the matching file from
 [`supabase/migrations/`](supabase/migrations) in the SQL Editor (they're safe to run more than once):
 - `002_documents.sql` adds company/client document details, VAT and language, needed for PDF quotes and invoices.
+- `003_currency_cleanup.sql` makes euro the default currency (EUR / USD / GBP), limits documents to English or Dutch, and removes the unused tax-office fields.
 
 ### 2. Connect the app
 
@@ -111,7 +111,7 @@ Use **Load sample data** to look around. Sign out from the Team screen to leave 
 | `js/forms.js` | Create/edit sheets: projects, tasks (with comments and files), clients, contacts |
 | `js/files.js` | File uploads (photo downscaling), thumbnails, viewer, delete |
 | `js/money.js` | Quote / cost / invoice sheets, totals, numbering, amount parsing |
-| `js/pdf.js` | PDF quotes & invoices (jsPDF + Inter font), EN / TR / NL |
+| `js/pdf.js` | PDF quotes & invoices (jsPDF + Inter font), English / Dutch |
 | `js/views/*.js` | Screens: overview, projects, project, deliverables, money, calendar & timeline, activity, clients, tasks, team, sign-in |
 | `js/config.js` | Supabase URL and anon key |
 | `supabase/schema.sql` | Database tables, security rules, activity log, live updates, file storage |

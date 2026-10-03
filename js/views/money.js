@@ -98,7 +98,7 @@ export function moneyTab(p) {
 export function viewMoney() {
   const projects = store.all('projects').filter(p => inScope(p.company_id));
   const ids = new Set(projects.map(p => p.id));
-  const cur = r => (store.get('projects', r.project_id) || {}).currency || 'TRY';
+  const cur = r => (store.get('projects', r.project_id) || {}).currency || 'EUR';
   const invoices = store.all('invoices').filter(i => ids.has(i.project_id));
   const costs = store.all('costs').filter(c => ids.has(c.project_id));
   const monthStart = todayStr().slice(0, 8) + '01';
@@ -168,7 +168,7 @@ export function viewMoney() {
 // Short billing summary for a client page.
 export function clientBilling(clientId) {
   const ids = new Set(store.all('projects').filter(p => p.client_id === clientId).map(p => p.id));
-  const cur = r => (store.get('projects', r.project_id) || {}).currency || 'TRY';
+  const cur = r => (store.get('projects', r.project_id) || {}).currency || 'EUR';
   const inv = store.all('invoices').filter(i => ids.has(i.project_id));
   if (!inv.length) return '';
   const open = inv.filter(i => i.status === 'sent');

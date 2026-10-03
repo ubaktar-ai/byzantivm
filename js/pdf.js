@@ -1,5 +1,5 @@
 // Printable quotes & invoices as real PDF files (jsPDF + embedded Inter font,
-// so Turkish and Dutch characters print correctly). Everything is loaded on first use.
+// so accented characters print correctly). Everything is loaded on first use.
 import { esc, icon, openSheet, sheetHeader, toast, parseDate, $ } from './lib.js';
 import { store, contactsOf } from './store.js';
 import { itemsOf } from './money.js';
@@ -7,7 +7,6 @@ import { fileUrls } from './files.js';
 
 export const DOC_LANGUAGES = [
   { id: 'en', label: 'English', locale: 'en-GB' },
-  { id: 'tr', label: 'Türkçe', locale: 'tr-TR' },
   { id: 'nl', label: 'Nederlands', locale: 'nl-NL' },
 ];
 
@@ -17,23 +16,15 @@ const T = {
     billTo: 'Bill to', quoteFor: 'Prepared for', project: 'Project', description: 'Description', qty: 'Qty',
     unit: 'Unit price', amount: 'Amount', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', notes: 'Notes',
     payment: 'Payment details', bank: 'Bank', iban: 'IBAN', swift: 'BIC/SWIFT', reference: 'Reference',
-    taxId: 'VAT no.', taxOffice: 'Tax office', reg: 'Reg. no.', attn: 'Attn.', page: 'Page', of: 'of',
+    taxId: 'VAT no.', reg: 'Chamber of Commerce no.', attn: 'Attn.', page: 'Page', of: 'of',
     thanks: 'Thank you for your business.', terms: 'Terms', pay: 'Please pay by', subject: 'Subject',
-  },
-  tr: {
-    quote: 'TEKLİF', invoice: 'FATURA', number: 'No', date: 'Tarih', due: 'Son ödeme tarihi', valid: 'Geçerlilik tarihi',
-    billTo: 'Sayın', quoteFor: 'Sayın', project: 'Proje', description: 'Açıklama', qty: 'Miktar',
-    unit: 'Birim fiyat', amount: 'Tutar', subtotal: 'Ara toplam', vat: 'KDV', total: 'Genel toplam', notes: 'Notlar',
-    payment: 'Ödeme bilgileri', bank: 'Banka', iban: 'IBAN', swift: 'SWIFT', reference: 'Açıklama',
-    taxId: 'Vergi No', taxOffice: 'Vergi Dairesi', reg: 'Sicil No', attn: 'İlgili', page: 'Sayfa', of: '/',
-    thanks: 'İş birliğiniz için teşekkür ederiz.', terms: 'Koşullar', pay: 'Son ödeme', subject: 'Konu',
   },
   nl: {
     quote: 'OFFERTE', invoice: 'FACTUUR', number: 'Nummer', date: 'Datum', due: 'Vervaldatum', valid: 'Geldig tot',
     billTo: 'Factuur aan', quoteFor: 'Offerte voor', project: 'Project', description: 'Omschrijving', qty: 'Aantal',
     unit: 'Prijs per stuk', amount: 'Bedrag', subtotal: 'Subtotaal', vat: 'BTW', total: 'Totaal', notes: 'Opmerkingen',
     payment: 'Betaalgegevens', bank: 'Bank', iban: 'IBAN', swift: 'BIC', reference: 'Kenmerk',
-    taxId: 'BTW-nummer', taxOffice: 'Belastingkantoor', reg: 'KvK-nummer', attn: 'T.a.v.', page: 'Pagina', of: 'van',
+    taxId: 'BTW-nummer', reg: 'KvK-nummer', attn: 'T.a.v.', page: 'Pagina', of: 'van',
     thanks: 'Bedankt voor de samenwerking.', terms: 'Voorwaarden', pay: 'Graag betalen vóór', subject: 'Onderwerp',
   },
 };
@@ -166,7 +157,7 @@ function buildPdf(kind, rec, fonts, logo) {
     ...(company.address || '').split('\n'),
     [company.email, company.phone].filter(Boolean).join(' · '),
     company.website,
-    company.tax_id ? `${t.taxId}: ${company.tax_id}${company.tax_office ? ` · ${t.taxOffice}: ${company.tax_office}` : ''}` : (company.tax_office ? `${t.taxOffice}: ${company.tax_office}` : ''),
+    company.tax_id ? `${t.taxId}: ${company.tax_id}` : '',
     company.registration ? `${t.reg}: ${company.registration}` : '',
   ].map(s => (s || '').trim()).filter(Boolean);
   font('bold', 10);
@@ -201,7 +192,7 @@ function buildPdf(kind, rec, fonts, logo) {
   const clientLines = client ? [
     contact ? `${t.attn} ${contact.name}${contact.role ? `, ${contact.role}` : ''}` : '',
     ...(client.address || '').split('\n'),
-    client.tax_id ? `${t.taxId}: ${client.tax_id}${client.tax_office ? ` · ${t.taxOffice}: ${client.tax_office}` : ''}` : '',
+    client.tax_id ? `${t.taxId}: ${client.tax_id}` : '',
     client.email || (contact && contact.email) || '',
   ].map(s => (s || '').trim()).filter(Boolean) : [];
   clientLines.forEach((l, i) => doc.text(l, M, y + 5 + i * 4.6));
