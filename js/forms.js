@@ -124,7 +124,7 @@ export function openTaskSheet(existing, defaults = {}) {
     return;
   }
   const t = existing || {
-    title: '', notes: '', priority: 'medium', due_date: null, done: false,
+    title: '', notes: '', priority: 'medium', due_date: defaults.due_date || null, done: false,
     stage: defaults.stage || (defaults.project_id ? store.get('projects', defaults.project_id)?.stage : null) || 'brief',
     assignee_id: defaults.assignee_id !== undefined ? defaults.assignee_id : me()?.id || null,
     project_id: defaults.project_id || guessProject(),

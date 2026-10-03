@@ -4,7 +4,7 @@ A project-management app for the Byzantivm and Demya creative studios, built for
 It's an installable web app (PWA): team members add it to their iPad home screen and
 it opens full-screen like a native app. Everyone signs in, and changes show up live for the whole team.
 
-## What's in it (steps 1–3 of 4)
+## What's in it
 
 - **Two companies, one app**: switch between All, Byzantivm, or Demya. Every screen follows the switch.
 - **Overview**: stats per company, your tasks, the team's tasks due this week, the project pipeline, and upcoming deadlines.
@@ -33,9 +33,14 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
 - **Money screen**: outstanding and overdue invoices, money received and costs this month, unpaid invoices with a one-tap *Paid*,
   and profit per project. Totals are kept **per currency** and never mixed. Overdue invoices also show on the Overview,
   and each client page shows what that client owes.
-- **Activity log**: the database already records who created, moved, or completed what. The feed screen comes in step 4.
-
-Coming next: **(4)** calendar, timeline, and activity feed.
+- **Calendar**:
+  - **Month** view with task due dates, project deadlines, deliverable due dates, and invoice due dates.
+    You can switch each type on or off, or show only your own tasks.
+  - Tap a day to see its list, and add a task due that day.
+  - **Timeline** shows every project as a bar from start to deadline, with deliverable due dates as ◆ and a red *today* line.
+    Late projects are outlined in red.
+- **Activity feed**: a live record of who did what, for example *"Elena moved Logo concepts to Design"* or
+  *"Umut marked invoice BYZ-2026-002 paid"*. You can filter it by person. Recent activity also shows on the Overview and on each project's Details tab.
 The database tables for all of these are already created by `supabase/schema.sql`.
 
 ## One-time setup
@@ -95,7 +100,7 @@ Use **Load sample data** to look around. Sign out from the Team screen to leave 
 | `js/forms.js` | Create/edit sheets: projects, tasks (with comments and files), clients, contacts |
 | `js/files.js` | File uploads (photo downscaling), thumbnails, viewer, delete |
 | `js/money.js` | Quote / cost / invoice sheets, totals, numbering, amount parsing |
-| `js/views/*.js` | Screens: overview, projects, project, deliverables, money, clients, tasks, team, sign-in |
+| `js/views/*.js` | Screens: overview, projects, project, deliverables, money, calendar & timeline, activity, clients, tasks, team, sign-in |
 | `js/config.js` | Supabase URL and anon key |
 | `supabase/schema.sql` | Database tables, security rules, activity log, live updates, file storage |
 | `vendor/supabase.js` | Supabase JS client v2.117.2 (MIT), bundled so the app needs no CDN |

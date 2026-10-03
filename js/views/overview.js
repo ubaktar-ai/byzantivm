@@ -4,6 +4,7 @@ import { ui, inScope } from '../ui-state.js';
 import { taskRow, companySegmented, companyColor, dueChip, emptyState } from './common.js';
 import { waitingOnClients, daysSince } from './deliverables.js';
 import { invoiceState } from '../money.js';
+import { activityEntries, activityItem } from './activity.js';
 import { money } from '../lib.js';
 
 export function viewOverview() {
@@ -81,6 +82,14 @@ export function viewOverview() {
         ${teamSoon.length ? `
           <h2 class="section">Team — due in the next 7 days</h2>
           <div class="task-list card-surface">${teamSoon.map(t => taskRow(t)).join('')}</div>` : ''}
+        ${(() => {
+          if (!store.activityLoaded) { store.loadActivity().catch(() => {}); return ''; }
+          const recent = activityEntries({ limit: 6 });
+          if (!recent.length) return '';
+          return `
+            <h2 class="section section-with-action">Recent activity <a class="btn small" href="#/activity">See all</a></h2>
+            <div class="card-surface act-list">${recent.map(a => activityItem(a)).join('')}</div>`;
+        })()}
       </div>
       <div>
         ${(() => {

@@ -12,6 +12,8 @@ import { authScreen } from './views/auth.js';
 import { initFiles, openFileSheet } from './files.js';
 import { openDeliverableSheet, openSendRoundSheet, openRoundSheet } from './views/deliverables.js';
 import { viewMoney } from './views/money.js';
+import { viewCalendar } from './views/calendar.js';
+import { viewActivity } from './views/activity.js';
 import { openQuoteSheet, openCostSheet, openInvoiceSheet, markInvoicePaid, toggleCostPaid } from './money.js';
 import { viewOverview } from './views/overview.js';
 import { viewProjects } from './views/projects.js';
@@ -218,6 +220,8 @@ function render() {
     client: () => viewClient(r.id),
     tasks: viewTasks,
     money: viewMoney,
+    calendar: viewCalendar,
+    activity: viewActivity,
     team: viewTeam,
   };
   $('#view').innerHTML = (views[r.name] || viewOverview)();
@@ -286,7 +290,18 @@ document.addEventListener('click', e => {
 
   switch (action) {
     case 'set-company': setUi({ company: id }); render(); break;
-    case 'new-task': openTaskSheet(null, { project_id: el.dataset.project, stage: el.dataset.stage }); break;
+    case 'new-task': openTaskSheet(null, { project_id: el.dataset.project, stage: el.dataset.stage, due_date: el.dataset.due }); break;
+    case 'go': location.hash = el.dataset.href; break;
+    case 'cal-mode': setUi({ calMode: id }); render(); break;
+    case 'cal-month': setUi({ calMonth: id }); render(); break;
+    case 'cal-day': setUi({ calDay: id, calMonth: id.slice(0, 7) }); render(); break;
+    case 'cal-type': {
+      const hidden = new Set(ui.calHidden || []);
+      if (hidden.has(id)) hidden.delete(id); else hidden.add(id);
+      setUi({ calHidden: [...hidden] }); render(); break;
+    }
+    case 'cal-mine': setUi({ calMine: !ui.calMine }); render(); break;
+    case 'tl-shift': setUi({ tlStart: id || null }); render(); break;
     case 'edit-task': { const t = task(); if (t) openTaskSheet(t); break; }
     case 'toggle-done': { e.stopPropagation(); const t = task(); if (t) toggleTaskDone(t); break; }
     case 'new-project': openProjectSheet(null, { stage: el.dataset.stage, client_id: el.dataset.client }); break;
@@ -349,6 +364,7 @@ document.addEventListener('input', e => {
 
 document.addEventListener('change', e => {
   if (e.target.id === 'task-scope') { setUi({ taskScope: e.target.value }); render(); }
+  else if (e.target.id === 'activity-person') { setUi({ activityPerson: e.target.value || null }); render(); }
 });
 
 document.addEventListener('submit', e => {

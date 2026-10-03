@@ -2,6 +2,7 @@ import { STAGES, CURRENCIES, esc, icon, avatar, fmtDate, label, stageIndex } fro
 import { store, tasksOf, progress, contactsOf, commentCount, deliverablesOf, attachmentsWhere } from '../store.js';
 import { deliverablesTab } from './deliverables.js';
 import { moneyTab } from './money.js';
+import { activityEntries, activityItem } from './activity.js';
 import { fileTile, uploadButton, isImage } from '../files.js';
 import { ui } from '../ui-state.js';
 import { companyChip, statusChip, dueChip, prioDot, companyColor, taskRow, emptyState } from './common.js';
@@ -156,6 +157,11 @@ function detailsTab(p, client, pr) {
           <h3 class="card-title">Brief</h3>
           ${p.description ? `<p class="prewrap">${esc(p.description)}</p>` : `<p class="muted">No description yet. <button class="link-btn" data-action="edit-project" data-id="${p.id}">Add one</button></p>`}
         </div>
+        ${(() => {
+          if (!store.activityLoaded) { store.loadActivity().catch(() => {}); return ''; }
+          const recent = activityEntries({ limit: 10, projectId: p.id });
+          return recent.length ? `<div class="card-surface pad"><h3 class="card-title">Recent activity</h3><div class="act-list">${recent.map(a => activityItem(a, { showProject: false })).join('')}</div></div>` : '';
+        })()}
         <div class="card-surface pad">
           <h3 class="card-title">Team on this project</h3>
           ${people.size ? `<div class="people-list">${[...people].map(([pid, c]) => {

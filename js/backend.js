@@ -307,7 +307,7 @@ export class LocalBackend {
 
   log(table, action, row, details = {}) {
     if (!['clients', 'projects', 'tasks', 'comments', 'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'costs', 'invoices'].includes(table)) return;
-    this.db.activity.push({
+    const entry = {
       id: this.db.activity.length + 1,
       at: new Date().toISOString(),
       actor_id: DEMO_USER.id,
@@ -317,13 +317,16 @@ export class LocalBackend {
         : table === 'feedback_rounds' ? (this.db.deliverables.find(d => d.id === row.deliverable_id) || {}).project_id || null
         : row.project_id || null,
       action,
-      summary: row.name || row.title || (row.body || '').slice(0, 140) || (row.round_no ? `Round ${row.round_no}` : ''),
+      summary: row.name || row.title || row.number || (row.body || '').slice(0, 140) || (row.round_no ? `Round ${row.round_no}` : '') || row.description || '',
       details,
-    });
+    };
+    this.db.activity.push(entry);
+    // Behave like the live database: announce new activity entries.
+    if (this.listener) setTimeout(() => this.listener('activity', 'INSERT', { ...entry }, {}));
   }
 
-  subscribe() {}
-  unsubscribe() {}
+  subscribe(cb) { this.listener = cb; }
+  unsubscribe() { this.listener = null; }
 }
 
 export { DEMO_USER };

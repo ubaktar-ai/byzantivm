@@ -10,7 +10,8 @@ const TABLES = ['companies', 'profiles', 'team_members', 'clients', 'contacts', 
 export const store = {
   backend: null,
   user: null,
-  data: Object.fromEntries(TABLES.map(t => [t, new Map()])),
+  data: { ...Object.fromEntries(TABLES.map(t => [t, new Map()])), activity: new Map() },
+  activityLoaded: false,
   listeners: new Set(),
   loaded: false,
 
@@ -22,12 +23,34 @@ export const store = {
       this.data[t] = m;
     });
     this.loaded = true;
+    if (this.activityLoaded) this.loadActivity().catch(() => {});
     this.emit();
   },
 
   clear() {
     TABLES.forEach(t => { this.data[t] = new Map(); });
+    this.data.activity = new Map();
+    this.activityLoaded = false;
     this.loaded = false;
+  },
+
+  // The activity log is large, so it is loaded only when needed (latest 300 entries);
+  // after that, new entries arrive through live updates.
+  loadActivity() {
+    if (this._activityLoading) return this._activityLoading;
+    this._activityLoading = this.backend.selectAll('activity', { order: { column: 'at', ascending: false }, limit: 300 })
+      .then(rows => {
+        this.data.activity = new Map(rows.map(r => [r.id, r]));
+        this.activityLoaded = true;
+        this._activityLoading = null;
+        this.emit();
+      })
+      .catch(err => {
+        console.warn('Could not load activity', err);
+        setTimeout(() => { this._activityLoading = null; }, 30000); // wait before trying again
+        throw err;
+      });
+    return this._activityLoading;
   },
 
   // ---------- Reading ----------
