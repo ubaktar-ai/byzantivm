@@ -1,6 +1,7 @@
 # Studio — Byzantivm & Demya
 
 A project-management app for the Byzantivm and Demya creative studios, built for iPad.
+**Byzantivm** is a US S-corp in Miami (USD, no VAT). **Demya** is a Dutch sole proprietorship (eenmanszaak) that works in EUR and charges Dutch VAT (btw).
 It's an installable web app (PWA): team members add it to their iPad home screen and
 it opens full-screen like a native app. Everyone signs in, and changes show up live for the whole team.
 
@@ -12,7 +13,7 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
   **Brief → Concept → Design → Client review → Revisions → Delivered**.
   Press and hold a card to move it. There's also a list view and a status filter (current / completed / cancelled).
 - **Project page**: a stage stepper, a task board by phase, and a details tab (brief, team, facts, client contacts).
-  Each project has its own currency (€, $, £).
+  Each project has its own currency, USD or EUR. New projects follow their company (Byzantivm: USD, Demya: EUR).
 - **Tasks**: phase, priority, assignee, due date, notes, done/undo, and **comments with @mentions**.
   The Tasks screen shows *My tasks* / everyone / a specific person, grouped by Overdue / Today / Next 7 days.
 - **Clients**: company details, contacts with tap-to-email and tap-to-call, and all of a client's projects across both companies.
@@ -32,8 +33,14 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
   - Numbers are suggested per company (`BYZ-2026-001`, `DEM-Q-2026-001`). Amounts accept Dutch or English formats (`1.250,50` or `1,250.50`).
 - **PDF quotes & invoices**:
   - **PDF** / **Save & PDF** create a real PDF with your logo, company and tax details, the client's details, line items,
-    subtotal, VAT and total, payment terms, and bank details (IBAN).
-  - Each document can be in **English or Nederlands**, and dates and amounts are formatted for that language.
+    subtotal, tax and total, payment terms, and bank details.
+  - **Byzantivm (US)**: documents in American English, with optional sales tax (the tax line is left out at 0%),
+    the EIN, and account/routing numbers.
+  - **Demya (NL)**: each document has a VAT choice: 21%, 9%, 0%, *reverse charge* (business clients elsewhere in the EU),
+    *no Dutch VAT* (clients outside the EU), or *KOR exempt*. The required note is printed on the document.
+    Reverse-charged documents show the client's VAT ID, so add it on the client's page.
+    Check the right VAT treatment with your accountant.
+  - Demya documents can be in **English or Nederlands**, and dates and amounts are formatted for that language.
   - On the iPad, **Share / Save** sends it by Mail, WhatsApp or AirDrop, or saves it to Files.
   - Set company details and the logo in **Team & settings → Companies → Document details**.
 - **Money screen**: outstanding and overdue invoices, money received and costs this month, unpaid invoices with a one-tap *Paid*,
@@ -65,7 +72,8 @@ The script is safe to run again later. It only creates things that are missing.
 **Updating an existing database:** when a new feature needs database changes, run the matching file from
 [`supabase/migrations/`](supabase/migrations) in the SQL Editor (they're safe to run more than once):
 - `002_documents.sql` adds company/client document details, VAT and language, needed for PDF quotes and invoices.
-- `003_currency_cleanup.sql` makes euro the default currency (EUR / USD / GBP), limits documents to English or Dutch, and removes the unused tax-office fields.
+- `003_currency_cleanup.sql` makes euro the default currency, limits documents to English or Dutch, and removes the unused tax-office fields.
+- `004_company_country.sql` sets Byzantivm to US/USD and Demya to NL/EUR, allows only USD and EUR, and adds the VAT treatment per document.
 
 ### 2. Connect the app
 

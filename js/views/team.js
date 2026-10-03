@@ -1,5 +1,5 @@
-import { esc, icon, avatar, PERSON_COLORS, openSheet, sheetHeader, options, toast, uuid, $ } from '../lib.js';
-import { docsReady } from '../money.js';
+import { esc, icon, avatar, PERSON_COLORS, CURRENCIES, openSheet, sheetHeader, options, toast, uuid, $ } from '../lib.js';
+import { docsReady, countryReady, companyCountry, companyCurrency } from '../money.js';
 import { store, companies, me } from '../store.js';
 
 export function viewTeam() {
@@ -81,6 +81,7 @@ export function viewTeam() {
 // ---------- Company document details (printed on PDFs) ----------
 
 const LANGS = [{ id: 'en', label: 'English' }, { id: 'nl', label: 'Nederlands' }];
+const COUNTRIES = [{ id: 'NL', label: 'Netherlands' }, { id: 'US', label: 'United States' }];
 
 export function openCompanySheet(company) {
   const c = company;
@@ -97,25 +98,29 @@ export function openCompanySheet(company) {
             <label class="btn">${icon.upload}<span>Upload logo</span><input type="file" accept="image/*" hidden id="logo-input"></label>
           </div>
         </div>
-        <label class="field"><span>Legal company name</span><input name="legal_name" value="${esc(c.legal_name || '')}" placeholder="${esc(c.name)} B.V."></label>
-        <label class="field"><span>Address</span><textarea name="address" rows="3" placeholder="Street, number\nPostcode City\nCountry">${esc(c.address || '')}</textarea></label>
+        ${countryReady() ? `<div class="field-row">
+          <label class="field"><span>Country</span><select name="country" id="company-country">${options(COUNTRIES, companyCountry(c))}</select></label>
+          <label class="field"><span>Default currency</span><select name="default_currency">${options(CURRENCIES, companyCurrency(c))}</select></label>
+        </div>` : ''}
+        <label class="field"><span>Legal / trade name</span><input name="legal_name" value="${esc(c.legal_name || '')}" data-ph-nl="${esc(c.name)} (as registered with the KvK)" data-ph-us="${esc(c.name)} Inc. / LLC"></label>
+        <label class="field"><span>Address</span><textarea name="address" rows="3" data-ph-nl="Street 1\n1234 AB City\nNederland" data-ph-us="100 Street, Suite 200\nMiami, FL 33131\nUnited States">${esc(c.address || '')}</textarea></label>
         <div class="field-row">
           <label class="field"><span>Email</span><input type="email" name="email" value="${esc(c.email || '')}" autocomplete="off"></label>
           <label class="field"><span>Phone</span><input type="tel" name="phone" value="${esc(c.phone || '')}"></label>
         </div>
         <label class="field"><span>Website</span><input name="website" value="${esc(c.website || '')}" autocapitalize="off"></label>
         <div class="field-row">
-          <label class="field"><span>VAT number (BTW-id)</span><input name="tax_id" value="${esc(c.tax_id || '')}" placeholder="NL000000000B00" autocapitalize="characters"></label>
-          <label class="field"><span>Chamber of Commerce (KvK)</span><input name="registration" value="${esc(c.registration || '')}" placeholder="12345678" inputmode="numeric"></label>
+          <label class="field"><span data-nl="VAT number (btw-id)" data-us="EIN (optional — printed on documents)">VAT number (btw-id)</span><input name="tax_id" value="${esc(c.tax_id || '')}" autocapitalize="characters" data-ph-nl="NL000000000B00" data-ph-us="00-0000000"></label>
+          <label class="field"><span data-nl="Chamber of Commerce (KvK)" data-us="State registration no. (optional)">Chamber of Commerce (KvK)</span><input name="registration" value="${esc(c.registration || '')}" data-ph-nl="12345678" data-ph-us="Florida document no."></label>
         </div>
         <div class="field-row">
           <label class="field"><span>Bank</span><input name="bank_name" value="${esc(c.bank_name || '')}"></label>
-          <label class="field"><span>BIC / SWIFT</span><input name="swift" value="${esc(c.swift || '')}" autocapitalize="characters"></label>
+          <label class="field"><span data-nl="BIC" data-us="Routing no. (ABA) / SWIFT">BIC</span><input name="swift" value="${esc(c.swift || '')}" autocapitalize="characters"></label>
         </div>
-        <label class="field"><span>IBAN</span><input name="iban" value="${esc(c.iban || '')}" autocapitalize="characters" placeholder="NL00 BANK 0000 0000 00"></label>
+        <label class="field"><span data-nl="IBAN" data-us="Account number">IBAN</span><input name="iban" value="${esc(c.iban || '')}" autocapitalize="characters" data-ph-nl="NL00 BANK 0000 0000 00" data-ph-us=""></label>
         <div class="field-row">
-          <label class="field"><span>Default VAT %</span><input name="default_vat" value="${esc(String(Number(c.default_vat) || 0))}" inputmode="decimal" placeholder="21"></label>
-          <label class="field"><span>Default PDF language</span><select name="doc_language">${options(LANGS, c.doc_language || 'en')}</select></label>
+          <label class="field"><span data-nl="Default VAT %" data-us="Default sales tax %">Default VAT %</span><input name="default_vat" value="${esc(String(Number(c.default_vat) || 0))}" inputmode="decimal"></label>
+          <label class="field" data-nl-only><span>Default PDF language</span><select name="doc_language">${options(LANGS, c.doc_language || 'en')}</select></label>
         </div>
         <label class="field"><span>Payment terms (printed on every quote & invoice)</span><textarea name="payment_terms" rows="2" placeholder="e.g. Payment within 30 days. 50% deposit before work starts.">${esc(c.payment_terms || '')}</textarea></label>
       </div>
@@ -126,6 +131,19 @@ export function openCompanySheet(company) {
       </footer>
     </form>`, {
     onOpen(sheet) {
+      // Labels and examples follow the company's country.
+      const applyCountry = country => {
+        const k = country === 'US' ? 'us' : 'nl';
+        sheet.querySelectorAll('[data-nl]').forEach(el => { el.textContent = el.dataset[k]; });
+        sheet.querySelectorAll('[data-ph-nl]').forEach(el => { el.placeholder = el.dataset[k === 'us' ? 'phUs' : 'phNl']; });
+        sheet.querySelectorAll('[data-nl-only]').forEach(el => { el.hidden = country === 'US'; });
+      };
+      const countrySel = $('#company-country', sheet);
+      applyCountry(countrySel ? countrySel.value : companyCountry(c));
+      if (countrySel) countrySel.addEventListener('change', () => {
+        applyCountry(countrySel.value);
+        $('[name=default_currency]', sheet).value = countrySel.value === 'US' ? 'USD' : 'EUR';
+      });
       const box = $('#logo-box', sheet);
       const refresh = () => { const cur = store.get('companies', c.id); if (cur) box.innerHTML = logoBox(cur); };
       unsubscribe = store.onChange(refresh);
@@ -160,6 +178,11 @@ export function openCompanySheet(company) {
         .map(k => [k, String(fd.get(k) || '').trim()]));
       data.iban = data.iban.toUpperCase();
       data.swift = data.swift.toUpperCase();
+      if (countryReady()) {
+        data.country = fd.get('country') === 'US' ? 'US' : 'NL';
+        data.default_currency = fd.get('default_currency') === 'USD' ? 'USD' : 'EUR';
+        if (data.country === 'US') data.doc_language = 'en';
+      }
       data.default_vat = Math.min(100, Math.max(0, parseFloat(String(fd.get('default_vat') || '0').replace(',', '.')) || 0));
       store.update('companies', c.id, data).then(() => toast('Document details saved')).catch(() => {});
     },

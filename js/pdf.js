@@ -16,17 +16,30 @@ const T = {
     billTo: 'Bill to', quoteFor: 'Prepared for', project: 'Project', description: 'Description', qty: 'Qty',
     unit: 'Unit price', amount: 'Amount', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', notes: 'Notes',
     payment: 'Payment details', bank: 'Bank', iban: 'IBAN', swift: 'BIC/SWIFT', reference: 'Reference',
-    taxId: 'VAT no.', reg: 'Chamber of Commerce no.', attn: 'Attn.', page: 'Page', of: 'of',
+    taxId: 'VAT ID', clientTax: 'VAT ID', reg: 'KvK no.', attn: 'Attn.', page: 'Page', of: 'of',
     thanks: 'Thank you for your business.', terms: 'Terms', pay: 'Please pay by', subject: 'Subject',
+    reverse_charge: 'VAT reverse-charged', outside_eu: 'No Dutch VAT', kor: 'VAT exempt (KOR)',
+    reverse_chargeNote: 'VAT reverse-charged: VAT is to be accounted for by the recipient (Article 196, EU VAT Directive 2006/112/EC).',
+    outside_euNote: 'Not subject to Dutch VAT: service supplied to a recipient established outside the EU.',
+    korNote: 'Exempt from VAT under the Dutch small business scheme (KOR).',
   },
   nl: {
     quote: 'OFFERTE', invoice: 'FACTUUR', number: 'Nummer', date: 'Datum', due: 'Vervaldatum', valid: 'Geldig tot',
     billTo: 'Factuur aan', quoteFor: 'Offerte voor', project: 'Project', description: 'Omschrijving', qty: 'Aantal',
-    unit: 'Prijs per stuk', amount: 'Bedrag', subtotal: 'Subtotaal', vat: 'BTW', total: 'Totaal', notes: 'Opmerkingen',
+    unit: 'Prijs per stuk', amount: 'Bedrag', subtotal: 'Subtotaal', vat: 'Btw', total: 'Totaal', notes: 'Opmerkingen',
     payment: 'Betaalgegevens', bank: 'Bank', iban: 'IBAN', swift: 'BIC', reference: 'Kenmerk',
-    taxId: 'BTW-nummer', reg: 'KvK-nummer', attn: 'T.a.v.', page: 'Pagina', of: 'van',
+    taxId: 'Btw-id', clientTax: 'Btw-id', reg: 'KvK-nummer', attn: 'T.a.v.', page: 'Pagina', of: 'van',
     thanks: 'Bedankt voor de samenwerking.', terms: 'Voorwaarden', pay: 'Graag betalen vóór', subject: 'Onderwerp',
+    reverse_charge: 'Btw verlegd', outside_eu: 'Geen Nederlandse btw', kor: 'Vrijgesteld (KOR)',
+    reverse_chargeNote: 'Btw verlegd naar de afnemer (artikel 196 Btw-richtlijn 2006/112/EG).',
+    outside_euNote: 'Niet belast met Nederlandse btw: dienst verricht voor een afnemer gevestigd buiten de EU.',
+    korNote: 'Vrijgesteld van btw op grond van de kleineondernemersregeling (KOR).',
   },
+};
+
+// A US company (Byzantivm) uses American English, sales tax instead of VAT, EIN and US bank details.
+const US_LABELS = {
+  vat: 'Sales tax', taxId: 'EIN', clientTax: 'Tax ID', reg: 'Reg. no.', iban: 'Account no.', swift: 'Routing / SWIFT',
 };
 
 // ---------- Loading jsPDF, fonts and logos (once) ----------
@@ -108,9 +121,11 @@ function buildPdf(kind, rec, fonts, logo) {
   const company = store.get('companies', p.company_id) || {};
   const client = store.get('clients', p.client_id);
   const contact = client ? contactsOf(client.id)[0] : null;
-  const lang = T[rec.language] ? rec.language : (T[company.doc_language] ? company.doc_language : 'en');
-  const t = T[lang];
-  const locale = DOC_LANGUAGES.find(l => l.id === lang).locale;
+  const us = (company.country || 'NL') === 'US';
+  const lang = us ? 'en' : T[rec.language] ? rec.language : (T[company.doc_language] ? company.doc_language : 'en');
+  const t = us ? { ...T.en, ...US_LABELS } : T[lang];
+  const locale = us ? 'en-US' : DOC_LANGUAGES.find(l => l.id === lang).locale;
+  const treatment = us ? 'standard' : (rec.vat_treatment || 'standard');
   const fmtMoney = v => new Intl.NumberFormat(locale, { style: 'currency', currency: p.currency }).format(v);
   const fmtNum = v => new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(v);
   const fmtDay = d => (d ? parseDate(d).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : '—');
@@ -119,7 +134,7 @@ function buildPdf(kind, rec, fonts, logo) {
     ? itemsOf(rec.id).map(i => ({ description: i.description, qty: num(i.quantity), unit: num(i.unit_price), amount: round2(num(i.quantity) * num(i.unit_price)) }))
     : [{ description: [rec.title, p.name].filter(Boolean).join(' — '), qty: 1, unit: num(rec.amount), amount: num(rec.amount) }];
   const subtotal = round2(lines.reduce((s, l) => s + l.amount, 0));
-  const vatRate = num(rec.vat_rate);
+  const vatRate = treatment === 'standard' ? num(rec.vat_rate) : 0;
   const vat = round2(subtotal * vatRate / 100);
   const total = round2(subtotal + vat);
 
@@ -192,7 +207,7 @@ function buildPdf(kind, rec, fonts, logo) {
   const clientLines = client ? [
     contact ? `${t.attn} ${contact.name}${contact.role ? `, ${contact.role}` : ''}` : '',
     ...(client.address || '').split('\n'),
-    client.tax_id ? `${t.taxId}: ${client.tax_id}` : '',
+    client.tax_id ? `${t.clientTax}: ${client.tax_id}` : '',
     client.email || (contact && contact.email) || '',
   ].map(s => (s || '').trim()).filter(Boolean) : [];
   clientLines.forEach((l, i) => doc.text(l, M, y + 5 + i * 4.6));
@@ -257,12 +272,15 @@ function buildPdf(kind, rec, fonts, logo) {
     doc.text(value, col.amount, y, { align: 'right' });
     y += strong ? 8 : 5.5;
   };
-  totalRow(t.subtotal, fmtMoney(subtotal));
-  totalRow(`${t.vat} ${fmtNum(vatRate)}%`, fmtMoney(vat));
-  doc.setDrawColor(...ink);
-  doc.setLineWidth(0.4);
-  doc.line(col.unit - 22, y - 3, R, y - 3);
-  y += 2;
+  // A US document without sales tax just shows the total.
+  if (!(us && vatRate === 0)) {
+    totalRow(t.subtotal, fmtMoney(subtotal));
+    totalRow(treatment === 'standard' ? `${t.vat} ${fmtNum(vatRate)}%` : t[treatment], fmtMoney(vat));
+    doc.setDrawColor(...ink);
+    doc.setLineWidth(0.4);
+    doc.line(col.unit - 22, y - 3, R, y - 3);
+    y += 2;
+  }
   totalRow(t.total, fmtMoney(total), true);
   y += 4;
 
@@ -279,6 +297,7 @@ function buildPdf(kind, rec, fonts, logo) {
     doc.text(wrapped, M, y);
     y += wrapped.length * 4.4 + 5;
   };
+  if (treatment !== 'standard') block(t.vat, t[`${treatment}Note`]);
   block(t.notes, rec.notes);
   block(t.terms, company.payment_terms);
   if (kind === 'invoice' && (company.iban || company.bank_name)) {
@@ -323,6 +342,7 @@ export async function createPdf(kind, id) {
   if (!rec) return;
   const p = store.get('projects', rec.project_id);
   const company = p && store.get('companies', p.company_id);
+  const client = p && store.get('clients', p.client_id);
   toast('Creating PDF…');
   let out;
   try {
@@ -344,6 +364,7 @@ export async function createPdf(kind, id) {
         <p><b>${esc(out.fileName)}</b> is ready.</p>
         <p class="muted small">${canShare ? 'Share it by Mail, WhatsApp or AirDrop, or save it to Files.' : 'Open it to view, print or save.'}</p>
         ${!(company && (company.legal_name || company.address || company.iban)) ? `<p class="notice warn small">Tip: add your company address, tax number and bank details in <b>Team &amp; settings → Companies → Document details</b>.</p>` : ''}
+        ${rec.vat_treatment === 'reverse_charge' && !(client && client.tax_id) ? `<p class="notice warn small">Reverse-charged invoices must show the client's VAT ID — add it on the client's page, then make the PDF again.</p>` : ''}
       </div>
       <footer>
         <a class="btn" href="${url}" target="_blank" rel="noopener" download="${esc(out.fileName)}">${icon.external} Open</a>

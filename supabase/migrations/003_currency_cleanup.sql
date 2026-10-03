@@ -1,11 +1,11 @@
--- Euro as default currency (EUR / USD / GBP only), English or Dutch documents, no tax-office fields.
+-- Euro as default currency, English or Dutch documents, no tax-office fields.
 -- Run once in Supabase → SQL Editor (safe to run again).
 
--- Currency: euro by default; projects in other currencies become euro projects (amounts are not converted).
-update public.projects set currency = 'EUR' where currency = 'TRY';
+-- Currency: euro by default, USD or EUR only; other currencies become euro (amounts are not converted).
+update public.projects set currency = 'EUR' where currency not in ('EUR','USD');
 alter table public.projects alter column currency set default 'EUR';
 alter table public.projects drop constraint if exists projects_currency_check;
-alter table public.projects add constraint projects_currency_check check (currency in ('EUR','USD','GBP'));
+alter table public.projects add constraint projects_currency_check check (currency in ('EUR','USD'));
 
 -- Document language: English or Dutch only.
 update public.quotes    set language = 'en' where language not in ('en','nl');

@@ -24,30 +24,87 @@ export const COST_CATEGORIES = [
   { id: 'other', label: 'Other' },
 ];
 
-// The document columns (VAT, language, company details) come from migrations/002_documents.sql.
-// Until it has been run, the app keeps working without them.
+// The document columns (VAT, language, company details) come from migrations/002_documents.sql;
+// company country / currency and VAT treatment from 004_company_country.sql.
+// Until they have been run, the app keeps working without them.
 export const docsReady = () => store.backend.mode === 'demo' || store.all('companies').some(c => 'legal_name' in c);
+export const countryReady = () => store.backend.mode === 'demo' || store.all('companies').some(c => 'country' in c);
+
+// Byzantivm is a US company, Demya a Dutch one.
+export const companyCountry = c => (c && c.country) || 'NL';
+export const companyCurrency = c => (c && c.default_currency) || (companyCountry(c) === 'US' ? 'USD' : 'EUR');
+const projectCompany = projectId => {
+  const p = store.get('projects', projectId);
+  return p && store.get('companies', p.company_id);
+};
 
 const DOC_LANGS = [{ id: 'en', label: 'English' }, { id: 'nl', label: 'Nederlands' }];
 
-function docDefaults(projectId) {
-  const p = store.get('projects', projectId);
-  const c = p && store.get('companies', p.company_id);
-  return { vat_rate: c && c.default_vat != null ? Number(c.default_vat) : 0, language: (c && c.doc_language) || 'en' };
+// Dutch VAT choices: one menu sets both the treatment and the rate.
+export const NL_VAT_CHOICES = [
+  { id: 'std21', label: '21% VAT (standard)', treatment: 'standard', rate: 21 },
+  { id: 'std9', label: '9% VAT (reduced)', treatment: 'standard', rate: 9 },
+  { id: 'std0', label: '0% VAT', treatment: 'standard', rate: 0 },
+  { id: 'reverse_charge', label: 'Reverse charge (business client in another EU country)', treatment: 'reverse_charge', rate: 0 },
+  { id: 'outside_eu', label: 'No Dutch VAT (client outside the EU)', treatment: 'outside_eu', rate: 0 },
+  { id: 'kor', label: 'Exempt — small business scheme (KOR)', treatment: 'kor', rate: 0 },
+];
+
+function nlChoiceOf(rec) {
+  const t = rec.vat_treatment || 'standard';
+  if (t !== 'standard') return t;
+  const r = Number(rec.vat_rate) || 0;
+  return r === 21 ? 'std21' : r === 9 ? 'std9' : 'std0';
 }
 
-function docFields(rec) {
+function docDefaults(projectId) {
+  const c = projectCompany(projectId);
+  const us = companyCountry(c) === 'US';
+  return {
+    vat_rate: c && c.default_vat != null ? Number(c.default_vat) : (us ? 0 : 21),
+    vat_treatment: 'standard',
+    language: us ? 'en' : (c && c.doc_language) || 'en',
+  };
+}
+
+function docFields(rec, projectId) {
   if (!docsReady()) return '';
+  const c = projectCompany(projectId);
+  if (countryReady() && companyCountry(c) === 'US') {
+    return `
+      <label class="field"><span>Sales tax % <small class="muted">(leave 0 if the service isn't taxable)</small></span>
+        <input name="vat_rate" value="${esc(String(Number(rec.vat_rate) || 0))}" inputmode="decimal"></label>`;
+  }
+  const vatField = countryReady()
+    ? `<label class="field"><span>VAT</span><select name="vat_choice">${options(NL_VAT_CHOICES, nlChoiceOf(rec))}</select></label>`
+    : `<label class="field"><span>VAT %</span><input name="vat_rate" value="${esc(String(Number(rec.vat_rate) || 0))}" inputmode="decimal"></label>`;
   return `
     <div class="field-row">
-      <label class="field"><span>VAT %</span><input name="vat_rate" value="${esc(String(Number(rec.vat_rate) || 0))}" inputmode="decimal"></label>
+      ${vatField}
       <label class="field"><span>PDF language</span><select name="language">${options(DOC_LANGS, rec.language || 'en')}</select></label>
     </div>`;
 }
 
+// Current VAT rate shown in an open sheet (for the live "incl. VAT" total).
+function sheetRate(root) {
+  const choice = root.querySelector('[name=vat_choice]');
+  if (choice) return (NL_VAT_CHOICES.find(x => x.id === choice.value) || { rate: 0 }).rate;
+  const input = root.querySelector('[name=vat_rate]');
+  return input ? parseAmount(input.value) : 0;
+}
+
 function readDocFields(fd) {
   if (!docsReady()) return {};
-  return { vat_rate: Math.min(100, Math.max(0, parseAmount(fd.get('vat_rate')))), language: fd.get('language') || 'en' };
+  const out = { language: fd.get('language') || 'en' };
+  if (fd.has('vat_choice')) {
+    const ch = NL_VAT_CHOICES.find(x => x.id === fd.get('vat_choice')) || NL_VAT_CHOICES[0];
+    out.vat_rate = ch.rate;
+    out.vat_treatment = ch.treatment;
+  } else {
+    out.vat_rate = Math.min(100, Math.max(0, parseAmount(fd.get('vat_rate'))));
+    if (countryReady()) out.vat_treatment = 'standard';
+  }
+  return out;
 }
 
 const makePdf = (kind, id) => import('./pdf.js').then(m => m.createPdf(kind, id));
@@ -181,11 +238,11 @@ export function openQuoteSheet(projectId, existing) {
             <div class="item-row item-head"><span>Description</span><span>Qty</span><span>Unit price</span><span>Total</span><span></span></div>
             <div id="item-rows">${items.map(itemRow).join('')}</div>
             <button type="button" class="btn small" id="add-item">${icon.plus} Add line</button>
-            <div class="items-total"><span>Total excl. VAT ${currencyNote(p)}</span><b id="quote-total"></b></div>
-            ${docsReady() ? `<div class="items-total vat-line"><span>Incl. VAT</span><span id="quote-gross"></span></div>` : ''}
+            <div class="items-total"><span>Total excl. tax ${currencyNote(p)}</span><b id="quote-total"></b></div>
+            ${docsReady() ? `<div class="items-total vat-line"><span>Incl. tax</span><span id="quote-gross"></span></div>` : ''}
           </div>
         </div>
-        ${docFields(q)}
+        ${docFields(q, projectId)}
         <label class="field"><span>Notes / terms</span><textarea name="notes" rows="3" placeholder="Payment terms, what's excluded, VAT…">${esc(q.notes)}</textarea></label>
       </div>
       <footer>
@@ -209,11 +266,12 @@ export function openQuoteSheet(projectId, existing) {
         $('#quote-total', sheet).textContent = money(total, p.currency);
         const gross = $('#quote-gross', sheet);
         if (gross) {
-          const rate = parseAmount($('[name=vat_rate]', sheet).value);
-          gross.textContent = `${money(total * (1 + rate / 100), p.currency)} (${rate}% VAT)`;
+          const rate = sheetRate(sheet);
+          gross.textContent = `${money(total * (1 + rate / 100), p.currency)} (${rate}% ${companyCountry(projectCompany(projectId)) === 'US' ? 'sales tax' : 'VAT'})`;
         }
       };
       rows.addEventListener('input', recalc);
+      sheet.addEventListener('change', e => { if (e.target.matches('[name=vat_choice]')) recalc(); });
       const vatInput = $('[name=vat_rate]', sheet);
       if (vatInput) vatInput.addEventListener('input', recalc);
       rows.addEventListener('click', e => {
@@ -356,8 +414,8 @@ export function openInvoiceSheet(projectId, existing) {
           <label class="field"><span>Status</span><select name="status">${options(INVOICE_STATUSES, inv.status)}</select></label>
         </div>
         <label class="field"><span>Milestone / description</span><input name="title" value="${esc(inv.title)}" placeholder="e.g. Deposit (50%), Final delivery" ${existing ? '' : 'autofocus'}></label>
-        <label class="field"><span>Amount excl. VAT (${esc(p.currency)})</span><input name="amount" value="${esc(amountValue(inv.amount))}" inputmode="decimal" required placeholder="0"></label>
-        ${docFields(inv)}
+        <label class="field"><span>Amount excl. tax (${esc(p.currency)})</span><input name="amount" value="${esc(amountValue(inv.amount))}" inputmode="decimal" required placeholder="0"></label>
+        ${docFields(inv, projectId)}
         <div class="field-row">
           <label class="field"><span>Issued</span><input type="date" name="issue_date" value="${esc(inv.issue_date || '')}"></label>
           <label class="field"><span>Due</span><input type="date" name="due_date" value="${esc(inv.due_date || '')}"></label>

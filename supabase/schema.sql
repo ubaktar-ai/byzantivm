@@ -109,7 +109,7 @@ create table if not exists public.projects (
                check (stage in ('brief','concept','design','client_review','revisions','delivered')),
   status       text not null default 'active'
                check (status in ('active','on_hold','completed','cancelled')),
-  currency     text not null default 'EUR' check (currency in ('EUR','USD','GBP')),
+  currency     text not null default 'EUR' check (currency in ('EUR','USD')),
   lead_id      uuid references public.profiles (id) on delete set null,
   start_date   date,
   due_date     date,
@@ -486,12 +486,47 @@ alter table public.invoices
   add column if not exists language text not null default 'en';
 
 -- ---------------------------------------------------------------------
+-- Company country, currencies, VAT treatment (also in migrations/004_company_country.sql)
+-- ---------------------------------------------------------------------
+
+alter table public.companies
+  add column if not exists country          text not null default 'NL',
+  add column if not exists default_currency text not null default 'EUR';
+alter table public.companies drop constraint if exists companies_country_check;
+alter table public.companies add constraint companies_country_check check (country in ('NL','US'));
+alter table public.companies drop constraint if exists companies_default_currency_check;
+alter table public.companies add constraint companies_default_currency_check check (default_currency in ('EUR','USD'));
+
+-- Set the two companies up (only if they still have the initial defaults).
+update public.companies set country = 'US', default_currency = 'USD', default_vat = 0, doc_language = 'en'
+  where id = 'byzantivm' and country = 'NL' and default_currency = 'EUR';
+update public.companies set country = 'NL', default_currency = 'EUR'
+  where id = 'demya' and default_currency = 'EUR';
+
+-- Only US dollars and euros.
+update public.projects set currency = 'EUR' where currency not in ('EUR','USD');
+alter table public.projects drop constraint if exists projects_currency_check;
+alter table public.projects add constraint projects_currency_check check (currency in ('EUR','USD'));
+
+-- How VAT / sales tax applies to each quote and invoice.
+--   standard        : the document's rate is charged (21%, 9% in NL; sales tax % in the US)
+--   reverse_charge  : EU business client outside NL, VAT reverse-charged (0%)
+--   outside_eu      : client outside the EU, no Dutch VAT (0%)
+--   kor             : Dutch small business scheme (KOR), exempt (0%)
+alter table public.quotes   add column if not exists vat_treatment text not null default 'standard';
+alter table public.invoices add column if not exists vat_treatment text not null default 'standard';
+alter table public.quotes   drop constraint if exists quotes_vat_treatment_check;
+alter table public.quotes   add constraint quotes_vat_treatment_check check (vat_treatment in ('standard','reverse_charge','outside_eu','kor'));
+alter table public.invoices drop constraint if exists invoices_vat_treatment_check;
+alter table public.invoices add constraint invoices_vat_treatment_check check (vat_treatment in ('standard','reverse_charge','outside_eu','kor'));
+
+-- ---------------------------------------------------------------------
 -- Starting data
 -- ---------------------------------------------------------------------
 
-insert into public.companies (id, name, color, sort_order) values
-  ('byzantivm', 'Byzantivm', '#7c3aed', 0),
-  ('demya',     'Demya',     '#0d9488', 1)
+insert into public.companies (id, name, color, sort_order, country, default_currency, default_vat) values
+  ('byzantivm', 'Byzantivm', '#7c3aed', 0, 'US', 'USD', 0),
+  ('demya',     'Demya',     '#0d9488', 1, 'NL', 'EUR', 21)
 on conflict (id) do nothing;
 
 -- >>> Replace with YOUR sign-in email, then run. Add teammates later in the app (Team screen).

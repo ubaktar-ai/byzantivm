@@ -568,7 +568,7 @@ async function loadSample() {
     for (const [n, role, em] of contacts) await store.insert('contacts', { client_id: c.id, name: n, role, email: em, phone: '', notes: '' });
     return c.id;
   };
-  const aurora = await client('Aurora Hotels', 'hello@aurorahotels.example', '+31 20 555 0101', [['Sophie Jansen', 'Marketing director', 'sophie@aurorahotels.example'], ['Tom Bakker', 'Brand manager', 'tom@aurorahotels.example']]);
+  const aurora = await client('Aurora Hotels', 'hello@aurorahotels.example', '+1 305 555 0101', [['Sophie Jansen', 'Marketing director', 'sophie@aurorahotels.example'], ['Tom Bakker', 'Brand manager', 'tom@aurorahotels.example']]);
   const olive = await client('Olive & Stone', 'studio@oliveandstone.example', '+30 21 0555 0199', [['Maria Pappas', 'Founder', 'maria@oliveandstone.example']]);
   const nord = await client('Nordlicht GmbH', 'info@nordlicht.example', '+49 30 5550 1234', [['Jonas Weber', 'Head of product', 'jonas@nordlicht.example']]);
 
@@ -586,7 +586,7 @@ async function loadSample() {
     return p.id;
   };
 
-  const p1 = await project({ company_id: 'byzantivm', client_id: aurora, name: 'Aurora brand refresh', stage: 'client_review', currency: 'EUR', due_date: d(18),
+  const p1 = await project({ company_id: 'byzantivm', client_id: aurora, name: 'Aurora brand refresh', stage: 'client_review', currency: 'USD', due_date: d(18),
     description: 'New logo, typography and brand guidelines for 12 hotel properties.' }, [
     ['Kick-off workshop', 'brief', true, 'high', -20, meId],
     ['Competitor audit', 'brief', true, 'medium', -18, elena],
@@ -596,13 +596,13 @@ async function loadSample() {
     ['Typography pairing', 'design', false, 'medium', 5, mark],
     ['Brand guidelines PDF', 'delivered', false, 'medium', 16, null],
   ]);
-  await project({ company_id: 'byzantivm', client_id: olive, name: 'Olive & Stone packaging', stage: 'design', currency: 'EUR', due_date: d(30),
+  await project({ company_id: 'byzantivm', client_id: olive, name: 'Olive & Stone packaging', stage: 'design', currency: 'USD', due_date: d(30),
     description: 'Label and box design for the new olive oil range.' }, [
     ['Dieline from printer', 'brief', true, 'medium', -12, mark],
     ['Label illustrations', 'design', false, 'high', 3, elena],
     ['Print proofs', 'revisions', false, 'medium', 20, mark],
   ]);
-  await project({ company_id: 'demya', client_id: nord, name: 'Nordlicht app UI', stage: 'concept', currency: 'USD', due_date: d(45),
+  await project({ company_id: 'demya', client_id: nord, name: 'Nordlicht app UI', stage: 'concept', currency: 'EUR', due_date: d(45),
     description: 'UI design for the Nordlicht energy app — iOS and Android.' }, [
     ['User interviews summary', 'brief', true, 'medium', -6, meId],
     ['Wireframes — onboarding', 'concept', false, 'high', -1, mark],
@@ -660,25 +660,33 @@ async function loadSample() {
 
   // Example document details so PDFs look complete in the demo
   await store.update('companies', 'byzantivm', {
-    legal_name: 'Byzantivm B.V.', address: 'Example Street 1\n1000 AA Amsterdam\nNederland',
-    email: 'hello@byzantivm.example', phone: '+31 20 555 0100', website: 'byzantivm.example',
-    tax_id: 'NL000000000B01', registration: '12345678', bank_name: 'Example Bank',
-    iban: 'NL00 BANK 0000 0000 00', swift: 'BANKNL2A', default_vat: 21, doc_language: 'en',
-    payment_terms: 'Payment within 14 days of the invoice date. Prices exclude VAT unless stated.',
+    country: 'US', default_currency: 'USD', legal_name: 'Byzantivm Inc.',
+    address: '100 Example Avenue, Suite 200\nMiami, FL 33131\nUnited States',
+    email: 'hello@byzantivm.example', phone: '+1 305 555 0100', website: 'byzantivm.example',
+    tax_id: '00-0000000', registration: '', bank_name: 'Example Bank, N.A.',
+    iban: '000123456789', swift: 'ABA 000000000 · SWIFT EXAMUS33', default_vat: 0, doc_language: 'en',
+    payment_terms: 'Payment due within 15 days. Payable by ACH or wire transfer.',
   }).catch(() => {});
   await store.update('companies', 'demya', {
-    legal_name: 'Demya B.V.', address: 'Keizersgracht 100\n1015 AA Amsterdam\nNederland', email: 'info@demya.example',
+    country: 'NL', default_currency: 'EUR', legal_name: 'Demya',
+    address: 'Keizersgracht 100\n1015 AA Amsterdam\nNederland', email: 'info@demya.example',
     tax_id: 'NL000000000B02', registration: '87654321', bank_name: 'Voorbeeld Bank', iban: 'NL00 BANK 0000 0000 00',
     default_vat: 21, doc_language: 'nl', payment_terms: 'Betaling binnen 30 dagen na factuurdatum.',
   }).catch(() => {});
-  for (const inv of store.all('invoices')) {
-    await store.update('invoices', inv.id, { vat_rate: 21 }).catch(() => {});
+  // Byzantivm (US) charges no sales tax on design work; Demya (NL) charges 21% Dutch VAT,
+  // except reverse charge for its German client.
+  for (const doc of [...store.all('invoices').map(x => ['invoices', x]), ...store.all('quotes').map(x => ['quotes', x])]) {
+    const [table, rec] = doc;
+    const proj = store.get('projects', rec.project_id);
+    const isDemya = proj && proj.company_id === 'demya';
+    const german = proj && proj.client_id === nord;
+    await store.update(table, rec.id, isDemya
+      ? { vat_rate: german ? 0 : 21, vat_treatment: german ? 'reverse_charge' : 'standard', language: german ? 'en' : 'nl' }
+      : { vat_rate: 0, vat_treatment: 'standard', language: 'en' }).catch(() => {});
   }
-  for (const q of store.all('quotes')) {
-    const proj = store.get('projects', q.project_id);
-    await store.update('quotes', q.id, { vat_rate: 21, language: proj && proj.company_id === 'demya' ? 'nl' : 'en' }).catch(() => {});
-  }
-  await store.update('clients', aurora, { address: 'Herengracht 200\n1016 BS Amsterdam\nNederland', tax_id: 'NL000000000B03' }).catch(() => {});
+  await store.update('clients', aurora, { address: '1200 Brickell Avenue\nMiami, FL 33131\nUnited States' }).catch(() => {});
+  await store.update('clients', nord, { address: 'Friedrichstraße 10\n10117 Berlin\nDeutschland', tax_id: 'DE000000000' }).catch(() => {});
+  await store.update('clients', olive, { address: 'Ermou 20\n105 63 Athens\nGreece' }).catch(() => {});
 
   const firstTask = store.all('tasks').find(t => t.project_id === p1 && t.title === 'Present logo concepts');
   if (firstTask) {

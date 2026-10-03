@@ -24,9 +24,8 @@ export const PROJECT_STATUSES = [
 ];
 
 export const CURRENCIES = [
-  { id: 'USD', label: 'US dollar ($)' },
   { id: 'EUR', label: 'Euro (€)' },
-  { id: 'GBP', label: 'British pound (£)' },
+  { id: 'USD', label: 'US dollar ($)' },
 ];
 
 export const label = (list, id) => (list.find(x => x.id === id) || {}).label || id || '';

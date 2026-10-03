@@ -7,7 +7,7 @@ import {
   store, companies, profiles, me, tasksOf, commentsOf, projectsOfClient, nextSortOrder, attachmentsWhere,
 } from './store.js';
 import { fileStrip, removeProjectFiles } from './files.js';
-import { docsReady } from './money.js';
+import { docsReady, companyCurrency } from './money.js';
 import { ui } from './ui-state.js';
 
 const go = hash => { location.hash = hash; };
@@ -17,11 +17,12 @@ const go = hash => { location.hash = hash; };
 // ---------------------------------------------------------------------
 
 export function openProjectSheet(existing, defaults = {}) {
+  const companyId = defaults.company_id || (ui.company !== 'all' ? ui.company : companies()[0]?.id);
   const p = existing || {
     name: '', description: '',
-    company_id: defaults.company_id || (ui.company !== 'all' ? ui.company : companies()[0]?.id),
+    company_id: companyId,
     client_id: defaults.client_id || null,
-    stage: defaults.stage || 'brief', status: 'active', currency: 'EUR',
+    stage: defaults.stage || 'brief', status: 'active', currency: companyCurrency(store.get('companies', companyId)),
     lead_id: me()?.id || null, start_date: todayStr(), due_date: null,
   };
   const clients = store.all('clients').sort((a, b) => a.name.localeCompare(b.name));
@@ -64,6 +65,10 @@ export function openProjectSheet(existing, defaults = {}) {
       </footer>
     </form>`, {
     onOpen(sheet) {
+      // New projects follow their company's currency (Byzantivm: USD, Demya: EUR).
+      if (!existing) $('[name=company_id]', sheet).addEventListener('change', e => {
+        $('[name=currency]', sheet).value = companyCurrency(store.get('companies', e.target.value));
+      });
       const sel = $('#client-select', sheet);
       sel.addEventListener('change', () => {
         const isNew = sel.value === '__new__';
