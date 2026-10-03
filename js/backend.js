@@ -9,7 +9,9 @@ export const keyOf = table => (table === 'team_members' ? 'email' : 'id');
 // children are deleted ('cascade') or have the link cleared ('null').
 export const RELATIONS = {
   projects: [['tasks', 'project_id', 'cascade'], ['comments', 'project_id', 'cascade'],
-    ['deliverables', 'project_id', 'cascade'], ['attachments', 'project_id', 'cascade']],
+    ['deliverables', 'project_id', 'cascade'], ['attachments', 'project_id', 'cascade'],
+    ['quotes', 'project_id', 'cascade'], ['costs', 'project_id', 'cascade'], ['invoices', 'project_id', 'cascade']],
+  quotes: [['quote_items', 'quote_id', 'cascade']],
   tasks: [['comments', 'task_id', 'cascade'], ['attachments', 'task_id', 'cascade']],
   clients: [['contacts', 'client_id', 'cascade'], ['projects', 'client_id', 'null']],
   deliverables: [['feedback_rounds', 'deliverable_id', 'cascade']],
@@ -161,6 +163,10 @@ const DEFAULTS = {
   deliverables: () => ({ description: '', max_rounds: 3, status: 'in_progress', due_date: null, sort_order: 0 }),
   feedback_rounds: () => ({ sent_date: null, received_date: null, status: 'awaiting', feedback: '' }),
   attachments: () => ({ task_id: null, round_id: null, mime: '', size: 0 }),
+  quotes: () => ({ number: '', title: '', issue_date: null, valid_until: null, status: 'draft', notes: '' }),
+  quote_items: () => ({ quantity: 1, unit_price: 0, sort_order: 0 }),
+  costs: () => ({ category: 'other', vendor: '', amount: 0, paid: false }),
+  invoices: () => ({ number: '', title: '', issue_date: null, due_date: null, amount: 0, status: 'draft', paid_date: null, notes: '' }),
   team_members: () => ({}),
   profiles: () => ({ full_name: '', color: '#64748b' }),
 };
@@ -300,7 +306,7 @@ export class LocalBackend {
   deleteBlob(path) { return this.idbRun('readwrite', s => s.delete(path)).catch(() => {}); }
 
   log(table, action, row, details = {}) {
-    if (!['clients', 'projects', 'tasks', 'comments', 'deliverables', 'feedback_rounds', 'attachments'].includes(table)) return;
+    if (!['clients', 'projects', 'tasks', 'comments', 'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'costs', 'invoices'].includes(table)) return;
     this.db.activity.push({
       id: this.db.activity.length + 1,
       at: new Date().toISOString(),

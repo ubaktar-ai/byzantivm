@@ -5,7 +5,7 @@ import { keyOf, RELATIONS } from './backend.js';
 import { uuid, toast, daysUntil, priorityRank } from './lib.js';
 
 const TABLES = ['companies', 'profiles', 'team_members', 'clients', 'contacts', 'projects', 'tasks', 'comments',
-  'deliverables', 'feedback_rounds', 'attachments'];
+  'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'quote_items', 'costs', 'invoices'];
 
 export const store = {
   backend: null,

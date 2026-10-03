@@ -11,6 +11,8 @@ import {
 import { authScreen } from './views/auth.js';
 import { initFiles, openFileSheet } from './files.js';
 import { openDeliverableSheet, openSendRoundSheet, openRoundSheet } from './views/deliverables.js';
+import { viewMoney } from './views/money.js';
+import { openQuoteSheet, openCostSheet, openInvoiceSheet, markInvoicePaid, toggleCostPaid } from './money.js';
 import { viewOverview } from './views/overview.js';
 import { viewProjects } from './views/projects.js';
 import { viewProject } from './views/project.js';
@@ -215,6 +217,7 @@ function render() {
     clients: viewClients,
     client: () => viewClient(r.id),
     tasks: viewTasks,
+    money: viewMoney,
     team: viewTeam,
   };
   $('#view').innerHTML = (views[r.name] || viewOverview)();
@@ -319,6 +322,14 @@ document.addEventListener('click', e => {
     case 'edit-round': { const r = store.get('feedback_rounds', id); if (r) openRoundSheet(r, { feedbackMode: !!el.dataset.feedback }); break; }
     case 'open-file': { const a = store.get('attachments', id); if (a) openFileSheet(a); break; }
     case 'file-filter': setUi({ fileFilter: id }); render(); break;
+    case 'new-quote': openQuoteSheet(el.dataset.project); break;
+    case 'edit-quote': { const q = store.get('quotes', id); if (q) openQuoteSheet(q.project_id, q); break; }
+    case 'new-invoice': openInvoiceSheet(el.dataset.project); break;
+    case 'edit-invoice': { const inv = store.get('invoices', id); if (inv) openInvoiceSheet(inv.project_id, inv); break; }
+    case 'invoice-paid': { e.preventDefault(); const inv = store.get('invoices', id); if (inv) markInvoicePaid(inv); break; }
+    case 'new-cost': openCostSheet(el.dataset.project); break;
+    case 'edit-cost': { const c = store.get('costs', id); if (c) openCostSheet(c.project_id, c); break; }
+    case 'cost-paid': { const c = store.get('costs', id); if (c) toggleCostPaid(c); break; }
     case 'load-sample': loadSample(); break;
     case 'reset-demo':
       if (confirm('Erase all demo data on this iPad?')) { store.backend.reset(); store.loadAll(); toast('Demo data reset'); }
@@ -600,6 +611,32 @@ async function loadSample() {
   await deliverable(p1, 'Business cards', 2, 12, [[1, -2, 'approved', -1, 'Perfect — please send to print.']], { status: 'approved' });
   const packaging = store.all('projects').find(x => x.name === 'Olive & Stone packaging');
   if (packaging) await deliverable(packaging.id, 'Label artwork', 2, 10, [[1, -6, 'awaiting', null, '']]);
+
+  const quote = async (project_id, number, title, status, lines) => {
+    const q = await store.insert('quotes', { project_id, number, title, status, issue_date: d(-28), valid_until: d(2), notes: '' });
+    let i = 0;
+    for (const [description, quantity, unit_price] of lines) await store.insert('quote_items', { quote_id: q.id, description, quantity, unit_price, sort_order: i++ });
+  };
+  const cost = (project_id, description, category, vendor, amount, paid, days) => store.insert('costs', { project_id, description, category, vendor, amount, paid, date: d(days) });
+  const invoice = (project_id, number, title, amount, status, issued, due, paidDays = null) => store.insert('invoices', {
+    project_id, number, title, amount, status, issue_date: d(issued), due_date: d(due), paid_date: paidDays === null ? null : d(paidDays), notes: '',
+  });
+  await quote(p1, 'BYZ-Q-2026-001', 'Aurora brand refresh', 'approved', [['Discovery workshop & audit', 1, 1800], ['Logo design — 3 directions, 3 rounds', 1, 4200], ['Brand guidelines (40 pages)', 1, 3000], ['Business card design', 1, 600]]);
+  await cost(p1, 'Illustrator — icon set', 'freelancer', 'Nikos Papadakis', 900, true, -12);
+  await cost(p1, 'Font licence — Söhne family', 'software', 'Klim Type Foundry', 420, true, -9);
+  await cost(p1, 'Business card proofs', 'printing', 'Matbaa Istanbul', 150, false, -2);
+  await invoice(p1, 'BYZ-2026-001', 'Deposit (50%)', 4800, 'paid', -27, -13, -20);
+  await invoice(p1, 'BYZ-2026-002', 'Logo approval (25%)', 2400, 'sent', -16, -2);
+  if (packaging) {
+    await quote(packaging.id, 'BYZ-Q-2026-002', 'Packaging — 3 SKUs', 'approved', [['Label design per SKU', 3, 1200], ['Box design', 1, 1500]]);
+    await cost(packaging.id, 'Print proofs', 'printing', 'Matbaa Istanbul', 380, false, -4);
+    await invoice(packaging.id, 'BYZ-2026-003', 'Deposit (50%)', 2550, 'sent', -5, 25);
+  }
+  const appProject = store.all('projects').find(x => x.name === 'Nordlicht app UI');
+  if (appProject) {
+    await quote(appProject.id, 'DEM-Q-2026-001', 'App UI — iOS & Android', 'sent', [['UX research & wireframes', 1, 6500], ['UI design — 24 screens', 24, 450], ['Design system', 1, 4000]]);
+    await cost(appProject.id, 'User testing incentives', 'other', '', 300, true, -5);
+  }
 
   const firstTask = store.all('tasks').find(t => t.project_id === p1 && t.title === 'Present logo concepts');
   if (firstTask) {

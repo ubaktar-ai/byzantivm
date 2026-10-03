@@ -3,6 +3,8 @@ import { store, companies, me, isOverdue, isLive, progress, byDueThenPriority } 
 import { ui, inScope } from '../ui-state.js';
 import { taskRow, companySegmented, companyColor, dueChip, emptyState } from './common.js';
 import { waitingOnClients, daysSince } from './deliverables.js';
+import { invoiceState } from '../money.js';
+import { money } from '../lib.js';
 
 export function viewOverview() {
   const now = new Date();
@@ -92,6 +94,22 @@ export function viewOverview() {
                   <span class="chip ${r.sent_date && daysUntil(r.sent_date) <= -5 ? 'soon' : ''}">${esc(r.sent_date ? daysSince(r.sent_date) : 'sent')}</span></div>
                 <div class="row sub-row"><span>${esc(p.name)}${store.get('clients', p.client_id) ? ` · ${esc(store.get('clients', p.client_id).name)}` : ''}</span><span>Round ${r.round_no} of ${d.max_rounds}</span></div>
               </a>`).join('')}</div>`;
+        })()}
+        ${(() => {
+          const overdue = store.all('invoices').filter(i => projectIds.has(i.project_id) && invoiceState(i) === 'overdue')
+            .sort((a, b) => a.due_date.localeCompare(b.due_date));
+          if (!overdue.length) return '';
+          return `
+            <h2 class="section">Overdue invoices</h2>
+            <div class="card-surface">${overdue.slice(0, 6).map(inv => {
+              const p = store.get('projects', inv.project_id);
+              const c = store.get('clients', p.client_id);
+              return `
+                <a class="project-mini" href="#/project/${p.id}/money">
+                  <div class="row"><b><span class="dot" style="background:${esc(companyColor(p.company_id))}"></span> ${esc(c ? c.name : p.name)}</b><b>${esc(money(inv.amount, p.currency))}</b></div>
+                  <div class="row sub-row"><span>${esc(inv.number)} · ${esc(inv.title || p.name)}</span>${dueChip(inv.due_date)}</div>
+                </a>`;
+            }).join('')}</div>`;
         })()}
         <h2 class="section">Pipeline</h2>
         <a class="card-surface pipeline-summary" href="#/projects">

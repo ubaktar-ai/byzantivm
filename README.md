@@ -4,7 +4,7 @@ A project-management app for the Byzantivm and Demya creative studios, built for
 It's an installable web app (PWA): team members add it to their iPad home screen and
 it opens full-screen like a native app. Everyone signs in, and changes show up live for the whole team.
 
-## What's in it (steps 1–2 of 4)
+## What's in it (steps 1–3 of 4)
 
 - **Two companies, one app**: switch between All, Byzantivm, or Demya. Every screen follows the switch.
 - **Overview**: stats per company, your tasks, the team's tasks due this week, the project pipeline, and upcoming deadlines.
@@ -24,9 +24,18 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
 - **Files & photos**: upload from the iPad camera, photo library, or Files. Big photos are shrunk to 2400px automatically.
   Files can belong to a project, a task, or a feedback round. They're kept in a private storage bucket and only
   shown to the team through temporary links. The project → Files tab gathers everything.
+- **Money** (project → Money tab):
+  - **Quotes** with line items. An *approved* quote sets the project budget.
+  - **Costs** (freelancers, printing, licences…) with paid/unpaid.
+  - **Invoices** for milestones, with quick-fill buttons (30% / 50% deposit, remaining amount), draft/sent/paid, and automatic *overdue*.
+  - A summary on top: budget, costs, profit and margin, invoiced, paid, and outstanding.
+  - Numbers are suggested per company (`BYZ-2026-001`, `DEM-Q-2026-001`). Amounts accept Turkish or English formats (`1.250,50` or `1,250.50`).
+- **Money screen**: outstanding and overdue invoices, money received and costs this month, unpaid invoices with a one-tap *Paid*,
+  and profit per project. Totals are kept **per currency** and never mixed. Overdue invoices also show on the Overview,
+  and each client page shows what that client owes.
 - **Activity log**: the database already records who created, moved, or completed what. The feed screen comes in step 4.
 
-Coming next: **(3)** quotes → costs → invoices and profit per project · **(4)** calendar, timeline, and activity feed.
+Coming next: **(4)** calendar, timeline, and activity feed.
 The database tables for all of these are already created by `supabase/schema.sql`.
 
 ## One-time setup
@@ -85,7 +94,8 @@ Use **Load sample data** to look around. Sign out from the Team screen to leave 
 | `js/store.js` | In-memory data with optimistic saves and live updates from teammates |
 | `js/forms.js` | Create/edit sheets: projects, tasks (with comments and files), clients, contacts |
 | `js/files.js` | File uploads (photo downscaling), thumbnails, viewer, delete |
-| `js/views/*.js` | Screens: overview, projects, project, deliverables, clients, tasks, team, sign-in |
+| `js/money.js` | Quote / cost / invoice sheets, totals, numbering, amount parsing |
+| `js/views/*.js` | Screens: overview, projects, project, deliverables, money, clients, tasks, team, sign-in |
 | `js/config.js` | Supabase URL and anon key |
 | `supabase/schema.sql` | Database tables, security rules, activity log, live updates, file storage |
 | `vendor/supabase.js` | Supabase JS client v2.117.2 (MIT), bundled so the app needs no CDN |

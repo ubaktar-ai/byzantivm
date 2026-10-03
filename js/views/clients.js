@@ -2,6 +2,7 @@ import { esc, icon } from '../lib.js';
 import { store, projectsOfClient, contactsOf, isLive } from '../store.js';
 import { ui, inScope } from '../ui-state.js';
 import { emptyState, stageChip, statusChip, dueChip, companyColor, companyChip } from './common.js';
+import { clientBilling } from './money.js';
 
 export function viewClients() {
   const q = (ui.clientSearch || '').trim().toLowerCase();
@@ -93,6 +94,7 @@ export function viewClient(id) {
           </div>` : ''}
       </div>
       <div>
+        ${clientBilling(c.id)}
         <h2 class="section section-with-action">Contacts <button class="btn small" data-action="new-contact" data-client="${c.id}">${icon.plus} Add</button></h2>
         ${contacts.length ? `<div class="card-surface">${contacts.map(x => `
           <div class="contact-row" data-action="edit-contact" data-id="${x.id}">

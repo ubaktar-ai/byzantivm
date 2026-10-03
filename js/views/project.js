@@ -1,6 +1,7 @@
 import { STAGES, CURRENCIES, esc, icon, avatar, fmtDate, label, stageIndex } from '../lib.js';
 import { store, tasksOf, progress, contactsOf, commentCount, deliverablesOf, attachmentsWhere } from '../store.js';
 import { deliverablesTab } from './deliverables.js';
+import { moneyTab } from './money.js';
 import { fileTile, uploadButton, isImage } from '../files.js';
 import { ui } from '../ui-state.js';
 import { companyChip, statusChip, dueChip, prioDot, companyColor, taskRow, emptyState } from './common.js';
@@ -33,11 +34,13 @@ export function viewProject(id, tab = 'tasks') {
     { id: 'tasks', label: `Tasks <span class="tab-count">${pr.total}</span>` },
     { id: 'deliverables', label: `Deliverables${nDeliv ? ` <span class="tab-count">${nDeliv}</span>` : ''}` },
     { id: 'files', label: `Files${nFiles ? ` <span class="tab-count">${nFiles}</span>` : ''}` },
+    { id: 'money', label: 'Money' },
     { id: 'details', label: 'Details' },
   ];
   const body = tab === 'details' ? detailsTab(p, client, pr)
     : tab === 'deliverables' ? deliverablesTab(p)
     : tab === 'files' ? filesTab(p)
+    : tab === 'money' ? moneyTab(p)
     : tasksTab(p);
 
   return `
