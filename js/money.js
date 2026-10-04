@@ -15,6 +15,11 @@ export const INVOICE_STATUSES = [
   { id: 'paid', label: 'Paid' },
   { id: 'cancelled', label: 'Cancelled' },
 ];
+export const INVOICE_KINDS = [
+  { id: 'deposit', label: 'Deposit (unlocks drawings when paid)' },
+  { id: 'balance', label: 'Balance (unlocks shipping when paid)' },
+  { id: 'other', label: 'Other' },
+];
 export const COST_CATEGORIES = [
   { id: 'freelancer', label: 'Freelancer' },
   { id: 'printing', label: 'Printing' },
@@ -29,6 +34,8 @@ export const COST_CATEGORIES = [
 // Until they have been run, the app keeps working without them.
 export const docsReady = () => store.backend.mode === 'demo' || store.all('companies').some(c => 'legal_name' in c);
 export const countryReady = () => store.backend.mode === 'demo' || store.all('companies').some(c => 'country' in c);
+// Products, shipments and invoice types come from migrations/005_order_workflow.sql.
+export const ordersReady = () => store.backend.mode === 'demo' || !store.missing.has('items');
 
 // Byzantivm is a US company, Demya a Dutch one.
 export const companyCountry = c => (c && c.country) || 'NL';
@@ -57,7 +64,7 @@ function nlChoiceOf(rec) {
   return r === 21 ? 'std21' : r === 9 ? 'std9' : 'std0';
 }
 
-function docDefaults(projectId) {
+export function docDefaults(projectId) {
   const c = projectCompany(projectId);
   const us = companyCountry(c) === 'US';
   return {
@@ -157,7 +164,10 @@ export function projectFinance(pid) {
   const budget = round2(approved.reduce((s, q) => s + quoteTotal(q), 0));
   const quotedPending = round2(pending.reduce((s, q) => s + quoteTotal(q), 0));
   const costs = costsOf(pid);
-  const costTotal = round2(costs.reduce((s, c) => s + num(c.amount), 0));
+  const otherCost = round2(costs.reduce((s, c) => s + num(c.amount), 0));
+  const productCost = round2(store.all('items').filter(i => i.project_id === pid).reduce((s, i) => s + num(i.unit_cost) * num(i.quantity), 0));
+  const shippingCost = round2(store.all('shipments').filter(x => x.project_id === pid).reduce((s, x) => s + num(x.cost), 0));
+  const costTotal = round2(otherCost + productCost + shippingCost);
   const invoices = invoicesOf(pid).filter(i => i.status === 'sent' || i.status === 'paid');
   const invoiced = round2(invoices.reduce((s, i) => s + num(i.amount), 0));
   const paid = round2(invoices.filter(i => i.status === 'paid').reduce((s, i) => s + num(i.amount), 0));
@@ -167,11 +177,11 @@ export function projectFinance(pid) {
   const profit = round2(revenue - costTotal);
   return {
     currency: p ? p.currency : 'EUR',
-    budget, quotedPending, costs: costTotal, invoiced, paid,
+    budget, quotedPending, costs: costTotal, productCost, shippingCost, otherCost, invoiced, paid,
     outstanding: round2(invoiced - paid), overdue,
     leftToInvoice: budget ? round2(Math.max(0, budget - invoiced)) : 0,
     revenue, profit, margin: revenue ? Math.round((profit / revenue) * 100) : null,
-    hasAny: quotes.length + costs.length + invoicesOf(pid).length > 0,
+    hasAny: quotes.length + costs.length + invoicesOf(pid).length + (productCost ? 1 : 0) > 0,
   };
 }
 
@@ -190,7 +200,7 @@ export const moneyList = (totals, empty = '—') =>
 
 // ---------- Numbering: BYZ-2026-001 (invoices), BYZ-Q-2026-001 (quotes) ----------
 
-function nextNumber(table, projectId) {
+export function nextNumber(table, projectId) {
   const p = store.get('projects', projectId);
   const company = p && store.get('companies', p.company_id);
   const code = (company ? company.name : 'INV').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'INV';
@@ -222,10 +232,10 @@ export function openQuoteSheet(projectId, existing) {
 
   openSheet(`
     <form>
-      ${sheetHeader(existing ? `Quote ${q.number}` : 'New quote')}
+      ${sheetHeader(existing ? `Proposal ${q.number}` : 'New proposal')}
       <div class="fields">
         <div class="field-row">
-          <label class="field"><span>Quote number</span><input name="number" value="${esc(q.number)}"></label>
+          <label class="field"><span>Proposal number</span><input name="number" value="${esc(q.number)}"></label>
           <label class="field"><span>Status</span><select name="status">${options(QUOTE_STATUSES, q.status)}</select></label>
         </div>
         <label class="field"><span>Title</span><input name="title" value="${esc(q.title)}" placeholder="e.g. Brand identity — phase 1"></label>
@@ -249,7 +259,7 @@ export function openQuoteSheet(projectId, existing) {
         ${existing ? `<button type="button" class="btn danger" data-delete>Delete</button>` : ''}
         <span class="spacer"></span>
         <button type="button" class="btn" data-close>Cancel</button>
-        <button type="submit" class="btn primary" style="order:2">${existing ? 'Save' : 'Create quote'}</button>
+        <button type="submit" class="btn primary" style="order:2">${existing ? 'Save' : 'Create proposal'}</button>
         <button type="submit" class="btn" data-pdf style="order:1">${existing ? 'Save & PDF' : 'Create & PDF'}</button>
       </footer>
     </form>`, {
@@ -289,7 +299,7 @@ export function openQuoteSheet(projectId, existing) {
       recalc();
       const del = sheet.querySelector('[data-delete]');
       if (del) del.addEventListener('click', () => {
-        if (!confirm(`Delete quote ${existing.number}?`)) return;
+        if (!confirm(`Delete proposal ${existing.number}?`)) return;
         closeSheet();
         store.remove('quotes', existing.id).catch(() => {});
       });
@@ -327,7 +337,7 @@ export function openQuoteSheet(projectId, existing) {
         return false;
       }
       if (data.status === 'approved' && (!existing || existing.status !== 'approved')) {
-        toast(`Quote approved — budget is now ${money(projectFinance(projectId).budget, p.currency)}`);
+        toast(`Proposal accepted — order value is now ${money(projectFinance(projectId).budget, p.currency)}`);
       }
       if (submitter && submitter.hasAttribute('data-pdf')) setTimeout(() => makePdf('quote', quoteId), 50);
     },
@@ -413,6 +423,7 @@ export function openInvoiceSheet(projectId, existing) {
           <label class="field"><span>Invoice number</span><input name="number" value="${esc(inv.number)}"></label>
           <label class="field"><span>Status</span><select name="status">${options(INVOICE_STATUSES, inv.status)}</select></label>
         </div>
+        ${ordersReady() ? `<label class="field"><span>Type</span><select name="kind">${options(INVOICE_KINDS, inv.kind || 'other')}</select></label>` : ''}
         <label class="field"><span>Milestone / description</span><input name="title" value="${esc(inv.title)}" placeholder="e.g. Deposit (50%), Final delivery" ${existing ? '' : 'autofocus'}></label>
         <label class="field"><span>Amount excl. tax (${esc(p.currency)})</span><input name="amount" value="${esc(amountValue(inv.amount))}" inputmode="decimal" required placeholder="0"></label>
         ${docFields(inv, projectId)}
@@ -458,6 +469,7 @@ export function openInvoiceSheet(projectId, existing) {
         paid_date: status === 'paid' ? (fd.get('paid_date') || todayStr()) : null,
         notes: fd.get('notes'),
         ...readDocFields(fd),
+        ...(ordersReady() ? { kind: fd.get('kind') || 'other' } : {}),
       };
       let id;
       try {

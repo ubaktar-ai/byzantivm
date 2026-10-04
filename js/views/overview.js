@@ -1,5 +1,5 @@
 import { STAGES, esc, icon, addDays, todayStr, daysUntil } from '../lib.js';
-import { store, companies, me, isOverdue, isLive, progress, byDueThenPriority } from '../store.js';
+import { store, companies, me, isLive, progress, byDueThenPriority } from '../store.js';
 import { ui, inScope } from '../ui-state.js';
 import { taskRow, companySegmented, companyColor, dueChip, emptyState } from './common.js';
 import { waitingOnClients, daysSince } from './deliverables.js';
@@ -20,20 +20,20 @@ export function viewOverview() {
 
   const cards = companies().filter(c => inScope(c.id)).map(c => {
     const ps = projects.filter(p => p.company_id === c.id);
-    const ids = new Set(ps.map(p => p.id));
-    const ts = tasks.filter(t => ids.has(t.project_id));
-    const live = ps.filter(p => p.status === 'active').length;
-    const open = ts.filter(t => !t.done).length;
-    const overdue = ts.filter(isOverdue).length;
-    const review = ps.filter(p => p.status === 'active' && p.stage === 'client_review').length;
+    const active = ps.filter(p => p.status === 'active');
+    const live = active.length;
+    const inStage = (...st) => active.filter(p => st.includes(p.stage)).length;
+    const waiting = inStage('proposal', 'deposit', 'approval', 'balance');
+    const production = inStage('production');
+    const toShip = inStage('shipping');
     return `
       <div class="company-card card-surface" style="--c:${esc(c.color)}">
         <h3>${esc(c.name)} ${ui.company === c.id ? '' : `<button class="btn small ghost" data-action="set-company" data-id="${esc(c.id)}">Focus</button>`}</h3>
         <div class="stats">
-          <a class="stat" href="#/projects"><b>${live}</b><span>Active projects</span></a>
-          <a class="stat" href="#/tasks"><b>${open}</b><span>Open tasks</span></a>
-          <div class="stat ${overdue ? 'bad' : ''}"><b>${overdue}</b><span>Overdue tasks</span></div>
-          <div class="stat"><b>${review}</b><span>With client</span></div>
+          <a class="stat" href="#/projects"><b>${live}</b><span>Active orders</span></a>
+          <a class="stat" href="#/projects"><b>${waiting}</b><span>Waiting on client</span></a>
+          <a class="stat" href="#/projects"><b>${production}</b><span>In production</span></a>
+          <a class="stat" href="#/projects"><b>${toShip}</b><span>To ship</span></a>
         </div>
       </div>`;
   }).join('');

@@ -7,7 +7,7 @@ import { companySegmented, companyColor, scopeName, emptyState } from './common.
 const TYPES = [
   { id: 'task', label: 'Tasks' },
   { id: 'project', label: 'Deadlines' },
-  { id: 'deliverable', label: 'Deliverables' },
+  { id: 'deliverable', label: 'Drawings' },
   { id: 'invoice', label: 'Invoices' },
 ];
 
@@ -200,7 +200,7 @@ function timeline() {
         <button class="btn icon-btn flip" data-action="tl-shift" data-id="${addDays(start, 28)}" aria-label="Later">${icon.back}</button>
         ${ui.tlStart ? `<button class="btn small" data-action="tl-shift" data-id="">Today</button>` : ''}
       </div>
-      <span class="muted small tl-legend"><i class="lg-bar"></i> start → deadline <i class="lg-mark"></i> deliverable due <i class="lg-today"></i> today</span>
+      <span class="muted small tl-legend"><i class="lg-bar"></i> start → deadline <i class="lg-mark"></i> drawing due <i class="lg-today"></i> today</span>
     </div>`;
 
   if (!projects.length) return nav + emptyState('No projects in this period', 'Give projects a start date and deadline (Edit project) to see them here.');

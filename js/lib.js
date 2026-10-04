@@ -1,11 +1,15 @@
 // Shared constants and small helpers used by every screen.
 
 export const STAGES = [
-  { id: 'brief', label: 'Brief' },
-  { id: 'concept', label: 'Concept' },
-  { id: 'design', label: 'Design' },
-  { id: 'client_review', label: 'Client review' },
-  { id: 'revisions', label: 'Revisions' },
+  { id: 'inquiry', label: 'Inquiry' },
+  { id: 'costing', label: 'Costing' },
+  { id: 'proposal', label: 'Proposal' },
+  { id: 'deposit', label: 'Deposit' },
+  { id: 'drawings', label: 'Drawings' },
+  { id: 'approval', label: 'Client approval' },
+  { id: 'production', label: 'Production' },
+  { id: 'balance', label: 'Balance' },
+  { id: 'shipping', label: 'Shipping' },
   { id: 'delivered', label: 'Delivered' },
 ];
 

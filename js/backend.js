@@ -10,7 +10,9 @@ export const keyOf = table => (table === 'team_members' ? 'email' : 'id');
 export const RELATIONS = {
   projects: [['tasks', 'project_id', 'cascade'], ['comments', 'project_id', 'cascade'],
     ['deliverables', 'project_id', 'cascade'], ['attachments', 'project_id', 'cascade'],
-    ['quotes', 'project_id', 'cascade'], ['costs', 'project_id', 'cascade'], ['invoices', 'project_id', 'cascade']],
+    ['quotes', 'project_id', 'cascade'], ['costs', 'project_id', 'cascade'], ['invoices', 'project_id', 'cascade'],
+    ['items', 'project_id', 'cascade'], ['shipments', 'project_id', 'cascade']],
+  items: [['deliverables', 'item_id', 'cascade']],
   quotes: [['quote_items', 'quote_id', 'cascade']],
   tasks: [['comments', 'task_id', 'cascade'], ['attachments', 'task_id', 'cascade']],
   clients: [['contacts', 'client_id', 'cascade'], ['projects', 'client_id', 'null']],
@@ -157,8 +159,8 @@ const DEFAULTS = {
   companies: () => ({ color: '#64748b', sort_order: 0 }),
   clients: () => ({ email: '', phone: '', website: '', address: '', notes: '' }),
   contacts: () => ({ role: '', email: '', phone: '', notes: '' }),
-  projects: () => ({ description: '', stage: 'brief', status: 'active', currency: 'EUR', lead_id: null, client_id: null, start_date: null, due_date: null, sort_order: 0 }),
-  tasks: () => ({ notes: '', stage: 'brief', done: false, priority: 'medium', assignee_id: null, due_date: null, completed_at: null, sort_order: 0 }),
+  projects: () => ({ description: '', stage: 'inquiry', delivery_address: '', deposit_pct: 50, status: 'active', currency: 'EUR', lead_id: null, client_id: null, start_date: null, due_date: null, sort_order: 0 }),
+  tasks: () => ({ notes: '', stage: 'inquiry', done: false, priority: 'medium', assignee_id: null, due_date: null, completed_at: null, sort_order: 0 }),
   comments: () => ({ task_id: null, mentions: [], author_id: DEMO_USER.id }),
   deliverables: () => ({ description: '', max_rounds: 3, status: 'in_progress', due_date: null, sort_order: 0 }),
   feedback_rounds: () => ({ sent_date: null, received_date: null, status: 'awaiting', feedback: '' }),
@@ -166,7 +168,9 @@ const DEFAULTS = {
   quotes: () => ({ number: '', title: '', issue_date: null, valid_until: null, status: 'draft', notes: '' }),
   quote_items: () => ({ quantity: 1, unit_price: 0, sort_order: 0 }),
   costs: () => ({ category: 'other', vendor: '', amount: 0, paid: false }),
-  invoices: () => ({ number: '', title: '', issue_date: null, due_date: null, amount: 0, status: 'draft', paid_date: null, notes: '' }),
+  invoices: () => ({ number: '', title: '', issue_date: null, due_date: null, amount: 0, status: 'draft', paid_date: null, notes: '', kind: 'other' }),
+  items: () => ({ description: '', quantity: 1, dimensions: '', materials: '', weight_kg: null, supplier: '', supplier_ref: '', unit_cost: 0, unit_price: 0, production: 'not_started', sort_order: 0 }),
+  shipments: () => ({ carrier: '', tracking: '', status: 'preparing', shipped_date: null, delivered_date: null, cost: 0, packages: '', notes: '' }),
   team_members: () => ({}),
   profiles: () => ({ full_name: '', color: '#64748b' }),
 };
@@ -193,6 +197,7 @@ export class LocalBackend {
       team_members: [{ email: DEMO_USER.email, added_at: now }],
       clients: [], contacts: [], projects: [], tasks: [], comments: [], activity: [],
       deliverables: [], feedback_rounds: [], attachments: [], quotes: [], quote_items: [], costs: [], invoices: [],
+      items: [], shipments: [],
     };
   }
 
@@ -306,7 +311,7 @@ export class LocalBackend {
   deleteBlob(path) { return this.idbRun('readwrite', s => s.delete(path)).catch(() => {}); }
 
   log(table, action, row, details = {}) {
-    if (!['clients', 'projects', 'tasks', 'comments', 'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'costs', 'invoices'].includes(table)) return;
+    if (!['clients', 'projects', 'tasks', 'comments', 'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'costs', 'invoices', 'items', 'shipments'].includes(table)) return;
     const entry = {
       id: this.db.activity.length + 1,
       at: new Date().toISOString(),
@@ -317,7 +322,7 @@ export class LocalBackend {
         : table === 'feedback_rounds' ? (this.db.deliverables.find(d => d.id === row.deliverable_id) || {}).project_id || null
         : row.project_id || null,
       action,
-      summary: row.name || row.title || row.number || (row.body || '').slice(0, 140) || (row.round_no ? `Round ${row.round_no}` : '') || row.description || '',
+      summary: row.name || row.title || row.number || (row.body || '').slice(0, 140) || (row.round_no ? `Round ${row.round_no}` : '') || row.description || [row.carrier, row.tracking].filter(Boolean).join(' ') || '',
       details,
     };
     this.db.activity.push(entry);

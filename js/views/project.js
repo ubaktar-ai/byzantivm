@@ -1,13 +1,16 @@
 import { STAGES, CURRENCIES, esc, icon, avatar, fmtDate, label, stageIndex } from '../lib.js';
-import { store, tasksOf, progress, contactsOf, commentCount, deliverablesOf, attachmentsWhere } from '../store.js';
-import { deliverablesTab } from './deliverables.js';
+import { store, tasksOf, progress, contactsOf, commentCount, attachmentsWhere } from '../store.js';
+import { drawingsTab } from './deliverables.js';
+import { orderTab } from './order.js';
+import { shippingTab } from './shipping.js';
 import { moneyTab } from './money.js';
 import { activityEntries, activityItem } from './activity.js';
 import { fileTile, uploadButton, isImage } from '../files.js';
 import { ui } from '../ui-state.js';
 import { companyChip, statusChip, dueChip, prioDot, companyColor, taskRow, emptyState } from './common.js';
 
-export function viewProject(id, tab = 'tasks') {
+export function viewProject(id, tab = 'order') {
+  if (!tab || tab === 'deliverables') tab = tab === 'deliverables' ? 'drawings' : 'order';
   const p = store.get('projects', id);
   if (!p) {
     return store.loaded
@@ -29,20 +32,24 @@ export function viewProject(id, tab = 'tasks') {
         </button>`).join('')}
     </div>`;
 
-  const nDeliv = deliverablesOf(p.id).length;
+  const nProducts = store.all('items').filter(i => i.project_id === p.id).length;
   const nFiles = attachmentsWhere('project_id', p.id).length;
   const tabs = [
-    { id: 'tasks', label: `Tasks <span class="tab-count">${pr.total}</span>` },
-    { id: 'deliverables', label: `Deliverables${nDeliv ? ` <span class="tab-count">${nDeliv}</span>` : ''}` },
-    { id: 'files', label: `Files${nFiles ? ` <span class="tab-count">${nFiles}</span>` : ''}` },
+    { id: 'order', label: `Order${nProducts ? ` <span class="tab-count">${nProducts}</span>` : ''}` },
+    { id: 'drawings', label: 'Drawings' },
     { id: 'money', label: 'Money' },
+    { id: 'shipping', label: 'Shipping' },
+    { id: 'tasks', label: `Tasks${pr.total ? ` <span class="tab-count">${pr.total}</span>` : ''}` },
+    { id: 'files', label: `Files${nFiles ? ` <span class="tab-count">${nFiles}</span>` : ''}` },
     { id: 'details', label: 'Details' },
   ];
   const body = tab === 'details' ? detailsTab(p, client, pr)
-    : tab === 'deliverables' ? deliverablesTab(p)
+    : tab === 'drawings' ? drawingsTab(p)
     : tab === 'files' ? filesTab(p)
     : tab === 'money' ? moneyTab(p)
-    : tasksTab(p);
+    : tab === 'shipping' ? shippingTab(p)
+    : tab === 'tasks' ? tasksTab(p)
+    : orderTab(p);
 
   return `
     <a class="crumbs" href="#/projects">${icon.back}Projects</a>

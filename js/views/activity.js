@@ -36,23 +36,23 @@ function sentence(a) {
       return `commented${t ? ` on <b>${esc(t.title)}</b>` : ''}: <span class="quote">“${esc(a.summary)}”</span>`;
     }
     case 'deliverables':
-      if (a.action === 'created') return `added deliverable ${name}`;
-      if (changed.includes('status') && d.status === 'approved') return `${name} was approved 🎉`;
-      return a.action === 'deleted' ? `deleted deliverable ${name}` : `updated deliverable ${name}`;
+      if (a.action === 'created') return `started the drawing for ${name}`;
+      if (changed.includes('status') && d.status === 'approved') return `got the drawing for ${name} approved 🎉`;
+      return a.action === 'deleted' ? `deleted drawing ${name}` : `updated drawing ${name}`;
     case 'feedback_rounds': {
       const r = store.get('feedback_rounds', a.entity_id);
       const del = r && store.get('deliverables', r.deliverable_id);
       const what = `${esc(a.summary)}${del ? ` of <b>${esc(del.name)}</b>` : ''}`;
-      if (a.action === 'created') return `sent ${what} to the client`;
+      if (a.action === 'created') return `sent drawing ${what} to the client`;
       if (changed.includes('status')) return `recorded client feedback on ${what}: ${esc(ROUND_LABELS[d.status] || d.status || '')}`;
       return a.action === 'deleted' ? `deleted ${what}` : `updated ${what}`;
     }
     case 'attachments':
       return a.action === 'deleted' ? `deleted file ${name}` : `uploaded ${name}`;
     case 'quotes':
-      if (a.action === 'created') return `created quote ${name}`;
-      if (changed.includes('status')) return `marked quote ${name} as ${esc(d.status || '')}`;
-      return a.action === 'deleted' ? `deleted quote ${name}` : `updated quote ${name}`;
+      if (a.action === 'created') return `created proposal ${name}`;
+      if (changed.includes('status')) return d.status === 'approved' ? `got proposal ${name} accepted 🎉` : `marked proposal ${name} as ${esc(d.status || '')}`;
+      return a.action === 'deleted' ? `deleted proposal ${name}` : `updated proposal ${name}`;
     case 'invoices': {
       const inv = store.get('invoices', a.entity_id);
       const p = inv && store.get('projects', inv.project_id);
@@ -61,6 +61,20 @@ function sentence(a) {
       if (changed.includes('status') && d.status === 'paid') return `marked invoice ${name} paid${amt} 💶`;
       if (changed.includes('status') && d.status === 'sent') return `sent invoice ${name}${amt}`;
       return a.action === 'deleted' ? `deleted invoice ${name}` : `updated invoice ${name}`;
+    }
+    case 'items':
+      if (a.action === 'created') return `added product ${name}`;
+      if (changed.includes('production')) {
+        const it = store.get('items', a.entity_id);
+        return it && it.production === 'ready' ? `marked ${name} ready` : `updated production of ${name}`;
+      }
+      if (changed.includes('unit_cost') || changed.includes('unit_price')) return `updated the cost/price of ${name}`;
+      return a.action === 'deleted' ? `deleted product ${name}` : `updated product ${name}`;
+    case 'shipments': {
+      if (a.action === 'created') return `added shipment ${name}`;
+      if (changed.includes('status') && d.status === 'shipped') return `shipped ${name} 🚚`;
+      if (changed.includes('status') && d.status === 'delivered') return `delivered ${name} ✅`;
+      return a.action === 'deleted' ? `deleted shipment ${name}` : `updated shipment ${name}`;
     }
     case 'costs':
       return a.action === 'created' ? `added cost ${name}` : a.action === 'deleted' ? `deleted cost ${name}` : `updated cost ${name}`;

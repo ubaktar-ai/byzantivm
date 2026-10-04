@@ -9,27 +9,38 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
 
 - **Two companies, one app**: switch between All, Byzantivm, or Demya. Every screen follows the switch.
 - **Overview**: stats per company, your tasks, the team's tasks due this week, the project pipeline, and upcoming deadlines.
-- **Projects**: a pipeline board across the agency stages
-  **Brief → Concept → Design → Client review → Revisions → Delivered**.
-  Press and hold a card to move it. There's also a list view and a status filter (current / completed / cancelled).
-- **Project page**: a stage stepper, a task board by phase, and a details tab (brief, team, facts, client contacts).
-  Each project has its own currency, USD or EUR. New projects follow their company (Byzantivm: USD, Demya: EUR).
+- **Order workflow** for made-to-order furniture & lighting. Every project moves through
+  **Inquiry → Costing → Proposal → Deposit → Drawings → Client approval → Production → Balance → Shipping → Delivered**.
+  The project's **Next step** card says what's due and has one-tap buttons:
+  - create the proposal from the products (PROPOSAL / OFFERTE PDF)
+  - client accepted → 50% deposit invoice (the % is set per project)
+  - deposit received → drawings
+  - all drawings approved → production
+  - production finished → balance invoice
+  - balance received → shipping
+  - shipped → delivered
+
+  Drawings wait for the deposit and shipping waits for the balance; the app warns if you go ahead early.
+- **Products** in each order: quantity, dimensions, materials and finish, weight, the **supplier/workshop and their quoted cost**,
+  your **price** (with markup %), and the margin per product and for the whole order.
+- **Drawings**: each product gets its own drawing with approval rounds (send → client feedback → revise → approved),
+  with files on every round. When all drawings have been sent, the project moves to *Client approval*.
+- **Shipping**: a delivery address per order (or the client's address), shipments with carrier, tracking
+  (tappable for UPS, FedEx, DHL, PostNL, DPD and GLS), dates, packages and **shipping cost**, plus a **packing list PDF** with a signature line.
+- **Projects screen**: a pipeline board across the 10 stages showing the product count and order value, plus a list view.
 - **Tasks**: phase, priority, assignee, due date, notes, done/undo, and **comments with @mentions**.
   The Tasks screen shows *My tasks* / everyone / a specific person, grouped by Overdue / Today / Next 7 days.
 - **Clients**: company details, contacts with tap-to-email and tap-to-call, and all of a client's projects across both companies.
 - **Team & settings**: your name and colour, the team list (who may sign in), company names and colours.
-- **Deliverables & feedback rounds** (project → Deliverables): set how many revision rounds are included,
-  then **Send to client**, followed by **Record client feedback** (waiting / changes requested / approved) for each round.
-  Files are attached to each round. The app warns when a round goes past what's included, and offers to move the
-  project to *Client review* or *Revisions* when that fits. The Overview lists everything **waiting on clients** and for how long.
 - **Files & photos**: upload from the iPad camera, photo library, or Files. Big photos are shrunk to 2400px automatically.
   Files can belong to a project, a task, or a feedback round. They're kept in a private storage bucket and only
   shown to the team through temporary links. The project → Files tab gathers everything.
 - **Money** (project → Money tab):
-  - **Quotes** with line items. An *approved* quote sets the project budget.
-  - **Costs** (freelancers, printing, licences…) with paid/unpaid.
+  - **Proposals** with line items. The *accepted* proposal sets the order value.
+  - **Costs**: supplier costs come from the products and shipping costs from shipments. Add anything else (samples, materials, travel) as *other costs*.
   - **Invoices** for milestones, with quick-fill buttons (30% / 50% deposit, remaining amount), draft/sent/paid, and automatic *overdue*.
-  - A summary on top: budget, costs, profit and margin, invoiced, paid, and outstanding.
+  - A summary on top: order value, costs, profit and margin, invoiced, paid, and outstanding.
+  - Each invoice has a type: deposit, balance, or other.
   - Numbers are suggested per company (`BYZ-2026-001`, `DEM-Q-2026-001`). Amounts accept Dutch or English formats (`1.250,50` or `1,250.50`).
 - **PDF quotes & invoices**:
   - **PDF** / **Save & PDF** create a real PDF with your logo, company and tax details, the client's details, line items,
@@ -47,10 +58,10 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
   and profit per project. Totals are kept **per currency** and never mixed. Overdue invoices also show on the Overview,
   and each client page shows what that client owes.
 - **Calendar**:
-  - **Month** view with task due dates, project deadlines, deliverable due dates, and invoice due dates.
+  - **Month** view with task due dates, project deadlines, drawing due dates, and invoice due dates.
     You can switch each type on or off, or show only your own tasks.
   - Tap a day to see its list, and add a task due that day.
-  - **Timeline** shows every project as a bar from start to deadline, with deliverable due dates as ◆ and a red *today* line.
+  - **Timeline** shows every project as a bar from start to deadline, with drawing due dates as ◆ and a red *today* line.
     Late projects are outlined in red.
 - **Activity feed**: a live record of who did what, for example *"Elena moved Logo concepts to Design"* or
   *"Umut marked invoice BYZ-2026-002 paid"*. You can filter it by person. Recent activity also shows on the Overview and on each project's Details tab.
@@ -74,6 +85,7 @@ The script is safe to run again later. It only creates things that are missing.
 - `002_documents.sql` adds company/client document details, VAT and language, needed for PDF quotes and invoices.
 - `003_currency_cleanup.sql` makes euro the default currency, limits documents to English or Dutch, and removes the unused tax-office fields.
 - `004_company_country.sql` sets Byzantivm to US/USD and Demya to NL/EUR, allows only USD and EUR, and adds the VAT treatment per document.
+- `005_order_workflow.sql` adds the order workflow: the new stages, products, drawings per product, deposit/balance invoice types, delivery address and shipments.
 
 ### 2. Connect the app
 
@@ -120,7 +132,7 @@ Use **Load sample data** to look around. Sign out from the Team screen to leave 
 | `js/files.js` | File uploads (photo downscaling), thumbnails, viewer, delete |
 | `js/money.js` | Quote / cost / invoice sheets, totals, numbering, amount parsing |
 | `js/pdf.js` | PDF quotes & invoices (jsPDF + Inter font), English / Dutch |
-| `js/views/*.js` | Screens: overview, projects, project, deliverables, money, calendar & timeline, activity, clients, tasks, team, sign-in |
+| `js/views/*.js` | Screens: overview, projects, project (order, drawings, money, shipping…), calendar & timeline, activity, clients, tasks, team, sign-in |
 | `js/config.js` | Supabase URL and anon key |
 | `supabase/schema.sql` | Database tables, security rules, activity log, live updates, file storage |
 | `vendor/supabase.js` | Supabase JS client v2.117.2 (MIT), bundled so the app needs no CDN |

@@ -1,5 +1,5 @@
-import { STAGES, esc, icon, avatar } from '../lib.js';
-import { store, progress, tasksOf, isOverdue } from '../store.js';
+import { STAGES, esc, icon, avatar, money, stageIndex } from '../lib.js';
+import { store, tasksOf, isOverdue, productsOf } from '../store.js';
 import { ui, inScope } from '../ui-state.js';
 import { companySegmented, companyColor, companyChip, stageChip, statusChip, dueChip, scopeName, emptyState } from './common.js';
 
@@ -16,10 +16,12 @@ export function filteredProjects() {
 }
 
 export function projectCard(p, { draggable = false } = {}) {
-  const pr = progress(p.id);
   const client = store.get('clients', p.client_id);
   const lead = store.get('profiles', p.lead_id);
   const overdue = tasksOf(p.id).filter(isOverdue).length;
+  const products = productsOf(p.id);
+  const value = products.reduce((s, i) => s + (Number(i.unit_price) || 0) * (Number(i.quantity) || 0), 0);
+  const stagePct = Math.round((stageIndex(p.stage) / (STAGES.length - 1)) * 100);
   const color = companyColor(p.company_id);
   return `
     <a class="project-card card-surface ${draggable ? 'draggable' : ''}" href="#/project/${p.id}" style="--c:${esc(color)}"
@@ -29,9 +31,9 @@ export function projectCard(p, { draggable = false } = {}) {
         ${lead ? avatar(lead, 24) : ''}
       </div>
       <h3>${esc(p.name)}</h3>
-      <div class="progress"><span style="width:${pr.pct}%;background:var(--c)"></span></div>
+      <div class="progress"><span style="width:${stagePct}%;background:var(--c)"></span></div>
       <div class="pc-meta">
-        <span>${pr.done}/${pr.total} tasks${overdue ? ` · <b class="bad-text">${overdue} late</b>` : ''}</span>
+        <span>${products.length} product${products.length === 1 ? '' : 's'}${value ? ` · ${esc(money(value, p.currency))}` : ''}${overdue ? ` · <b class="bad-text">${overdue} late</b>` : ''}</span>
         ${statusChip(p.status)}
         ${p.due_date ? dueChip(p.due_date, p.status === 'completed') : ''}
       </div>
@@ -55,7 +57,7 @@ export function viewProjects() {
 
   let body;
   if (!store.all('projects').some(p => inScope(p.company_id))) {
-    body = emptyState('No projects yet', 'Projects move through Brief → Concept → Design → Client review → Revisions → Delivered.',
+    body = emptyState('No projects yet', 'Each project moves from Inquiry → Costing → Proposal → Deposit → Drawings → Approval → Production → Balance → Shipping → Delivered.',
       `<button class="btn primary" data-action="new-project">${icon.plus} New project</button>`);
   } else if (mode === 'pipeline') {
     body = `
@@ -75,14 +77,14 @@ export function viewProjects() {
     body = sorted.length ? `
       <div class="card-surface table-list">
         ${sorted.map(p => {
-          const pr = progress(p.id);
           const client = store.get('clients', p.client_id);
+          const stagePct = Math.round((stageIndex(p.stage) / (STAGES.length - 1)) * 100);
           return `
             <a class="list-row" href="#/project/${p.id}">
               <span class="bar" style="background:${esc(companyColor(p.company_id))}"></span>
               <div class="lr-main"><b>${esc(p.name)}</b><span>${esc(client ? client.name : 'No client')}</span></div>
               <div class="lr-chips">${ui.company === 'all' ? companyChip(p.company_id) : ''}${stageChip(p.stage)}${statusChip(p.status)}</div>
-              <div class="lr-progress"><div class="progress"><span style="width:${pr.pct}%;background:${esc(companyColor(p.company_id))}"></span></div><small>${pr.done}/${pr.total}</small></div>
+              <div class="lr-progress"><div class="progress"><span style="width:${stagePct}%;background:${esc(companyColor(p.company_id))}"></span></div><small>${stageIndex(p.stage) + 1}/${STAGES.length}</small></div>
               <div class="lr-due">${dueChip(p.due_date, p.status === 'completed')}</div>
             </a>`;
         }).join('')}

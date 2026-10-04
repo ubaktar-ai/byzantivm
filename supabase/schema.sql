@@ -105,8 +105,8 @@ create table if not exists public.projects (
   client_id    uuid references public.clients (id) on delete set null,
   name         text not null,
   description  text not null default '',
-  stage        text not null default 'brief'
-               check (stage in ('brief','concept','design','client_review','revisions','delivered')),
+  stage        text not null default 'inquiry'
+               check (stage in ('inquiry','costing','proposal','deposit','drawings','approval','production','balance','shipping','delivered')),
   status       text not null default 'active'
                check (status in ('active','on_hold','completed','cancelled')),
   currency     text not null default 'EUR' check (currency in ('EUR','USD')),
@@ -124,8 +124,8 @@ create table if not exists public.tasks (
   project_id   uuid not null references public.projects (id) on delete cascade,
   title        text not null,
   notes        text not null default '',
-  stage        text not null default 'brief'
-               check (stage in ('brief','concept','design','client_review','revisions','delivered')),
+  stage        text not null default 'inquiry'
+               check (stage in ('inquiry','costing','proposal','deposit','drawings','approval','production','balance','shipping','delivered')),
   done         boolean not null default false,
   priority     text not null default 'medium' check (priority in ('low','medium','high','urgent')),
   assignee_id  uuid references public.profiles (id) on delete set null,
@@ -344,7 +344,8 @@ begin
     proj,
     act,
     coalesce(rec ->> 'name', rec ->> 'title', nullif(rec ->> 'number', ''), rec ->> 'description',
-             left(rec ->> 'body', 140), 'Round ' || (rec ->> 'round_no'), ''),
+             left(rec ->> 'body', 140), 'Round ' || (rec ->> 'round_no'),
+             nullif(concat_ws(' ', rec ->> 'carrier', rec ->> 'tracking'), ''), ''),
     case
       when tg_op = 'UPDATE' then jsonb_build_object('changed', to_jsonb(changed),
                                    'stage', rec -> 'stage', 'from_stage', prev -> 'stage',
@@ -519,6 +520,84 @@ alter table public.quotes   drop constraint if exists quotes_vat_treatment_check
 alter table public.quotes   add constraint quotes_vat_treatment_check check (vat_treatment in ('standard','reverse_charge','outside_eu','kor'));
 alter table public.invoices drop constraint if exists invoices_vat_treatment_check;
 alter table public.invoices add constraint invoices_vat_treatment_check check (vat_treatment in ('standard','reverse_charge','outside_eu','kor'));
+
+-- ---------------------------------------------------------------------
+-- Orders: products, drawings per product, shipments (also in migrations/005_order_workflow.sql)
+-- ---------------------------------------------------------------------
+-- ---------- Order details ----------
+alter table public.projects
+  add column if not exists delivery_address text not null default '',
+  add column if not exists deposit_pct numeric(5,2) not null default 50;
+
+-- Which invoice is the deposit and which the balance (drawings wait for the deposit, shipping for the balance)
+alter table public.invoices add column if not exists kind text not null default 'other';
+alter table public.invoices drop constraint if exists invoices_kind_check;
+alter table public.invoices add constraint invoices_kind_check check (kind in ('deposit','balance','other'));
+
+-- ---------- Products in an order ----------
+create table if not exists public.items (
+  id            uuid primary key default gen_random_uuid(),
+  project_id    uuid not null references public.projects (id) on delete cascade,
+  name          text not null,
+  description   text not null default '',
+  quantity      numeric(12,2) not null default 1,
+  dimensions    text not null default '',
+  materials     text not null default '',
+  weight_kg     numeric(10,2),
+  supplier      text not null default '',
+  supplier_ref  text not null default '',          -- supplier's quote number
+  unit_cost     numeric(14,2) not null default 0,  -- supplier price per unit
+  unit_price    numeric(14,2) not null default 0,  -- our price to the client per unit
+  production    text not null default 'not_started' check (production in ('not_started','in_production','ready')),
+  sort_order    double precision not null default 0,
+  created_at    timestamptz not null default now(),
+  created_by    uuid default auth.uid(),
+  updated_at    timestamptz not null default now()
+);
+create index if not exists items_project_idx on public.items (project_id);
+
+-- Drawings belong to a product
+alter table public.deliverables add column if not exists item_id uuid references public.items (id) on delete cascade;
+
+-- ---------- Shipments ----------
+create table if not exists public.shipments (
+  id              uuid primary key default gen_random_uuid(),
+  project_id      uuid not null references public.projects (id) on delete cascade,
+  carrier         text not null default '',
+  tracking        text not null default '',
+  status          text not null default 'preparing' check (status in ('preparing','shipped','delivered')),
+  shipped_date    date,
+  delivered_date  date,
+  cost            numeric(14,2) not null default 0,
+  packages        text not null default '',          -- e.g. "2 crates, 1 box"
+  notes           text not null default '',
+  created_at      timestamptz not null default now(),
+  created_by      uuid default auth.uid(),
+  updated_at      timestamptz not null default now()
+);
+create index if not exists shipments_project_idx on public.shipments (project_id);
+
+-- ---------- Security, timestamps, activity, live updates ----------
+do $$
+declare t text;
+begin
+  foreach t in array array['items','shipments'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists team_all on public.%I', t);
+    execute format('create policy team_all on public.%I for all to authenticated
+                    using (public.is_team_member()) with check (public.is_team_member())', t);
+    execute format('drop trigger if exists touch_%1$s on public.%1$I', t);
+    execute format('create trigger touch_%1$s before update on public.%1$I
+                    for each row execute function public.touch_updated_at()', t);
+    execute format('drop trigger if exists activity_%1$s on public.%1$I', t);
+    execute format('create trigger activity_%1$s after insert or update or delete on public.%1$I
+                    for each row execute function public.log_activity()', t);
+    if not exists (select 1 from pg_publication_tables
+                   where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
 
 -- ---------------------------------------------------------------------
 -- Starting data

@@ -32,8 +32,8 @@ export function moneyTab(p) {
 
   const summary = `
     <div class="money-stats six">
-      ${statCard('Budget', f.budget ? m(f.budget) : '—', f.budget ? 'approved quotes' : f.quotedPending ? `${m(f.quotedPending)} quoted, not approved` : 'no approved quote yet')}
-      ${statCard('Costs', m(f.costs), `${costs.length} item${costs.length === 1 ? '' : 's'}`)}
+      ${statCard('Order value', f.budget ? m(f.budget) : '—', f.budget ? 'accepted proposal' : f.quotedPending ? `${m(f.quotedPending)} proposed, not accepted yet` : 'no accepted proposal yet')}
+      ${statCard('Costs', m(f.costs), [f.productCost ? `products ${m(f.productCost)}` : '', f.shippingCost ? `shipping ${m(f.shippingCost)}` : '', f.otherCost ? `other ${m(f.otherCost)}` : ''].filter(Boolean).join(' · '))}
       ${statCard('Profit', f.revenue ? m(f.profit) : '—', f.margin != null ? `${f.margin}% margin${f.budget ? '' : ' (on invoiced)'}` : '', f.revenue && f.profit < 0 ? 'bad' : f.revenue ? 'good' : '')}
       ${statCard('Invoiced', m(f.invoiced), f.budget ? `${m(f.leftToInvoice)} left to invoice` : '')}
       ${statCard('Paid', m(f.paid), f.invoiced ? `${Math.round((f.paid / f.invoiced) * 100)}% of invoiced` : '')}
@@ -42,15 +42,15 @@ export function moneyTab(p) {
 
   const quotesSection = `
     <section class="money-section">
-      <h2 class="section section-with-action">Quotes <button class="btn small" data-action="new-quote" data-project="${p.id}">${icon.plus} Quote</button></h2>
+      <h2 class="section section-with-action">Proposals <button class="btn small" data-action="new-quote" data-project="${p.id}">${icon.plus} Proposal</button></h2>
       ${quotes.length ? `<div class="card-surface">${quotes.map(q => `
         <div class="money-row" data-action="edit-quote" data-id="${q.id}">
-          <div class="mr-main"><b>${esc(q.title || 'Quote')}</b><span class="muted small">${esc(q.number)}${q.issue_date ? ` · ${esc(fmtDate(q.issue_date))}` : ''} · ${itemsOf(q.id).length} line${itemsOf(q.id).length === 1 ? '' : 's'}</span></div>
+          <div class="mr-main"><b>${esc(q.title || 'Proposal')}</b><span class="muted small">${esc(q.number)}${q.issue_date ? ` · ${esc(fmtDate(q.issue_date))}` : ''} · ${itemsOf(q.id).length} line${itemsOf(q.id).length === 1 ? '' : 's'}</span></div>
           <span class="chip quote-${q.status}">${esc(label(QUOTE_STATUSES, q.status))}</span>
-          <button class="btn small pdf-btn" data-action="pdf-quote" data-id="${q.id}" aria-label="PDF of quote ${esc(q.number)}">PDF</button>
+          <button class="btn small pdf-btn" data-action="pdf-quote" data-id="${q.id}" aria-label="PDF of proposal ${esc(q.number)}">PDF</button>
           <b class="mr-amount">${m(quoteTotal(q))}</b>
         </div>`).join('')}</div>`
-        : `<div class="empty small-empty">No quotes yet. An <b>approved</b> quote sets the project budget.</div>`}
+        : `<div class="empty small-empty">No proposals yet. Create one from the products on the <b>Order</b> tab — the accepted proposal sets the order value.</div>`}
     </section>`;
 
   const invoicesSection = `
@@ -72,14 +72,15 @@ export function moneyTab(p) {
 
   const costsSection = `
     <section class="money-section">
-      <h2 class="section section-with-action">Costs <button class="btn small" data-action="new-cost" data-project="${p.id}">${icon.plus} Cost</button></h2>
+      <h2 class="section section-with-action">Other costs <button class="btn small" data-action="new-cost" data-project="${p.id}">${icon.plus} Cost</button></h2>
+      <p class="muted small">Supplier costs come from the products (Order tab) and shipping costs from Shipping. Add anything else here — samples, materials, travel…</p>
       ${costs.length ? `<div class="card-surface">${costs.map(c => `
         <div class="money-row" data-action="edit-cost" data-id="${c.id}">
           <div class="mr-main"><b>${esc(c.description)}</b><span class="muted small">${esc(label(COST_CATEGORIES, c.category))}${c.vendor ? ` · ${esc(c.vendor)}` : ''} · ${esc(fmtDate(c.date))}</span></div>
           <button class="chip-toggle ${c.paid ? 'on' : ''}" data-action="cost-paid" data-id="${c.id}">${c.paid ? `${icon.check} Paid` : 'Unpaid'}</button>
           <b class="mr-amount">${m(c.amount)}</b>
         </div>`).join('')}</div>`
-        : `<div class="empty small-empty">No costs yet. Log freelancers, printing, licences… to see real profit.</div>`}
+        : `<div class="empty small-empty">No other costs.</div>`}
     </section>`;
 
   return `
@@ -139,7 +140,7 @@ export function viewMoney() {
   const profitTable = rows.length ? `
     <div class="card-surface table-wrap">
       <table class="money-table">
-        <thead><tr><th>Project</th><th>Budget</th><th>Costs</th><th>Profit</th><th>Invoiced</th><th>Paid</th></tr></thead>
+        <thead><tr><th>Project</th><th>Order value</th><th>Costs</th><th>Profit</th><th>Invoiced</th><th>Paid</th></tr></thead>
         <tbody>${rows.map(({ p, f }) => {
           const m = v => esc(money(v, p.currency));
           return `<tr>

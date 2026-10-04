@@ -1,7 +1,7 @@
 // Printable quotes & invoices as real PDF files (jsPDF + embedded Inter font,
 // so accented characters print correctly). Everything is loaded on first use.
 import { esc, icon, openSheet, sheetHeader, toast, parseDate, $ } from './lib.js';
-import { store, contactsOf } from './store.js';
+import { store, contactsOf, productsOf, shipmentsOf } from './store.js';
 import { itemsOf } from './money.js';
 import { fileUrls } from './files.js';
 
@@ -12,7 +12,9 @@ export const DOC_LANGUAGES = [
 
 const T = {
   en: {
-    quote: 'QUOTE', invoice: 'INVOICE', number: 'Number', date: 'Date', due: 'Due date', valid: 'Valid until',
+    quote: 'PROPOSAL', invoice: 'INVOICE', packing: 'PACKING LIST', shipTo: 'Ship to', order: 'Order', shipDate: 'Ship date',
+    carrier: 'Carrier', tracking: 'Tracking', packages: 'Packages', weight: 'Weight', pieces: 'pieces', item: 'Item',
+    received: 'Received in good condition', signature: 'Name, date & signature', number: 'Number', date: 'Date', due: 'Due date', valid: 'Valid until',
     billTo: 'Bill to', quoteFor: 'Prepared for', project: 'Project', description: 'Description', qty: 'Qty',
     unit: 'Unit price', amount: 'Amount', subtotal: 'Subtotal', vat: 'VAT', total: 'Total', notes: 'Notes',
     payment: 'Payment details', bank: 'Bank', iban: 'IBAN', swift: 'BIC/SWIFT', reference: 'Reference',
@@ -24,7 +26,9 @@ const T = {
     korNote: 'Exempt from VAT under the Dutch small business scheme (KOR).',
   },
   nl: {
-    quote: 'OFFERTE', invoice: 'FACTUUR', number: 'Nummer', date: 'Datum', due: 'Vervaldatum', valid: 'Geldig tot',
+    quote: 'OFFERTE', invoice: 'FACTUUR', packing: 'PAKBON', shipTo: 'Afleveradres', order: 'Order', shipDate: 'Verzenddatum',
+    carrier: 'Vervoerder', tracking: 'Track & trace', packages: 'Colli', weight: 'Gewicht', pieces: 'stuks', item: 'Artikel',
+    received: 'In goede staat ontvangen', signature: 'Naam, datum & handtekening', number: 'Nummer', date: 'Datum', due: 'Vervaldatum', valid: 'Geldig tot',
     billTo: 'Factuur aan', quoteFor: 'Offerte voor', project: 'Project', description: 'Omschrijving', qty: 'Aantal',
     unit: 'Prijs per stuk', amount: 'Bedrag', subtotal: 'Subtotaal', vat: 'Btw', total: 'Totaal', notes: 'Opmerkingen',
     payment: 'Betaalgegevens', bank: 'Bank', iban: 'IBAN', swift: 'BIC', reference: 'Kenmerk',
@@ -114,45 +118,22 @@ function safeFileName(s) {
   return (s || 'document').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'document';
 }
 
-// ---------- Building the document ----------
+// ---------- Shared page layout: accent bar, logo, company details, footer ----------
 
-function buildPdf(kind, rec, fonts, logo) {
-  const p = store.get('projects', rec.project_id);
-  const company = store.get('companies', p.company_id) || {};
-  const client = store.get('clients', p.client_id);
-  const contact = client ? contactsOf(client.id)[0] : null;
-  const us = (company.country || 'NL') === 'US';
-  const lang = us ? 'en' : T[rec.language] ? rec.language : (T[company.doc_language] ? company.doc_language : 'en');
-  const t = us ? { ...T.en, ...US_LABELS } : T[lang];
-  const locale = us ? 'en-US' : DOC_LANGUAGES.find(l => l.id === lang).locale;
-  const treatment = us ? 'standard' : (rec.vat_treatment || 'standard');
-  const fmtMoney = v => new Intl.NumberFormat(locale, { style: 'currency', currency: p.currency }).format(v);
-  const fmtNum = v => new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(v);
-  const fmtDay = d => (d ? parseDate(d).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : '—');
-
-  const lines = kind === 'quote'
-    ? itemsOf(rec.id).map(i => ({ description: i.description, qty: num(i.quantity), unit: num(i.unit_price), amount: round2(num(i.quantity) * num(i.unit_price)) }))
-    : [{ description: [rec.title, p.name].filter(Boolean).join(' — '), qty: 1, unit: num(rec.amount), amount: num(rec.amount) }];
-  const subtotal = round2(lines.reduce((s, l) => s + l.amount, 0));
-  const vatRate = treatment === 'standard' ? num(rec.vat_rate) : 0;
-  const vat = round2(subtotal * vatRate / 100);
-  const total = round2(subtotal + vat);
-
+function startDocument({ fonts, logo, company, t, title }) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
   doc.addFileToVFS('Inter-Regular.ttf', fonts.regular);
   doc.addFont('Inter-Regular.ttf', 'Inter', 'normal');
   doc.addFileToVFS('Inter-SemiBold.ttf', fonts.semibold);
   doc.addFont('Inter-SemiBold.ttf', 'Inter', 'bold');
-  const docTitle = `${kind === 'quote' ? t.quote : t.invoice} ${rec.number || ''}`.trim();
-  doc.setProperties({ title: docTitle, author: company.legal_name || company.name, creator: 'Studio' });
+  doc.setProperties({ title, author: company.legal_name || company.name, creator: 'Studio' });
 
   const W = 210, M = 18, R = W - M;
   const accent = hexToRgb(company.color);
   const ink = [28, 27, 25], grey = [110, 106, 98], line = [225, 222, 215];
   const font = (weight, size, color = ink) => { doc.setFont('Inter', weight); doc.setFontSize(size); doc.setTextColor(...color); };
 
-  // Accent bar
   doc.setFillColor(...accent);
   doc.rect(0, 0, W, 4, 'F');
 
@@ -174,12 +155,69 @@ function buildPdf(kind, rec, fonts, logo) {
     company.website,
     company.tax_id ? `${t.taxId}: ${company.tax_id}` : '',
     company.registration ? `${t.reg}: ${company.registration}` : '',
-  ].map(s => (s || '').trim()).filter(Boolean);
+  ].map(x => (x || '').trim()).filter(Boolean);
   font('bold', 10);
   doc.text(company.legal_name || company.name || '', R, y + 3, { align: 'right' });
   font('normal', 8.5, grey);
   companyLines.forEach((l, i) => doc.text(l, R, y + 8 + i * 4, { align: 'right' }));
-  y = Math.max(y + 30, y + 10 + companyLines.length * 4) + 4;
+  const top = Math.max(y + 30, y + 10 + companyLines.length * 4) + 4;
+  return { doc, W, M, R, accent, ink, grey, line, font, top };
+}
+
+function finishDocument({ doc, company, t, font, M, R, line, grey }) {
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(...line);
+    doc.setLineWidth(0.2);
+    doc.line(M, 283, R, 283);
+    font('normal', 7.5, grey);
+    const pageLabel = `${t.page} ${i} ${t.of} ${pages}`;
+    // Drop the least important parts until the footer fits next to the page number.
+    const parts = [company.legal_name || company.name, company.tax_id ? `${t.taxId} ${company.tax_id}` : '',
+      company.registration ? `${t.reg} ${company.registration}` : '', company.iban ? `${t.iban} ${company.iban}` : ''].filter(Boolean);
+    const room = R - M - doc.getTextWidth(pageLabel) - 6;
+    while (parts.length > 1 && doc.getTextWidth(parts.join('  ·  ')) > room) parts.pop();
+    doc.text(doc.splitTextToSize(parts.join('  ·  '), room)[0] || '', M, 288);
+    doc.text(pageLabel, R, 288, { align: 'right' });
+  }
+}
+
+// Labels, locale and formatters for a company's documents.
+function docLocale(company, preferred) {
+  const us = (company.country || 'NL') === 'US';
+  const lang = us ? 'en' : T[preferred] ? preferred : (T[company.doc_language] ? company.doc_language : 'en');
+  return {
+    us,
+    t: us ? { ...T.en, ...US_LABELS } : T[lang],
+    locale: us ? 'en-US' : DOC_LANGUAGES.find(l => l.id === lang).locale,
+  };
+}
+
+// ---------- Building the document ----------
+
+function buildPdf(kind, rec, fonts, logo) {
+  const p = store.get('projects', rec.project_id);
+  const company = store.get('companies', p.company_id) || {};
+  const client = store.get('clients', p.client_id);
+  const contact = client ? contactsOf(client.id)[0] : null;
+  const { us, t, locale } = docLocale(company, rec.language);
+  const treatment = us ? 'standard' : (rec.vat_treatment || 'standard');
+  const fmtMoney = v => new Intl.NumberFormat(locale, { style: 'currency', currency: p.currency }).format(v);
+  const fmtNum = v => new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(v);
+  const fmtDay = d => (d ? parseDate(d).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : '—');
+
+  const lines = kind === 'quote'
+    ? itemsOf(rec.id).map(i => ({ description: i.description, qty: num(i.quantity), unit: num(i.unit_price), amount: round2(num(i.quantity) * num(i.unit_price)) }))
+    : [{ description: [rec.title, p.name].filter(Boolean).join(' — '), qty: 1, unit: num(rec.amount), amount: num(rec.amount) }];
+  const subtotal = round2(lines.reduce((s, l) => s + l.amount, 0));
+  const vatRate = treatment === 'standard' ? num(rec.vat_rate) : 0;
+  const vat = round2(subtotal * vatRate / 100);
+  const total = round2(subtotal + vat);
+
+  const docTitle = `${kind === 'quote' ? t.quote : t.invoice} ${rec.number || ''}`.trim();
+  const { doc, W, M, R, accent, ink, grey, line, font, top } = startDocument({ fonts, logo, company, t, title: docTitle });
+  let y = top;
 
   // Title + meta
   font('bold', 24, accent);
@@ -314,40 +352,143 @@ function buildPdf(kind, rec, fonts, logo) {
   pageBreak(8);
   doc.text(t.thanks, M, y);
 
-  // Footer on every page
-  const pages = doc.getNumberOfPages();
-  for (let i = 1; i <= pages; i++) {
-    doc.setPage(i);
-    doc.setDrawColor(...line);
-    doc.setLineWidth(0.2);
-    doc.line(M, 283, R, 283);
-    font('normal', 7.5, grey);
-    const pageLabel = `${t.page} ${i} ${t.of} ${pages}`;
-    // Drop the least important parts until the footer fits next to the page number.
-    const parts = [company.legal_name || company.name, company.tax_id ? `${t.taxId} ${company.tax_id}` : '',
-      company.registration ? `${t.reg} ${company.registration}` : '', company.iban ? `${t.iban} ${company.iban}` : ''].filter(Boolean);
-    const room = R - M - doc.getTextWidth(pageLabel) - 6;
-    while (parts.length > 1 && doc.getTextWidth(parts.join('  ·  ')) > room) parts.pop();
-    doc.text(doc.splitTextToSize(parts.join('  ·  '), room)[0] || '', M, 288);
-    doc.text(pageLabel, R, 288, { align: 'right' });
-  }
+  finishDocument({ doc, company, t, font, M, R, line, grey });
 
   return { blob: doc.output('blob'), fileName: `${safeFileName(rec.number || docTitle)}.pdf`, total };
+}
+
+// ---------- Packing list / delivery note ----------
+
+function buildPackingList(p, fonts, logo) {
+  const company = store.get('companies', p.company_id) || {};
+  const client = store.get('clients', p.client_id);
+  const contact = client ? contactsOf(client.id)[0] : null;
+  const { t, locale } = docLocale(company, company.doc_language);
+  const fmtNum = v => new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(v);
+  const fmtDay = d => (d ? parseDate(d).toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' }) : '—');
+  const products = productsOf(p.id);
+  const shipment = shipmentsOf(p.id).slice(-1)[0] || null;
+  const address = ((p.delivery_address || '').trim() || (client && client.address) || '').split('\n').map(x => x.trim()).filter(Boolean);
+
+  const { doc, M, R, accent, ink, grey, line, font, top } = startDocument({ fonts, logo, company, t, title: `${t.packing} ${p.name}` });
+  let y = top;
+
+  font('bold', 24, accent);
+  doc.text(t.packing, M, y + 8);
+  let my = y + 2;
+  [[t.order, p.name], [t.date, fmtDay(new Date().toISOString().slice(0, 10))], [t.shipDate, fmtDay(shipment && shipment.shipped_date)]]
+    .forEach(([k, v]) => {
+      font('normal', 9, grey);
+      doc.text(k, R - 66, my);
+      font('bold', 9.5);
+      const lines = doc.splitTextToSize(String(v), 46).slice(0, 2);
+      doc.text(lines, R, my, { align: 'right' });
+      my += 5.5 + (lines.length - 1) * 4.4;
+    });
+  y = Math.max(y + 22, my + 4);
+
+  // Ship to (left) and carrier details (right)
+  font('bold', 8, grey);
+  doc.text(t.shipTo.toUpperCase(), M, y);
+  if (shipment) doc.text(t.carrier.toUpperCase(), 120, y);
+  y += 5.5;
+  font('bold', 11.5);
+  doc.text(client ? client.name : '—', M, y);
+  font('normal', 9.5);
+  const shipLines = [contact ? `${t.attn} ${contact.name}` : '', ...address, contact && contact.phone ? contact.phone : ''].filter(Boolean);
+  shipLines.forEach((l, i) => doc.text(l, M, y + 5 + i * 4.6));
+  if (shipment) {
+    const carrierLines = [shipment.carrier, shipment.tracking ? `${t.tracking}: ${shipment.tracking}` : '', shipment.packages ? `${t.packages}: ${shipment.packages}` : ''].filter(Boolean);
+    font('bold', 11.5);
+    doc.text(carrierLines[0] || '—', 120, y);
+    font('normal', 9.5);
+    carrierLines.slice(1).forEach((l, i) => doc.text(l, 120, y + 5 + i * 4.6));
+  }
+  y += 5 + Math.max(shipLines.length, 2) * 4.6 + 8;
+
+  // Items table
+  const col = { desc: M + 3, qty: 150, weight: R - 3 };
+  const header = () => {
+    doc.setFillColor(244, 243, 239);
+    doc.rect(M, y - 5, R - M, 8, 'F');
+    font('bold', 8.5, grey);
+    doc.text(t.item, col.desc, y);
+    doc.text(t.qty, col.qty, y, { align: 'right' });
+    doc.text(t.weight, col.weight, y, { align: 'right' });
+    y += 8;
+  };
+  header();
+  let pieces = 0, weight = 0;
+  products.forEach(it => {
+    const qty = num(it.quantity) || 0;
+    const w = num(it.weight_kg) * qty;
+    pieces += qty; weight += w;
+    font('bold', 10);
+    const name = doc.splitTextToSize(it.name, col.qty - col.desc - 20);
+    font('normal', 8.5);
+    const detail = doc.splitTextToSize([it.dimensions, it.materials].filter(Boolean).join(' · '), col.qty - col.desc - 20);
+    const h = name.length * 4.8 + detail.length * 4 + 4;
+    if (y + h > 250) {
+      doc.addPage();
+      doc.setFillColor(...accent);
+      doc.rect(0, 0, 210, 4, 'F');
+      y = 20;
+      header();
+    }
+    font('bold', 10);
+    doc.text(name, col.desc, y);
+    doc.text(fmtNum(qty), col.qty, y, { align: 'right' });
+    font('normal', 9.5);
+    doc.text(w ? `${fmtNum(w)} kg` : '—', col.weight, y, { align: 'right' });
+    font('normal', 8.5, grey);
+    if (detail.length && detail[0]) doc.text(detail, col.desc, y + name.length * 4.8);
+    y += h;
+    doc.setDrawColor(...line);
+    doc.setLineWidth(0.2);
+    doc.line(M, y - 3.5, R, y - 3.5);
+  });
+  y += 2;
+  font('bold', 10);
+  doc.text(`${fmtNum(pieces)} ${t.pieces}`, col.qty, y, { align: 'right' });
+  doc.text(weight ? `${fmtNum(weight)} kg` : '', col.weight, y, { align: 'right' });
+  y += 10;
+
+  if (shipment && shipment.notes) {
+    font('bold', 8, grey);
+    doc.text(t.notes.toUpperCase(), M, y);
+    font('normal', 9.5);
+    const wrapped = doc.splitTextToSize(shipment.notes, R - M);
+    doc.text(wrapped, M, y + 5);
+    y += 5 + wrapped.length * 4.4 + 6;
+  }
+
+  // Signature box for the person receiving the delivery
+  if (y > 240) { doc.addPage(); y = 24; }
+  font('bold', 8, grey);
+  doc.text(t.received.toUpperCase(), M, y);
+  doc.setDrawColor(...ink);
+  doc.setLineWidth(0.3);
+  doc.line(M, y + 18, M + 80, y + 18);
+  font('normal', 8, grey);
+  doc.text(t.signature, M, y + 22);
+
+  finishDocument({ doc, company, t, font, M, R, line, grey });
+  return { blob: doc.output('blob'), fileName: `${safeFileName(`${t.packing} ${p.name}`)}.pdf` };
 }
 
 // ---------- Public: create, then share / open ----------
 
 export async function createPdf(kind, id) {
-  const rec = store.get(kind === 'quote' ? 'quotes' : 'invoices', id);
+  const rec = kind === 'packing' ? store.get('projects', id) : store.get(kind === 'quote' ? 'quotes' : 'invoices', id);
   if (!rec) return;
-  const p = store.get('projects', rec.project_id);
+  const p = kind === 'packing' ? rec : store.get('projects', rec.project_id);
   const company = p && store.get('companies', p.company_id);
   const client = p && store.get('clients', p.client_id);
   toast('Creating PDF…');
   let out;
   try {
     const [fonts, logo] = await Promise.all([preloadPdf(), loadLogo(company).catch(() => null)]);
-    out = buildPdf(kind, rec, fonts, logo);
+    out = kind === 'packing' ? buildPackingList(rec, fonts, logo) : buildPdf(kind, rec, fonts, logo);
   } catch (err) {
     console.error(err);
     toast(`Couldn't create the PDF: ${err.message || err}`);

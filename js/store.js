@@ -4,8 +4,14 @@
 import { keyOf, RELATIONS } from './backend.js';
 import { uuid, toast, daysUntil, priorityRank } from './lib.js';
 
+// Projects/tasks saved before the order workflow (migration 005) used design stages; show them on the new ones.
+const OLD_STAGES = { brief: 'inquiry', concept: 'costing', design: 'drawings', client_review: 'approval', revisions: 'drawings' };
+const normalize = (table, row) =>
+  (table === 'projects' || table === 'tasks') && row && OLD_STAGES[row.stage] ? { ...row, stage: OLD_STAGES[row.stage] } : row;
+
+const CORE = ['companies', 'profiles', 'team_members', 'clients', 'contacts', 'projects', 'tasks', 'comments'];
 const TABLES = ['companies', 'profiles', 'team_members', 'clients', 'contacts', 'projects', 'tasks', 'comments',
-  'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'quote_items', 'costs', 'invoices'];
+  'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'quote_items', 'costs', 'invoices', 'items', 'shipments'];
 
 export const store = {
   backend: null,
@@ -15,11 +21,18 @@ export const store = {
   listeners: new Set(),
   loaded: false,
 
+  missing: new Set(), // tables the database doesn't have yet (a migration hasn't been run)
+
   async loadAll() {
-    const results = await Promise.all(TABLES.map(t => this.backend.selectAll(t)));
+    const results = await Promise.all(TABLES.map(t => this.backend.selectAll(t).catch(err => {
+      if (CORE.includes(t)) throw err;
+      console.warn(`Table ${t} not available yet`, err);
+      this.missing.add(t);
+      return [];
+    })));
     TABLES.forEach((t, i) => {
       const m = new Map();
-      results[i].forEach(r => m.set(r[keyOf(t)], r));
+      results[i].forEach(r => m.set(r[keyOf(t)], normalize(t, r)));
       this.data[t] = m;
     });
     this.loaded = true;
@@ -163,7 +176,7 @@ export const store = {
     const current = this.data[table].get(row[key]);
     // Ignore stale echoes older than what we already have.
     if (current && current.updated_at && row.updated_at && row.updated_at < current.updated_at) return;
-    this.data[table].set(row[key], { ...current, ...row });
+    this.data[table].set(row[key], normalize(table, { ...current, ...row }));
     this.emit();
   },
 };
@@ -190,6 +203,10 @@ export const commentCount = taskId => { let n = 0; store.data.comments.forEach(c
 export const deliverablesOf = projectId => store.all('deliverables').filter(d => d.project_id === projectId).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || (a.created_at < b.created_at ? -1 : 1));
 export const roundsOf = deliverableId => store.all('feedback_rounds').filter(r => r.deliverable_id === deliverableId).sort((a, b) => a.round_no - b.round_no);
 export const attachmentsWhere = (field, id) => store.all('attachments').filter(a => a[field] === id).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+
+export const productsOf = projectId => store.all('items').filter(i => i.project_id === projectId).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || (a.created_at < b.created_at ? -1 : 1));
+export const shipmentsOf = projectId => store.all('shipments').filter(s => s.project_id === projectId).sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
+export const drawingOf = itemId => store.all('deliverables').find(d => d.item_id === itemId) || null;
 
 export const isOverdue = t => !t.done && t.due_date && daysUntil(t.due_date) < 0;
 export const isLive = p => p.status === 'active' || p.status === 'on_hold';

@@ -7,7 +7,7 @@ import {
   store, companies, profiles, me, tasksOf, commentsOf, projectsOfClient, nextSortOrder, attachmentsWhere,
 } from './store.js';
 import { fileStrip, removeProjectFiles } from './files.js';
-import { docsReady, companyCurrency } from './money.js';
+import { docsReady, companyCurrency, ordersReady } from './money.js';
 import { ui } from './ui-state.js';
 
 const go = hash => { location.hash = hash; };
@@ -22,7 +22,7 @@ export function openProjectSheet(existing, defaults = {}) {
     name: '', description: '',
     company_id: companyId,
     client_id: defaults.client_id || null,
-    stage: defaults.stage || 'brief', status: 'active', currency: companyCurrency(store.get('companies', companyId)),
+    stage: defaults.stage || 'inquiry', status: 'active', currency: companyCurrency(store.get('companies', companyId)),
     lead_id: me()?.id || null, start_date: todayStr(), due_date: null,
   };
   const clients = store.all('clients').sort((a, b) => a.name.localeCompare(b.name));
@@ -32,7 +32,7 @@ export function openProjectSheet(existing, defaults = {}) {
     <form>
       ${sheetHeader(existing ? 'Edit project' : 'New project')}
       <div class="fields">
-        <label class="field"><span>Project name</span><input name="name" value="${esc(p.name)}" required autofocus placeholder="e.g. Spring campaign"></label>
+        <label class="field"><span>Project name</span><input name="name" value="${esc(p.name)}" required autofocus placeholder="e.g. Brickell penthouse — dining room"></label>
         <div class="field-row">
           <label class="field"><span>Company</span><select name="company_id">${options(companies().map(c => ({ id: c.id, label: c.name })), p.company_id)}</select></label>
           <label class="field"><span>Client</span>
@@ -55,7 +55,12 @@ export function openProjectSheet(existing, defaults = {}) {
           <label class="field"><span>Start date</span><input type="date" name="start_date" value="${esc(p.start_date || '')}"></label>
           <label class="field"><span>Deadline</span><input type="date" name="due_date" value="${esc(p.due_date || '')}"></label>
         </div>
-        <label class="field"><span>Brief / description</span><textarea name="description" placeholder="Goals, scope, deliverables, links…">${esc(p.description)}</textarea></label>
+        ${ordersReady() ? `<div class="field-row">
+          <label class="field"><span>Deposit %</span><input name="deposit_pct" value="${esc(String(Number(p.deposit_pct ?? 50)))}" inputmode="decimal"></label>
+          <span></span>
+        </div>
+        <label class="field"><span>Delivery address <small class="muted">(leave empty to use the client's address)</small></span><textarea name="delivery_address" rows="3">${esc(p.delivery_address || '')}</textarea></label>` : ''}
+        <label class="field"><span>Inquiry / description</span><textarea name="description" placeholder="What the client asked for, references, links…">${esc(p.description)}</textarea></label>
       </div>
       <footer>
         ${existing ? `<button type="button" class="btn danger" data-delete>Delete</button>` : ''}
@@ -106,6 +111,10 @@ export function openProjectSheet(existing, defaults = {}) {
         due_date: fd.get('due_date') || null,
         description: fd.get('description'),
       };
+      if (ordersReady()) {
+        data.deposit_pct = Math.min(100, Math.max(0, parseFloat(String(fd.get('deposit_pct') || '50').replace(',', '.')) || 0));
+        data.delivery_address = String(fd.get('delivery_address') || '').trim();
+      }
       if (!data.name) return false;
       if (existing) {
         store.update('projects', existing.id, data).catch(() => {});
@@ -131,7 +140,7 @@ export function openTaskSheet(existing, defaults = {}) {
   }
   const t = existing || {
     title: '', notes: '', priority: 'medium', due_date: defaults.due_date || null, done: false,
-    stage: defaults.stage || (defaults.project_id ? store.get('projects', defaults.project_id)?.stage : null) || 'brief',
+    stage: defaults.stage || (defaults.project_id ? store.get('projects', defaults.project_id)?.stage : null) || 'inquiry',
     assignee_id: defaults.assignee_id !== undefined ? defaults.assignee_id : me()?.id || null,
     project_id: defaults.project_id || guessProject(),
   };
