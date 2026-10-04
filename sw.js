@@ -1,7 +1,7 @@
-// Offline support: serve the app shell from cache, refresh it in the background.
+// Offline support: keep a copy of the app so it opens without a connection.
 // Only same-origin files are cached; Supabase API calls always go to the network.
 // Bump VERSION whenever you change any file below.
-const VERSION = 'v11';
+const VERSION = 'v12';
 const CACHE = `studio-${VERSION}`;
 const SHELL = [
   './',
@@ -51,21 +51,20 @@ self.addEventListener('activate', event => {
   );
 });
 
+// Network first: always load the newest version when online (so updates show up right away),
+// fall back to the saved copy when offline.
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   event.respondWith(
-    caches.match(req, { ignoreSearch: true }).then(cached => {
-      const network = fetch(req)
-        .then(res => {
-          if (res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then(c => c.put(req, copy));
-          }
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(req, { cache: 'no-cache' })
+      .then(res => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(req, copy));
+        }
+        return res;
+      })
+      .catch(() => caches.match(req, { ignoreSearch: true }))
   );
 });
