@@ -12,7 +12,7 @@ export const RELATIONS = {
     ['deliverables', 'project_id', 'cascade'], ['attachments', 'project_id', 'cascade'],
     ['quotes', 'project_id', 'cascade'], ['costs', 'project_id', 'cascade'], ['invoices', 'project_id', 'cascade'],
     ['items', 'project_id', 'cascade'], ['shipments', 'project_id', 'cascade']],
-  items: [['deliverables', 'item_id', 'cascade']],
+  items: [['deliverables', 'item_id', 'cascade'], ['attachments', 'item_id', 'null']],
   quotes: [['quote_items', 'quote_id', 'cascade']],
   tasks: [['comments', 'task_id', 'cascade'], ['attachments', 'task_id', 'cascade']],
   clients: [['contacts', 'client_id', 'cascade'], ['projects', 'client_id', 'null']],
@@ -73,6 +73,26 @@ export class SupabaseBackend {
     const { data, error } = await this.sb.rpc('is_team_member');
     if (error) throw error;
     return !!data;
+  }
+
+  // Whether a column exists yet (some appear only after a migration has been run).
+  async hasColumn(table, column) {
+    const { error } = await this.sb.from(table).select(column).limit(1);
+    return !error;
+  }
+
+  // Ask the "read-document" Edge Function (Claude) to read an uploaded PDF or photo.
+  async readDocument(path, mode) {
+    const { data, error } = await this.sb.functions.invoke('read-document', { body: { path, mode } });
+    if (error) {
+      let msg = error.message || String(error);
+      const status = error.context && error.context.status;
+      try { const body = await error.context.json(); msg = (body && (body.error || body.message)) || msg; } catch (e) { /* no details */ }
+      const err = new Error(msg);
+      err.notSetUp = status === 404 || /failed to send|ANTHROPIC_API_KEY/i.test(msg);
+      throw err;
+    }
+    return data;
   }
 
   async selectAll(table, { order, limit } = {}) {
@@ -164,7 +184,7 @@ const DEFAULTS = {
   comments: () => ({ task_id: null, mentions: [], author_id: DEMO_USER.id }),
   deliverables: () => ({ description: '', max_rounds: 3, status: 'in_progress', due_date: null, sort_order: 0 }),
   feedback_rounds: () => ({ sent_date: null, received_date: null, status: 'awaiting', feedback: '' }),
-  attachments: () => ({ task_id: null, round_id: null, mime: '', size: 0 }),
+  attachments: () => ({ task_id: null, round_id: null, kind: null, item_id: null, mime: '', size: 0 }),
   quotes: () => ({ number: '', title: '', issue_date: null, valid_until: null, status: 'draft', notes: '' }),
   quote_items: () => ({ quantity: 1, unit_price: 0, sort_order: 0 }),
   costs: () => ({ category: 'other', vendor: '', amount: 0, paid: false }),
@@ -215,6 +235,12 @@ export class LocalBackend {
   async signOut() {}
   async isTeamMember() { return true; }
   async updatePassword() {}
+  async hasColumn() { return true; }
+  async readDocument() {
+    const err = new Error('Reading documents with AI works with the team database, not in demo mode.');
+    err.demo = true;
+    throw err;
+  }
 
   async selectAll(table, { order, limit } = {}) {
     let rows = (this.db[table] || []).map(r => ({ ...r }));

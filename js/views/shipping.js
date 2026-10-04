@@ -3,6 +3,7 @@ import { esc, icon, money, todayStr, fmtDate, label, openSheet, closeSheet, shee
 import { store, shipmentsOf, productsOf } from '../store.js';
 import { parseAmount, ordersReady } from '../money.js';
 import { emptyState } from './common.js';
+import { docCard } from '../files.js';
 
 export const SHIPMENT_STATUSES = [
   { id: 'preparing', label: 'Preparing' },
@@ -80,6 +81,8 @@ export function shippingTab(p) {
           <p class="muted small">${products.length} product${products.length === 1 ? '' : 's'} · ${products.reduce((s, i) => s + (Number(i.quantity) || 0), 0)} pieces${totalWeight ? ` · ${Math.round(totalWeight)} kg` : ''}</p>
           <button class="btn" data-action="wf" data-step="packing" data-id="${p.id}">Packing list PDF</button>
         </div>
+        <h2 class="section">Documents</h2>
+        ${docCard(p, 'shipping', { title: 'Shipping documents', hint: 'Bill of lading, customs papers, carrier quotes, photos of the packed goods.' })}
       </div>
     </div>`;
 }

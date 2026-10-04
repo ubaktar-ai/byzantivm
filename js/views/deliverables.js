@@ -1,7 +1,7 @@
 // Deliverables & client feedback rounds (project → Deliverables tab), plus their sheets.
 import { esc, icon, todayStr, fmtDate, daysUntil, toast, openSheet, closeSheet, sheetHeader, options, $ } from '../lib.js';
 import { store, deliverablesOf, roundsOf, attachmentsWhere, nextSortOrder, productsOf, drawingOf } from '../store.js';
-import { fileStrip, uploadFiles } from '../files.js';
+import { fileStrip, uploadFiles, docCard } from '../files.js';
 import { dueChip, emptyState } from './common.js';
 
 export const ROUND_STATUSES = [
@@ -40,7 +40,7 @@ export function drawingsTab(p) {
   if (!products.length && !others.length) {
     return gate + head + emptyState('No products yet', 'Add products on the Order tab — each one gets its own drawing and approval.',
       `<a class="btn primary" href="#/project/${p.id}/order">Go to products</a>
-       <button class="btn" data-action="new-deliverable" data-project="${p.id}">${icon.plus} Other drawing</button>`);
+       <button class="btn" data-action="new-deliverable" data-project="${p.id}">${icon.plus} Other drawing</button>`) + docCard(p, 'drawing', { title: 'References & sketches', hint: 'Photos and sketches from the client, inspiration images, workshop drawings — anything the drawings are based on.' });
   }
   const approved = products.filter(i => { const d = drawingOf(i.id); return d && d.status === 'approved'; }).length;
   return gate + head + `
@@ -59,7 +59,8 @@ export function drawingsTab(p) {
       }).join('')}
       ${others.map(d => deliverableCard(d)).join('')}
     </div>
-    <div class="toolbar"><button class="btn" data-action="new-deliverable" data-project="${p.id}">${icon.plus} Other drawing</button></div>`;
+    <div class="toolbar"><button class="btn" data-action="new-deliverable" data-project="${p.id}">${icon.plus} Other drawing</button></div>
+    ${docCard(p, 'drawing', { title: 'References & sketches', hint: 'Photos and sketches from the client, inspiration images, workshop drawings — anything the drawings are based on.' })}`;
 }
 
 // Start the drawing for a product (created on first send).

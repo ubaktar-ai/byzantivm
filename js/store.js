@@ -22,14 +22,19 @@ export const store = {
   loaded: false,
 
   missing: new Set(), // tables the database doesn't have yet (a migration hasn't been run)
+  fileSections: true,  // attachments have kind/item_id (migration 006)
 
   async loadAll() {
-    const results = await Promise.all(TABLES.map(t => this.backend.selectAll(t).catch(err => {
-      if (CORE.includes(t)) throw err;
-      console.warn(`Table ${t} not available yet`, err);
-      this.missing.add(t);
-      return [];
-    })));
+    const [results, fileSections] = await Promise.all([
+      Promise.all(TABLES.map(t => this.backend.selectAll(t).catch(err => {
+        if (CORE.includes(t)) throw err;
+        console.warn(`Table ${t} not available yet`, err);
+        this.missing.add(t);
+        return [];
+      }))),
+      this.backend.hasColumn('attachments', 'kind').catch(() => false),
+    ]);
+    this.fileSections = fileSections;
     TABLES.forEach((t, i) => {
       const m = new Map();
       results[i].forEach(r => m.set(r[keyOf(t)], normalize(t, r)));

@@ -8,6 +8,7 @@ import {
   docsReady, countryReady, ordersReady,
 } from '../money.js';
 import { emptyState } from './common.js';
+import { docCard, liveFileStrip, attachmentsOfItem } from '../files.js';
 
 const num = v => Number(v) || 0;
 const round2 = n => Math.round(n * 100) / 100;
@@ -257,6 +258,11 @@ export function orderTab(p) {
       ${step.actions ? `<div class="ns-actions">${step.actions}</div>` : ''}
     </section>
 
+    <div class="two-col doc-cols">
+      ${docCard(p, 'inquiry', { title: 'Client inquiry', label: 'Add inquiry', hint: `The client's request — PDF, email printout, sketch or photo.${store.backend.mode === 'cloud' ? ' Tap a file and choose <b>✨ Read with AI</b> to fill in the products.' : ''}` })}
+      ${docCard(p, 'supplier_quote', { title: 'Supplier quotes', label: 'Add supplier quote', hint: `Prices from workshops and suppliers.${store.backend.mode === 'cloud' ? ' Tap a file and choose <b>✨ Read with AI</b> to fill in the costs.' : ''}` })}
+    </div>
+
     <h2 class="section section-with-action">Products <button class="btn small" data-action="add-product" data-project="${p.id}">${icon.plus} Product</button></h2>
     ${products.length ? `
       <div class="card-surface product-list">
@@ -304,6 +310,7 @@ export function openProductSheet(projectId, existing) {
   const cur = p.currency;
   const val = v => (num(v) ? String(round2(num(v))) : '');
   const markup = num(it.unit_cost) && num(it.unit_price) ? Math.round((num(it.unit_price) / num(it.unit_cost) - 1) * 100) : '';
+  let stopFiles = null;
 
   openSheet(`
     <form>
@@ -333,6 +340,7 @@ export function openProductSheet(projectId, existing) {
         </div>
         <div class="calc-line" id="calc-line"></div>
         ${existing && stageIndex(p.stage) >= stageIndex('production') ? `<label class="field"><span>Production</span><select name="production">${options(PRODUCTION, it.production)}</select></label>` : ''}
+        ${existing && store.fileSections ? `<h3 class="sheet-sub">Supplier quote &amp; documents</h3><div id="product-files"></div>` : ''}
       </div>
       <footer>
         ${existing ? `<button type="button" class="btn danger" data-delete>Delete</button>` : ''}
@@ -373,6 +381,10 @@ export function openProductSheet(projectId, existing) {
       });
       f('quantity').addEventListener('input', calc);
       calc();
+      if (existing && store.fileSections) {
+        stopFiles = liveFileStrip(sheet, '#product-files', () => attachmentsOfItem(existing.id),
+          { project_id: projectId, kind: 'supplier_quote', item_id: existing.id }, { label: 'Add PDF or photo', docs: true });
+      }
       const del = sheet.querySelector('[data-delete]');
       if (del) del.addEventListener('click', () => {
         if (!confirm(`Delete “${existing.name}” and its drawings?`)) return;
@@ -380,6 +392,7 @@ export function openProductSheet(projectId, existing) {
         store.remove('items', existing.id).catch(() => {});
       });
     },
+    onClose() { stopFiles && stopFiles(); },
     onSubmit(fd) {
       const data = {
         name: String(fd.get('name')).trim(),

@@ -7,6 +7,30 @@ const MAX_SIDE = 2400;              // photos are scaled down to this many pixel
 
 export const isImage = a => /^image\/(jpeg|png|webp|gif|heic|heif)$/.test(a.mime || '');
 
+// Where a file belongs (attachments.kind). Files without a kind are general project files.
+export const FILE_KINDS = {
+  inquiry: { label: 'Client inquiry', tab: 'order' },
+  supplier_quote: { label: 'Supplier quote', tab: 'order' },
+  drawing: { label: 'Drawings', tab: 'drawings' },
+  money: { label: 'Money', tab: 'money' },
+  shipping: { label: 'Shipping', tab: 'shipping' },
+  general: { label: 'Documents', tab: 'details' },
+};
+
+// PDFs and ordinary photos can be read by AI; what it looks for depends on the file's place.
+export const aiReadable = a => a.mime === 'application/pdf' || /^image\/(jpeg|png|gif|webp)$/.test(a.mime || '');
+export function aiModeFor(att) {
+  if (!aiReadable(att)) return null;
+  if (att.kind === 'inquiry') return 'inquiry';
+  if (att.kind === 'supplier_quote' || att.item_id) return 'supplier';
+  return null;
+}
+export const attachmentsOfItem = itemId => store.all('attachments')
+  .filter(a => a.item_id === itemId).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+export const filesOfKind = (projectId, kind) => store.all('attachments')
+  .filter(a => a.project_id === projectId && a.kind === kind)
+  .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+
 // ---------- Temporary links (cached until shortly before they expire) ----------
 
 const urlCache = new Map(); // path -> { url, until }
@@ -103,14 +127,16 @@ export async function uploadFiles(fileList, target) {
       toast(`Upload failed: ${err.message || err}`);
       continue;
     }
+    const row = {
+      project_id: target.project_id,
+      task_id: target.task_id || null,
+      round_id: target.round_id || null,
+      path, name: prepared.name, mime: prepared.mime, size: prepared.blob.size,
+      created_by: store.user.id,
+    };
+    if (store.fileSections) Object.assign(row, { kind: target.kind || null, item_id: target.item_id || null });
     try {
-      saved.push(await store.insert('attachments', {
-        project_id: target.project_id,
-        task_id: target.task_id || null,
-        round_id: target.round_id || null,
-        path, name: prepared.name, mime: prepared.mime, size: prepared.blob.size,
-        created_by: store.user.id,
-      }));
+      saved.push(await store.insert('attachments', row));
     } catch (err) {
       store.backend.removeFiles([path]).catch(() => {});
     }
@@ -146,6 +172,11 @@ function ext(name) {
 }
 
 export function fileContext(att) {
+  if (att.item_id) {
+    const it = store.get('items', att.item_id);
+    return `${FILE_KINDS[att.kind] ? FILE_KINDS[att.kind].label : 'Product'}${it ? `: ${it.name}` : ''}`;
+  }
+  if (FILE_KINDS[att.kind]) return FILE_KINDS[att.kind].label;
   if (att.round_id) {
     const r = store.get('feedback_rounds', att.round_id);
     const d = r && store.get('deliverables', r.deliverable_id);
@@ -170,24 +201,51 @@ export function fileTile(att, { context = false } = {}) {
     </button>`;
 }
 
-export function uploadButton(target, { label = 'Add files', primary = false } = {}) {
+export function uploadButton(target, { label = 'Add files', primary = false, docs = false } = {}) {
   return `
     <label class="btn ${primary ? 'primary' : ''} upload-btn">
       ${icon.upload}<span>${esc(label)}</span>
-      <input type="file" multiple hidden
+      <input type="file" multiple hidden ${docs ? 'accept="application/pdf,image/*"' : ''}
         data-upload-project="${esc(target.project_id)}"
         ${target.task_id ? `data-upload-task="${esc(target.task_id)}"` : ''}
-        ${target.round_id ? `data-upload-round="${esc(target.round_id)}"` : ''}>
+        ${target.round_id ? `data-upload-round="${esc(target.round_id)}"` : ''}
+        ${target.kind ? `data-upload-kind="${esc(target.kind)}"` : ''}
+        ${target.item_id ? `data-upload-item="${esc(target.item_id)}"` : ''}>
     </label>`;
 }
 
-export function fileStrip(atts, target, { emptyText = '' } = {}) {
+export function fileStrip(atts, target, { emptyText = '', label, docs = false } = {}) {
   return `
     <div class="file-strip">
       ${atts.map(a => fileTile(a)).join('')}
-      ${target ? uploadButton(target) : ''}
+      ${target ? uploadButton(target, { label, docs }) : ''}
     </div>
     ${!atts.length && emptyText ? `<div class="muted small">${esc(emptyText)}</div>` : ''}`;
+}
+
+// A card on a project tab holding the PDFs/photos for one part of the order.
+export function docCard(p, kind, { title, hint = '', label = 'Add PDF or photo', atts } = {}) {
+  if (!store.fileSections) {
+    return `<div class="card-surface pad doc-card"><h3 class="card-title">${esc(title)}</h3>
+      <p class="muted small">To keep documents on this tab, run <code>supabase/migrations/006_file_sections.sql</code> in the Supabase SQL Editor. Until then, upload on the Files tab.</p></div>`;
+  }
+  const files = atts || filesOfKind(p.id, kind);
+  return `
+    <div class="card-surface pad doc-card" data-doc-kind="${esc(kind)}">
+      <h3 class="card-title">${esc(title)}${files.length ? ` <span class="tab-count">${files.length}</span>` : ''}</h3>
+      ${hint ? `<p class="muted small doc-hint">${hint}</p>` : ''}
+      ${fileStrip(files, { project_id: p.id, kind }, { label, docs: true })}
+    </div>`;
+}
+
+// Keeps a file strip inside an open sheet up to date; returns a function that stops it.
+export function liveFileStrip(sheet, selector, list, target, opts) {
+  const draw = () => {
+    const box = $(selector, sheet);
+    if (box) box.innerHTML = fileStrip(list(), target, opts);
+  };
+  draw();
+  return store.onChange(draw);
 }
 
 // ---------- Viewer ----------
@@ -201,7 +259,10 @@ export async function openFileSheet(att) {
     return;
   }
   const who = store.get('profiles', att.created_by);
-  const target = att.task_id ? `#/project/${att.project_id}/tasks` : att.round_id ? `#/project/${att.project_id}/deliverables` : '';
+  const target = FILE_KINDS[att.kind] ? `#/project/${att.project_id}/${FILE_KINDS[att.kind].tab}`
+    : att.item_id ? `#/project/${att.project_id}/order`
+    : att.task_id ? `#/project/${att.project_id}/tasks` : att.round_id ? `#/project/${att.project_id}/deliverables` : '';
+  const aiMode = store.backend.mode === 'cloud' ? aiModeFor(att) : null;
   openSheet(`
     <div class="file-viewer" tabindex="-1">
       ${sheetHeader(att.name)}
@@ -217,6 +278,7 @@ export async function openFileSheet(att) {
       <footer>
         <button type="button" class="btn danger" data-delete-file>Delete</button>
         <span class="spacer"></span>
+        ${aiMode ? `<button type="button" class="btn" data-ai-read>✨ ${aiMode === 'inquiry' ? 'Read inquiry with AI' : 'Read quote with AI'}</button>` : ''}
         ${url ? `<a class="btn primary" href="${esc(url)}" target="_blank" rel="noopener">${icon.external} Open</a>` : ''}
       </footer>
     </div>`, {
@@ -226,6 +288,8 @@ export async function openFileSheet(att) {
         closeSheet();
         await deleteAttachment(att);
       });
+      const ai = $('[data-ai-read]', sheet);
+      if (ai) ai.addEventListener('click', () => readWithAI(att, aiMode));
     },
   });
 }
@@ -234,20 +298,36 @@ export async function openFileSheet(att) {
 
 export function initFiles() {
   // Upload buttons anywhere (screens and sheets).
-  document.addEventListener('change', async e => {
+  const onPick = async e => {
     const input = e.target;
-    if (!input.matches('input[type=file][data-upload-project]') || !input.files.length) return;
+    if (e.studioHandled || !input.matches('input[type=file][data-upload-project]') || !input.files.length) return;
+    e.studioHandled = true;
     const target = {
       project_id: input.dataset.uploadProject,
       task_id: input.dataset.uploadTask || null,
       round_id: input.dataset.uploadRound || null,
+      kind: input.dataset.uploadKind || null,
+      item_id: input.dataset.uploadItem || null,
     };
     const files = [...input.files];
     input.value = '';
     const label = input.closest('.upload-btn');
     label && label.classList.add('busy');
-    try { await uploadFiles(files, target); } finally { label && label.classList.remove('busy'); }
-  });
+    let saved = [];
+    try { saved = await uploadFiles(files, target); } finally { label && label.classList.remove('busy'); }
+    // An inquiry or supplier quote was just added: offer to fill in the order from it.
+    const first = saved.find(a => aiModeFor(a));
+    if (first && store.backend.mode === 'cloud') {
+      const mode = aiModeFor(first);
+      toast(saved.length === 1 ? 'File uploaded' : `${saved.length} files uploaded`, { label: '✨ Read with AI', run: () => readWithAI(first, mode) });
+    }
+  };
+  document.addEventListener('change', onPick);
+  // The screen may be redrawn (e.g. a teammate's live update) while the file picker is open, which
+  // detaches the input; a listener on the input itself still receives the chosen files.
+  document.addEventListener('click', e => {
+    if (e.target.matches && e.target.matches('input[type=file][data-upload-project]')) e.target.addEventListener('change', onPick, { once: true });
+  }, true);
 
   // Tapping a file tile inside a sheet (the screen-level handler only covers the main view).
   $('#sheet').addEventListener('click', e => {
@@ -263,3 +343,8 @@ export function initFiles() {
     .observe(document.body, { childList: true, subtree: true });
 }
 
+
+// The AI reader lives in its own module, loaded the first time it is used.
+export function readWithAI(att, mode) {
+  return import('./ai.js').then(m => m.readWithAI(att, mode));
+}

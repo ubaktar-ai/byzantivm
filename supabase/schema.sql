@@ -599,6 +599,17 @@ begin
   end loop;
 end $$;
 
+-- ---------- Files per tab (client inquiry, supplier quote, drawings, money, shipping) ----------
+alter table public.attachments
+  add column if not exists kind    text,
+  add column if not exists item_id uuid references public.items (id) on delete set null;
+
+alter table public.attachments drop constraint if exists attachments_kind_check;
+alter table public.attachments add constraint attachments_kind_check check
+  (kind is null or kind in ('inquiry','supplier_quote','drawing','money','shipping','general'));
+
+create index if not exists attachments_item_idx on public.attachments (item_id);
+
 -- ---------------------------------------------------------------------
 -- Starting data
 -- ---------------------------------------------------------------------

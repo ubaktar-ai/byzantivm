@@ -155,10 +155,19 @@ export function toast(msg, action) {
 // ---------- Sheet (modal dialog) ----------
 
 let sheetCleanup = null;
+let replacedSheets = 0; // close events still to come from sheets replaced by a new one
 
 export function openSheet(html, { onSubmit, onOpen, onClose, wide = false } = {}) {
   const sheet = $('#sheet');
-  if (sheet.open) closeSheet();
+  if (sheet.open) {
+    // The browser announces "close" a moment later; clean up the old sheet now so that
+    // late event doesn't wipe the new one.
+    const fn = sheetCleanup;
+    sheetCleanup = null;
+    replacedSheets++;
+    sheet.close();
+    fn && fn();
+  }
   sheet.classList.toggle('wide', wide);
   sheet.innerHTML = html;
   const form = sheet.querySelector('form');
@@ -195,6 +204,7 @@ export function initSheet() {
   const sheet = $('#sheet');
   sheet.addEventListener('click', e => { if (e.target === sheet) closeSheet(); });
   sheet.addEventListener('close', () => {
+    if (replacedSheets) { replacedSheets--; return; }
     const fn = sheetCleanup;
     sheetCleanup = null;
     sheet.innerHTML = '';

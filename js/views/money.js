@@ -7,6 +7,7 @@ import {
   invoiceState, projectFinance, totalsByCurrency, moneyList,
 } from '../money.js';
 import { companySegmented, companyColor, scopeName, emptyState, dueChip } from './common.js';
+import { docCard } from '../files.js';
 
 const stateLabel = s => (s === 'overdue' ? 'Overdue' : label(INVOICE_STATUSES, s));
 
@@ -88,7 +89,10 @@ export function moneyTab(p) {
     ${summary}
     <div class="two-col">
       <div>${invoicesSection}${quotesSection}</div>
-      <div>${costsSection}</div>
+      <div>${costsSection}
+        <h2 class="section">Documents</h2>
+        ${docCard(p, 'money', { title: 'Money documents', hint: 'Supplier invoices, receipts, payment confirmations, signed proposals.' })}
+      </div>
     </div>`;
 }
 

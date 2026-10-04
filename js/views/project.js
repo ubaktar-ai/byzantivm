@@ -5,7 +5,7 @@ import { orderTab } from './order.js';
 import { shippingTab } from './shipping.js';
 import { moneyTab } from './money.js';
 import { activityEntries, activityItem } from './activity.js';
-import { fileTile, uploadButton, isImage } from '../files.js';
+import { fileTile, uploadButton, isImage, docCard } from '../files.js';
 import { ui } from '../ui-state.js';
 import { companyChip, statusChip, dueChip, prioDot, companyColor, taskRow, emptyState } from './common.js';
 
@@ -123,7 +123,7 @@ function filesTab(p) {
       </div>` : ''}
     </div>`;
   if (!all.length) {
-    return toolbar + emptyState('No files yet', 'Upload briefs, references, drafts, photos from site visits — anything the team needs for this project. Files attached to tasks and feedback rounds also show up here.');
+    return toolbar + emptyState('No files yet', 'Every file of this order in one place: inquiries, supplier quotes, drawings, invoices, shipping papers and photos. Files added on the other tabs show up here too.');
   }
   return toolbar + (shown.length ? `<div class="file-grid">${shown.map(a => fileTile(a, { context: true })).join('')}</div>` : emptyState('Nothing here', ''));
 }
@@ -164,6 +164,7 @@ function detailsTab(p, client, pr) {
           <h3 class="card-title">Brief</h3>
           ${p.description ? `<p class="prewrap">${esc(p.description)}</p>` : `<p class="muted">No description yet. <button class="link-btn" data-action="edit-project" data-id="${p.id}">Add one</button></p>`}
         </div>
+        ${docCard(p, 'general', { title: 'Documents', hint: 'Contracts, client correspondence, anything else for this order.' })}
         ${(() => {
           if (!store.activityLoaded) { store.loadActivity().catch(() => {}); return ''; }
           const recent = activityEntries({ limit: 10, projectId: p.id });
