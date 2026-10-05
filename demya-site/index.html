@@ -197,6 +197,37 @@
     .frame { aspect-ratio: 4 / 3.4; }
   }
 
+  /* ── references ── */
+  .refs { padding-block: clamp(80px, 11vw, 150px) clamp(40px, 6vw, 80px); border-top: 1px solid var(--line); }
+  .refs-head { display: grid; grid-template-columns: 1.1fr 1fr; gap: clamp(28px, 6vw, 96px); align-items: end; }
+  .refs h2 { font-size: var(--fs-h2); margin-top: 18px; }
+  .refs .lead { color: var(--stone); max-width: 32rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: clamp(40px, 5vw, 64px); }
+  .chip { font: 500 .8rem var(--body); letter-spacing: .08em; color: var(--stone); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 9px 16px; cursor: pointer; transition: color .2s, border-color .2s, background .2s; }
+  .chip i { font-style: normal; color: var(--bronze); margin-left: 4px; font-variant-numeric: tabular-nums; }
+  .chip:hover { color: var(--cream); border-color: var(--bronze); }
+  .chip.on { background: var(--bronze); border-color: var(--bronze); color: var(--ink); }
+  .chip.on i { color: var(--ink); }
+  .ref-list { list-style: none; columns: 3; column-gap: clamp(24px, 4vw, 56px); margin-top: 36px; }
+  .ref-list li { break-inside: avoid; display: grid; gap: 2px; padding-block: 12px; border-bottom: 1px solid var(--line); }
+  .ref-list li[hidden] { display: none; }
+  .ref-list li.show { animation: refIn .6s var(--ease) both; }
+  .ref-list b { font-family: var(--display); font-weight: 400; font-size: 1.12rem; line-height: 1.3; }
+  .ref-list span { font-size: .78rem; letter-spacing: .12em; text-transform: uppercase; color: var(--stone); }
+  .ref-list li:hover b { color: var(--bronze-hi); }
+  @keyframes refIn { from { opacity: 0; transform: translateY(8px); } }
+  @media (max-width: 860px) { .refs-head { grid-template-columns: 1fr; } .ref-list { columns: 2; } }
+  @media (max-width: 520px) { .ref-list { columns: 1; } }
+
+  /* ── clients ribbon ── */
+  .clients { padding-block: clamp(50px, 7vw, 90px) clamp(80px, 10vw, 130px); overflow: hidden; }
+  .clients-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 24px; margin-bottom: clamp(24px, 3vw, 40px); }
+  .clients-note { color: var(--stone); font-size: .95rem; }
+  .ribbon { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+  .ribbon-track { display: flex; align-items: center; gap: clamp(32px, 5vw, 80px); width: max-content; animation: marquee 90s linear infinite; }
+  .ribbon:hover .ribbon-track { animation-play-state: paused; }
+  .ribbon img { height: clamp(190px, 24vw, 330px); width: auto; max-width: none; opacity: .88; }
+
   /* ── process ── */
   .process { padding-block: clamp(80px, 11vw, 150px); background: var(--ink-2); border-block: 1px solid var(--line); }
   .process h2 { font-size: var(--fs-h2); margin-top: 18px; max-width: 18ch; }
@@ -257,7 +288,9 @@
   main, footer { position: relative; z-index: 2; }
 
   @media (prefers-reduced-motion: reduce) {
-    .marquee-track, .pull { animation: none; }
+    .marquee-track, .pull, .ribbon-track { animation: none; }
+    .ribbon { overflow-x: auto; }
+    .ref-list li.show { animation: none; }
     .frame, .slide { transition: none; clip-path: none; transform: none; }
     .glow { display: none; }
     .frame > img.fade, .frame > img.fade.on { scale: 1; transition: opacity .3s; }
@@ -275,7 +308,7 @@
   <div class="nav-right">
     <ul class="nav-links">
       <li><a href="#brands" data-nl="Merken" data-en="Brands">Merken</a></li>
-      <li class="hide-sm"><a href="#process" data-nl="Werkwijze" data-en="How we work">Werkwijze</a></li>
+      <li class="hide-sm"><a href="#references" data-nl="Referenties" data-en="References">Referenties</a></li>
       <li><a href="#contact" data-nl="Contact" data-en="Contact">Contact</a></li>
     </ul>
     <div class="lang-toggle" role="group" aria-label="Taal / Language">
@@ -414,6 +447,126 @@
         <a class="link" href="https://theartificialforest.com" target="_blank" rel="noopener">theartificialforest.com ↗</a>
       </div>
     </article>
+  </section>
+
+  <!-- REFERENCES -->
+  <section class="refs" id="references" aria-labelledby="refsTitle">
+    <div class="wrap">
+      <div class="refs-head">
+        <div class="slide">
+          <p class="eyebrow" data-nl="Referenties" data-en="References">Referenties</p>
+          <h2 id="refsTitle" data-html data-nl="Projecten op vier continenten<br><span class='it'>en op zee</span>" data-en="Projects on four continents<br><span class='it'>and at sea</span>">Projecten op vier continenten<br><span class="it">en op zee</span></h2>
+        </div>
+        <p class="lead slide" data-nl="Een selectie van projecten waaraan ons team heeft gewerkt: hotels, restaurants, woningen, gebedshuizen, kantoren en publieke gebouwen. Kies een regio." data-en="A selection of projects our team has worked on: hotels, restaurants, residences, places of worship, offices and public buildings. Pick a region.">Een selectie van projecten waaraan ons team heeft gewerkt: hotels, restaurants, woningen, gebedshuizen, kantoren en publieke gebouwen. Kies een regio.</p>
+      </div>
+      <div class="chips" role="group" aria-label="Regio">
+          <button type="button" class="chip on" data-f="all" aria-pressed="true"><span data-nl="Alle" data-en="All">Alle</span> <i>84</i></button>
+          <button type="button" class="chip" data-f="eu" aria-pressed="false"><span data-nl="Europa" data-en="Europe">Europa</span> <i>9</i></button>
+          <button type="button" class="chip" data-f="me" aria-pressed="false"><span data-nl="Midden-Oosten" data-en="Middle East">Midden-Oosten</span> <i>37</i></button>
+          <button type="button" class="chip" data-f="am" aria-pressed="false"><span data-nl="Amerika" data-en="Americas">Amerika</span> <i>32</i></button>
+          <button type="button" class="chip" data-f="aa" aria-pressed="false"><span data-nl="Azië &amp; Afrika" data-en="Asia &amp; Africa">Azië &amp; Afrika</span> <i>3</i></button>
+          <button type="button" class="chip" data-f="sea" aria-pressed="false"><span data-nl="Op zee" data-en="At sea">Op zee</span> <i>2</i></button>
+      </div>
+      <ul class="ref-list" id="refList">
+          <li data-r="me"><b>Adagio Palm Hotel</b><span>Dubai</span></li>
+          <li data-r="me"><b>Address Beach Resort</b><span>JBR, Dubai</span></li>
+          <li data-r="me"><b>Address Marina</b><span>Dubai</span></li>
+          <li data-r="me"><b>Al Fattan Towers</b><span>Dubai</span></li>
+          <li data-r="me"><b>Atmosphere, Burj Khalifa</b><span>Dubai</span></li>
+          <li data-r="am"><b>JW Marriott Desert Ridge</b><span>USA</span></li>
+          <li data-r="me"><b>Al-Salaam Royal Palace</b><span>Jeddah</span></li>
+          <li data-r="me"><b>Asha&#x27;s Restaurant</b><span>Dubai &amp; Abu Dhabi</span></li>
+          <li data-r="am"><b>70 Park Avenue</b><span>New York, USA</span></li>
+          <li data-r="sea"><b>Walt Disney Adventure Cruise Line</b></li>
+          <li data-r="am"><b>Grogan&#x27;s Mill Library</b><span>Houston, USA</span></li>
+          <li data-r="am"><b>Museum of Nature &amp; Science</b><span>Denver, USA</span></li>
+          <li data-r="am"><b>Francis S. Gabreski Airport</b><span>Long Island, USA</span></li>
+          <li data-r="am"><b>Spice Islands Beach Resort</b><span>Grenada</span></li>
+          <li data-r="am"><b>Bank of America Merrill</b><span>Chicago, USA</span></li>
+          <li data-r="me"><b>BOA Lounge, W Hotel</b><span>Dubai</span></li>
+          <li data-r="me"><b>Burj Khalifa VIP Suites</b><span>Dubai</span></li>
+          <li data-r="eu"><b>Çağlayan Mosque</b><span>Kağıthane, Turkey</span></li>
+          <li data-r="eu"><b>Château de l&#x27;Horizon</b><span>Nice, France</span></li>
+          <li data-r="me"><b>City Walk</b><span>Dubai</span></li>
+          <li data-r="me"><b>Claw BBQ Restaurant</b><span>Dubai</span></li>
+          <li data-r=""><b>CMW Military Airport</b></li>
+          <li data-r="me"><b>Depa Global Interiors</b><span>UAE &amp; KSA</span></li>
+          <li data-r="am"><b>The One Hotel</b><span>West Palm Beach, USA</span></li>
+          <li data-r="am"><b>Design Center of the Americas</b><span>USA</span></li>
+          <li data-r="am"><b>Larry Page Residence</b><span>USA</span></li>
+          <li data-r="am"><b>Columbus Joint Apprentice Training Center</b><span>USA</span></li>
+          <li data-r="am"><b>Pearl Fulton Market</b><span>Chicago, USA</span></li>
+          <li data-r="me"><b>Ecos Dubai Al Furjan Hotel</b><span>Dubai</span></li>
+          <li data-r="am"><b>Galatoire&#x27;s Restaurant</b><span>New Orleans, USA</span></li>
+          <li data-r="am"><b>Glossier Cosmetics</b><span>USA</span></li>
+          <li data-r="aa"><b>Grand Mosque</b><span>Algiers, Algeria</span></li>
+          <li data-r="me"><b>Hilton Dubai Palm</b><span>Dubai</span></li>
+          <li data-r="me"><b>Hilton Sharjah</b><span>UAE</span></li>
+          <li data-r="am"><b>Detroit Athletic Club</b><span>Detroit, USA</span></li>
+          <li data-r="am"><b>Hindu Temple of The Woodlands</b><span>Texas, USA</span></li>
+          <li data-r="eu"><b>Istanbul Park Hotel</b><span>Istanbul</span></li>
+          <li data-r="am"><b>Kirkbrae Country Club</b><span>Rhode Island, USA</span></li>
+          <li data-r="am"><b>Logan&#x27;s Roadhouse Restaurant</b><span>USA</span></li>
+          <li data-r="me"><b>Meraas Sur La Mer</b><span>Dubai</span></li>
+          <li data-r="me"><b>Metropolitan Hotel</b><span>Dubai</span></li>
+          <li data-r="me"><b>Meydan Villas</b><span>Dubai</span></li>
+          <li data-r="me"><b>Mirdif Leader Sports Mall</b><span>Dubai</span></li>
+          <li data-r="me"><b>Mosque of Light, Gargash</b><span>Dubai</span></li>
+          <li data-r="me"><b>Mosque Project</b><span>Doha, Qatar</span></li>
+          <li data-r="me"><b>Novo Cinemas</b><span>Dubai</span></li>
+          <li data-r="am"><b>Golden Steer Restaurant</b><span>New York, USA</span></li>
+          <li data-r="me"><b>One Za&#x27;abeel</b><span>Dubai</span></li>
+          <li data-r="me"><b>Opus Tower</b><span>Dubai</span></li>
+          <li data-r="me"><b>Palm Deira Hotel</b><span>Dubai</span></li>
+          <li data-r="am"><b>The Spruce</b><span>West Palm Beach, USA</span></li>
+          <li data-r="am"><b>RMF Engineering</b><span>Northfield, Minnesota, USA</span></li>
+          <li data-r="am"><b>Casa Neos Nightclub</b><span>Miami Beach, USA</span></li>
+          <li data-r="am"><b>Opal Sol Resort</b><span>Tampa, Florida, USA</span></li>
+          <li data-r="am"><b>The Spruce Apartments</b><span>West Palm Beach, USA</span></li>
+          <li data-r="am"><b>Betty Mae Jumper Clinic</b><span>Miami, USA</span></li>
+          <li data-r="am"><b>Paramount Miami Worldcenter</b><span>Miami, USA</span></li>
+          <li data-r="me"><b>P.F. Chang&#x27;s</b><span>UAE &amp; Qatar</span></li>
+          <li data-r="eu"><b>Polat Renaissance Hotel</b><span>Istanbul</span></li>
+          <li data-r="me"><b>Radisson Blu Corniche</b><span>Abu Dhabi</span></li>
+          <li data-r="am"><b>RedFarm Restaurant</b><span>Austin, Texas, USA</span></li>
+          <li data-r="me"><b>Rixos Premium Hotel</b><span>JBR, Dubai</span></li>
+          <li data-r="me"><b>Rixos Premium Saadiyat</b><span>Abu Dhabi</span></li>
+          <li data-r="me"><b>Rotana Hotel Saadiyat</b><span>Abu Dhabi</span></li>
+          <li data-r="me"><b>Sheraton Grand Corniche</b><span>Abu Dhabi</span></li>
+          <li data-r="me"><b>SLS Hotel &amp; Residences</b><span>Dubai</span></li>
+          <li data-r="eu"><b>Soho House</b><span>Istanbul</span></li>
+          <li data-r="me"><b>Starbucks Coffee</b><span>UAE, Qatar &amp; Kuwait</span></li>
+          <li data-r="am"><b>Sunset Harbor Tower</b><span>Fort Lauderdale, USA</span></li>
+          <li data-r="am"><b>Sushi at Post Oak</b><span>Houston, USA</span></li>
+          <li data-r="eu"><b>Swissôtel The Bosphorus</b><span>Istanbul</span></li>
+          <li data-r="eu"><b>The Istanbul EDITION</b><span>Istanbul</span></li>
+          <li data-r="me"><b>Topgolf Emirates Hills</b><span>Dubai</span></li>
+          <li data-r="me"><b>Um Ramool Commercial Development</b><span>Dubai</span></li>
+          <li data-r="me"><b>W Hotel, Habtoor City</b><span>Dubai</span></li>
+          <li data-r="eu"><b>W Hotel</b><span>Istanbul</span></li>
+          <li data-r="me"><b>Wadi Al Safa Residence</b><span>Dubai</span></li>
+          <li data-r="am"><b>Welk Resorts</b><span>Breckenridge, Colorado, USA</span></li>
+          <li data-r="eu"><b>Wyndham Hotel</b><span>Istanbul</span></li>
+          <li data-r="am"><b>Microsoft Latin America</b><span>Miami, USA</span></li>
+          <li data-r="am"><b>370 N Morgan</b><span>Chicago, USA</span></li>
+          <li data-r="sea"><b>Disney Cruise Line</b></li>
+          <li data-r="aa"><b>Walt Disney World</b><span>Shanghai, China</span></li>
+          <li data-r="aa"><b>Walt Disney World</b><span>Hong Kong</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- CLIENTS & PARTNERS -->
+  <section class="clients" id="clients" aria-labelledby="clientsTitle">
+    <div class="wrap clients-head">
+      <p class="eyebrow" id="clientsTitle" data-nl="Opdrachtgevers &amp; partners" data-en="Clients &amp; partners">Opdrachtgevers &amp; partners</p>
+      <p class="clients-note" data-nl="Hotelgroepen, ontwerpers en architecten met wie wij hebben gewerkt" data-en="Hotel groups, designers and architects we have worked with">Hotelgroepen, ontwerpers en architecten met wie wij hebben gewerkt</p>
+    </div>
+    <div class="ribbon" aria-label="Logo's van opdrachtgevers en partners, waaronder Four Seasons, Rosewood, Conrad, Hilton, Marriott, Jumeirah, Kempinski, Soho House, Disney, Netflix, Gensler en Peter Marino Architect" role="img">
+      <div class="ribbon-track">
+        <img src="img/clients-1.png" alt="" width="742" height="327" loading="lazy"/><img src="img/clients-2.png" alt="" width="702" height="391" loading="lazy"/><img src="img/clients-1.png" alt="" width="742" height="327" loading="lazy"/><img src="img/clients-2.png" alt="" width="702" height="391" loading="lazy"/>
+      </div>
+    </div>
   </section>
 
   <!-- PROCESS -->
@@ -654,6 +807,19 @@
     clearInterval(forestTimer);
     if (e.isIntersecting) forestTimer = setInterval(nextTree, 5000);
   })).observe($('#forestFrame'));
+
+  /* ── references: filter by region ── */
+  const refItems = $$('#refList li');
+  $$('.chip').forEach(chip => chip.addEventListener('click', () => {
+    const f = chip.dataset.f;
+    $$('.chip').forEach(c => { const on = c === chip; c.classList.toggle('on', on); c.setAttribute('aria-pressed', on); });
+    refItems.forEach((li, i) => {
+      const show = f === 'all' || li.dataset.r === f;
+      li.hidden = !show;
+      li.classList.remove('show');
+      if (show) { li.style.animationDelay = Math.min(i, 40) * 12 + 'ms'; void li.offsetWidth; li.classList.add('show'); }
+    });
+  }));
 
   /* ── contact form (Netlify Forms) ── */
   const form = $('#contactForm'), ok = $('#formOk'), err = $('#formErr'), btn = $('#formBtn');
