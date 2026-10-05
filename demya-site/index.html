@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>Demya — Meubelen. Verlichting. Vakmanschap.</title>
+<meta name="google-site-verification" content="GRT3mWXgtKT9DQQLgxsHuM9vUxtzCKHOyB9kE6E7iUQ"/>
+<meta name="description" content="Demya is officieel Benelux vertegenwoordiger van Parla Design en Minimis, mede-oprichter van Byzantivm en partner van The Artificial Forest. Meubelen, verlichting en groen voor de luxe horeca, in de Benelux en heel Europa."/>
+<meta name="keywords" content="hospitality meubelen Nederland, contract meubelen Benelux, horeca verlichting Nederland, FF&amp;E leverancier Nederland, Parla Design Benelux, Byzantivm verlichting, Minimis architecturale verlichting, The Artificial Forest, kunstbomen horeca"/>
+<link rel="canonical" href="https://demya.nl"/>
+<link rel="icon" type="image/png" href="img/favicon.png"/>
+<meta property="og:type" content="website"/>
+<meta property="og:title" content="Demya — Meubelen. Verlichting. Vakmanschap."/>
+<meta property="og:description" content="Meubelen, verlichting en groen voor de luxe horeca. Benelux en heel Europa."/>
+<meta property="og:image" content="https://demya.nl/img/hero-chandelier.jpg"/>
+<meta property="og:url" content="https://demya.nl"/>
+<meta name="theme-color" content="#12110F"/>
+<script>
+  document.documentElement.classList.add('js');
+  // A brand photo hosted elsewhere that fails to load is replaced by a typographic panel in the current language.
+  window.demyaImgFail = function (img) {
+    var panel = document.getElementById('parlaFallback').content.firstElementChild.cloneNode(true);
+    var lang = document.documentElement.lang === 'en' ? 'en' : 'nl';
+    panel.querySelectorAll('[data-nl]').forEach(function (el) { el.textContent = el.getAttribute('data-' + lang); });
+    img.replaceWith(panel);
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Organization","name":"Demya Netherlands","url":"https://demya.nl","logo":"https://demya.nl/img/demya-logo.png","email":"we@demya.nl","telephone":"+31627653383","address":{"@type":"PostalAddress","streetAddress":"Sint Gotthard 1","postalCode":"1186EM","addressLocality":"Amstelveen","addressCountry":"NL"},"areaServed":"Europe","sameAs":["https://www.linkedin.com/in/umut-aktar-150391424"]}
+</script>
+<style>
+  /* Layout: a dark showroom you walk into. The opening screen is a black wall with DEMYA cut out of it;
+     scrolling pulls you through the letters into the chandelier-lit room, then one room per brand. */
+  :root {
+    --ink:       #12110F;   /* page ground, warm near-black */
+    --ink-2:     #1B1915;   /* raised surfaces */
+    --cream:     #F3EDE2;   /* text */
+    --stone:     #A0968A;   /* secondary text */
+    --bronze:    #C4965A;   /* the one accent */
+    --bronze-hi: #E2BC86;
+    --moss:      #8FA683;   /* only in The Artificial Forest */
+    --line:      rgba(243, 237, 226, .14);
+    --display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+    --body:    'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --fs-hero: clamp(2.7rem, 7.2vw, 6.6rem);
+    --fs-h2:   clamp(2.2rem, 4.8vw, 4.2rem);
+    --fs-h3:   clamp(1.9rem, 3.4vw, 3rem);
+    --fs-body: 1.0625rem;
+    --fs-small: .8125rem;
+    --gutter: clamp(16px, 5vw, 56px);
+    --ease: cubic-bezier(.2, .7, .1, 1);
+    color-scheme: dark;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body { font-family: var(--body); font-size: var(--fs-body); line-height: 1.65; background: var(--ink); color: var(--cream); overflow-x: hidden; }
+  img { max-width: 100%; display: block; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--bronze); outline-offset: 3px; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 400; line-height: 1.05; text-wrap: balance; }
+  em, .it { font-style: italic; color: var(--bronze-hi); }
+  .wrap { max-width: 1280px; margin-inline: auto; padding-inline: var(--gutter); }
+  .eyebrow { font-size: var(--fs-small); letter-spacing: .22em; text-transform: uppercase; color: var(--bronze); font-weight: 500; }
+
+  /* ── loader line ── */
+  .line-loader { position: fixed; top: 0; left: 0; height: 2px; width: 0; background: var(--bronze); z-index: 300; transition: width .9s var(--ease); }
+  .line-loader.done { width: 100%; opacity: 0; transition: width .6s var(--ease), opacity .5s ease .6s; }
+
+  /* ── nav ── */
+  nav {
+    position: fixed; inset: 0 0 auto 0; z-index: 200;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: calc(18px + env(safe-area-inset-top, 0px)) var(--gutter) 18px;
+    transition: background .4s ease, padding .4s ease;
+  }
+  nav.scrolled { background: rgba(18, 17, 15, .82); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); padding-block: calc(10px + env(safe-area-inset-top, 0px)) 10px; border-bottom: 1px solid var(--line); }
+  .nav-logo img { height: 46px; width: auto; transition: height .4s ease; }
+  nav.scrolled .nav-logo img { height: 38px; }
+  .nav-right { display: flex; align-items: center; gap: clamp(14px, 3vw, 36px); }
+  .nav-links { display: flex; gap: clamp(14px, 2.6vw, 32px); list-style: none; }
+  .nav-links a { text-decoration: none; font-size: .875rem; letter-spacing: .08em; color: var(--cream); opacity: .8; transition: opacity .2s; }
+  .nav-links a:hover { opacity: 1; color: var(--bronze-hi); }
+  .lang-toggle { display: flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+  .lang-btn { background: none; border: 0; color: var(--stone); font: 500 .75rem var(--body); letter-spacing: .1em; padding: 5px 10px; border-radius: 999px; cursor: pointer; }
+  .lang-btn.active { background: var(--bronze); color: var(--ink); }
+  @media (max-width: 640px) { .nav-links .hide-sm { display: none; } }
+
+  /* ── portal: walk through the letters ── */
+  .portal { position: relative; height: 290vh; }
+  .stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; background: var(--ink); }
+  .room { position: absolute; inset: 0; transform-origin: 50% 45%; will-change: transform; }
+  .room img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%; filter: brightness(.82) saturate(.9); }
+  .room::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 40%, rgba(18,17,15,0) 30%, rgba(18,17,15,.75) 100%), linear-gradient(to bottom, rgba(18,17,15,.25), rgba(18,17,15,.1) 40%, rgba(18,17,15,.92)); }
+  .veil { position: absolute; inset: 0; width: 100%; height: 100%; will-change: transform; pointer-events: none; }
+  .veil rect.wall { fill: var(--ink); }
+  .veil-hint { position: absolute; left: 0; right: 0; bottom: max(7vh, 40px); display: grid; justify-items: center; gap: 14px; text-align: center; padding-inline: var(--gutter); pointer-events: none; }
+  .veil-hint .eyebrow { color: var(--stone); }
+  .veil-hint .lines { font-family: var(--display); font-style: italic; font-size: clamp(1.1rem, 2.2vw, 1.5rem); color: var(--cream); opacity: .85; }
+  .pull { width: 1px; height: 54px; background: linear-gradient(var(--bronze), transparent); animation: pull 2.2s var(--ease) infinite; transform-origin: top; }
+  @keyframes pull { 0% { transform: scaleY(0); opacity: 1; } 60% { transform: scaleY(1); opacity: 1; } 100% { transform: scaleY(1); opacity: 0; } }
+
+  .hero-content { position: absolute; inset: auto 0 0 0; padding: 0 var(--gutter) max(9vh, 56px); max-width: 1280px; margin-inline: auto; }
+  .hero-content .eyebrow { margin-bottom: 22px; }
+  .hero-title { font-size: var(--fs-hero); letter-spacing: -.01em; }
+  .hero-title span { display: block; }
+  .hero-sub { max-width: 34rem; margin-top: 26px; color: var(--cream); opacity: .82; font-weight: 300; font-size: clamp(1rem, 1.4vw, 1.15rem); }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font: 500 .875rem var(--body); letter-spacing: .08em; padding: 15px 26px; border-radius: 999px; border: 1px solid var(--bronze); transition: background .25s, color .25s, transform .25s var(--ease); cursor: pointer; }
+  .btn-primary { background: var(--bronze); color: var(--ink); }
+  .btn-primary:hover { background: var(--bronze-hi); border-color: var(--bronze-hi); }
+  .btn-ghost { color: var(--cream); background: transparent; border-color: var(--line); }
+  .btn-ghost:hover { border-color: var(--bronze); color: var(--bronze-hi); }
+  .btn:active { transform: scale(.97); }
+
+  .js .hero-content { opacity: 0; }
+
+  /* without the effect: a plain hero */
+  .no-portal .portal { height: auto; }
+  .no-portal .stage { position: relative; height: 100vh; height: 100svh; min-height: 560px; }
+  .no-portal .veil, .no-portal .veil-hint { display: none; }
+  .no-portal .hero-content { opacity: 1; }
+
+  /* ── marquee ── */
+  .marquee { border-block: 1px solid var(--line); overflow: hidden; padding-block: 22px; background: var(--ink); }
+  .marquee-track { display: flex; width: max-content; animation: marquee 38s linear infinite; }
+  .marquee-track span { font-family: var(--display); font-size: clamp(1.3rem, 2.4vw, 2rem); padding-inline: 28px; white-space: nowrap; color: var(--cream); opacity: .9; }
+  .marquee-track span.dot { color: var(--bronze); padding-inline: 0; opacity: 1; }
+  .marquee-track span.it { opacity: 1; }
+  @keyframes marquee { to { transform: translateX(-50%); } }
+
+  /* ── intro + figures ── */
+  .intro { padding-block: clamp(90px, 14vw, 170px) clamp(60px, 9vw, 110px); }
+  .intro-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: clamp(32px, 6vw, 96px); align-items: end; }
+  .intro h2 { font-size: var(--fs-h2); margin-top: 18px; }
+  .intro p.lead { color: var(--stone); max-width: 32rem; }
+  .intro p.lead strong { color: var(--cream); font-weight: 400; }
+  .figures { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: clamp(56px, 8vw, 100px); border-top: 1px solid var(--line); }
+  .fig { padding: 28px 22px 0 0; display: grid; gap: 6px; min-width: 0; }
+  .fig + .fig { padding-left: 22px; border-left: 1px solid var(--line); }
+  .fig b { font-family: var(--display); font-weight: 400; font-size: clamp(2.2rem, 4.2vw, 3.6rem); line-height: 1; color: var(--bronze-hi); font-variant-numeric: tabular-nums lining-nums; }
+  .fig span { font-size: .875rem; color: var(--stone); line-height: 1.45; }
+  @media (max-width: 860px) {
+    .intro-grid { grid-template-columns: 1fr; }
+    .figures { grid-template-columns: 1fr 1fr; }
+    .fig:nth-child(3) { padding-left: 0; border-left: 0; }
+    .fig:nth-child(n+3) { padding-top: 26px; margin-top: 26px; border-top: 1px solid var(--line); }
+  }
+
+  /* ── brand rooms ── */
+  .brands { padding-bottom: clamp(40px, 6vw, 80px); }
+  .room-row { display: grid; grid-template-columns: 7fr 5fr; gap: clamp(28px, 6vw, 96px); align-items: center; padding-block: clamp(56px, 9vw, 120px); }
+  .room-row.flip { grid-template-columns: 5fr 7fr; }
+  .room-row.flip .frame { order: 2; }
+  .frame { position: relative; aspect-ratio: 4 / 5; max-width: 100%; overflow: hidden; background: var(--ink-2); clip-path: inset(7% 7% 7% 7%); transition: clip-path 1.4s var(--ease); }
+  .frame.wide { aspect-ratio: 5 / 4; }
+  .frame.in { clip-path: inset(0 0 0 0); }
+  .frame > img, .frame > canvas { position: absolute; left: 0; top: -8%; width: 100%; height: 116%; object-fit: cover; will-change: transform; }
+  .frame-label { position: absolute; left: 18px; bottom: 16px; z-index: 3; font-size: .75rem; letter-spacing: .14em; text-transform: uppercase; color: var(--cream); opacity: .85; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
+  .frame-fallback { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; background: radial-gradient(circle at 30% 20%, #2a241b, var(--ink-2) 70%); }
+  .frame-fallback b { font-family: var(--display); font-weight: 400; font-size: clamp(3rem, 8vw, 6rem); letter-spacing: .12em; color: var(--cream); }
+  .frame-fallback small { display: block; margin-top: 8px; font-size: var(--fs-small); letter-spacing: .3em; text-transform: uppercase; color: var(--bronze); }
+
+  .info { display: grid; gap: 18px; min-width: 0; }
+  .role { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+  .role span { font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--stone); }
+  .role span.key { border-color: var(--bronze); color: var(--bronze-hi); }
+  .info h3 { font-size: var(--fs-h3); }
+  .info .cat { font-size: var(--fs-small); letter-spacing: .2em; text-transform: uppercase; color: var(--bronze); }
+  .info p.desc { color: var(--stone); max-width: 32rem; }
+  .brand-logo { height: 44px; width: auto; align-self: start; border-radius: 2px; }
+  .info .link { justify-self: start; text-decoration: none; font-size: .9rem; letter-spacing: .06em; padding-bottom: 4px; border-bottom: 1px solid var(--bronze); color: var(--cream); transition: color .2s; }
+  .info .link:hover { color: var(--bronze-hi); }
+  .slide { transform: translateY(26px); transition: transform 1.1s var(--ease); }
+  .slide.in { transform: none; }
+
+  /* Minimis: move to light the scene */
+  .spot::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+    background: radial-gradient(circle at var(--sx, 50%) var(--sy, 48%), rgba(18,17,15,0) 0, rgba(18,17,15,0) 22%, rgba(18,17,15,.9) 46%); }
+  .spot-tip { position: absolute; right: 16px; top: 16px; z-index: 3; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--bronze-hi); }
+
+  /* The Artificial Forest */
+  .forest .frame { background: #0f130e; }
+  .forest .role span.key { border-color: var(--moss); color: var(--moss); }
+  .forest .cat { color: var(--moss); }
+  .forest .link { border-color: var(--moss); }
+
+  @media (max-width: 860px) {
+    .room-row, .room-row.flip { grid-template-columns: 1fr; }
+    .room-row.flip .frame { order: 0; }
+    .frame { aspect-ratio: 4 / 3.4; }
+  }
+
+  /* ── process ── */
+  .process { padding-block: clamp(80px, 11vw, 150px); background: var(--ink-2); border-block: 1px solid var(--line); }
+  .process h2 { font-size: var(--fs-h2); margin-top: 18px; max-width: 18ch; }
+  .steps { list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: clamp(20px, 3vw, 40px); margin-top: clamp(48px, 6vw, 80px); counter-reset: step; }
+  .steps li { counter-increment: step; display: grid; gap: 10px; align-content: start; padding-top: 22px; border-top: 1px solid var(--line); min-width: 0; position: relative; }
+  .steps li::before { content: counter(step, decimal-leading-zero); font-family: var(--display); font-style: italic; color: var(--bronze); font-size: 1.1rem; }
+  .steps li::after { content: ""; position: absolute; top: -1px; left: 0; height: 1px; width: 0; background: var(--bronze); transition: width 1.2s var(--ease); }
+  .steps.in li::after { width: 100%; }
+  .steps.in li:nth-child(2)::after { transition-delay: .25s; }
+  .steps.in li:nth-child(3)::after { transition-delay: .5s; }
+  .steps.in li:nth-child(4)::after { transition-delay: .75s; }
+  .steps h4 { font-family: var(--display); font-weight: 400; font-size: 1.45rem; line-height: 1.2; }
+  .steps p { color: var(--stone); font-size: .95rem; }
+  @media (max-width: 860px) { .steps { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 520px) { .steps { grid-template-columns: 1fr; } }
+
+  /* ── contact ── */
+  .contact { padding-block: clamp(90px, 12vw, 160px); }
+  .contact-grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: clamp(40px, 7vw, 110px); }
+  .contact h2 { font-size: var(--fs-h2); margin-top: 18px; }
+  .contact-left > p { color: var(--stone); margin-top: 22px; max-width: 30rem; }
+  .details { display: grid; gap: 18px; margin-top: 40px; }
+  .cd { display: grid; grid-template-columns: 9.5rem 1fr; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--line); min-width: 0; }
+  .cd dt { font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--stone); padding-top: 3px; }
+  .cd dd { min-width: 0; overflow-wrap: anywhere; }
+  .cd a { text-decoration: none; border-bottom: 1px solid transparent; }
+  .cd a:hover { border-color: var(--bronze); }
+  @media (max-width: 420px) { .cd { grid-template-columns: 1fr; gap: 2px; } }
+
+  form.contact-form { display: grid; gap: 22px; align-content: start; background: var(--ink-2); border: 1px solid var(--line); padding: clamp(22px, 4vw, 44px); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .fg { display: grid; gap: 8px; min-width: 0; }
+  .fg label { font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--stone); }
+  .fg input, .fg select, .fg textarea { width: 100%; font: 400 1rem var(--body); color: var(--cream); background: transparent; border: 0; border-bottom: 1px solid var(--line); padding: 10px 0; border-radius: 0; transition: border-color .2s; }
+  .fg select option { background: var(--ink-2); color: var(--cream); }
+  .fg textarea { min-height: 120px; resize: vertical; }
+  .fg input:focus, .fg select:focus, .fg textarea:focus { outline: none; border-bottom-color: var(--bronze); }
+  .fg input::placeholder, .fg textarea::placeholder { color: rgba(160, 150, 138, .6); }
+  .hp { position: absolute; left: -9999px; }
+  .form-msg { font-size: .95rem; padding: 14px 16px; border-left: 2px solid var(--bronze); background: rgba(196,150,90,.08); }
+  .form-msg.err { border-left-color: #D98B74; background: rgba(217,139,116,.08); }
+  form .btn { justify-self: start; }
+  @media (max-width: 860px) { .contact-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 520px) { .form-row { grid-template-columns: 1fr; } }
+
+  /* ── footer ── */
+  footer { border-top: 1px solid var(--line); padding-block: 40px calc(40px + env(safe-area-inset-bottom, 0px)); }
+  .foot { display: flex; flex-wrap: wrap; gap: 24px 48px; justify-content: space-between; align-items: center; font-size: .82rem; color: var(--stone); }
+  .foot-logo { font-family: var(--display); font-size: 1.8rem; color: var(--cream); }
+  .foot-links { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+  .foot-links a { text-decoration: none; }
+  .foot-links a:hover { color: var(--bronze-hi); }
+
+  /* soft light that follows the visitor */
+  .glow { position: fixed; z-index: 1; width: 560px; height: 560px; left: 0; top: 0; margin: -280px 0 0 -280px; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, rgba(196,150,90,.10), rgba(196,150,90,0) 62%); mix-blend-mode: screen; opacity: 0; transition: opacity .6s; }
+  .glow.on { opacity: 1; }
+  main, footer { position: relative; z-index: 2; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-track, .pull { animation: none; }
+    .frame, .slide { transition: none; clip-path: none; transform: none; }
+    .glow { display: none; }
+  }
+</style>
+</head>
+<body>
+<template id="parlaFallback"><div class="frame-fallback"><div><b>PARLA</b><small data-nl="Sinds 1910 · Istanbul" data-en="Since 1910 · Istanbul">Sinds 1910 · Istanbul</small></div></div></template>
+
+<div class="line-loader" id="lineLoader"></div>
+<div class="glow" id="glow"></div>
+
+<nav id="nav">
+  <a href="#top" class="nav-logo" aria-label="Demya"><img src="img/demya-logo.png" alt="Demya" width="46" height="46"/></a>
+  <div class="nav-right">
+    <ul class="nav-links">
+      <li><a href="#brands" data-nl="Merken" data-en="Brands">Merken</a></li>
+      <li class="hide-sm"><a href="#process" data-nl="Werkwijze" data-en="How we work">Werkwijze</a></li>
+      <li><a href="#contact" data-nl="Contact" data-en="Contact">Contact</a></li>
+    </ul>
+    <div class="lang-toggle" role="group" aria-label="Taal / Language">
+      <button class="lang-btn active" type="button" data-lang="nl">NL</button>
+      <button class="lang-btn" type="button" data-lang="en">EN</button>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+
+  <!-- PORTAL: the visitor walks through the letters into the room -->
+  <section class="portal" id="portal" aria-label="Demya">
+    <div class="stage" id="stage">
+      <div class="room" id="room"><img src="img/hero-chandelier.jpg" alt="Maatwerk kroonluchter van Byzantivm in een hotellobby" fetchpriority="high"/></div>
+
+      <svg class="veil" id="veil" aria-hidden="true">
+        <defs>
+          <mask id="cut" maskUnits="userSpaceOnUse" x="-50000" y="-50000" width="100000" height="100000">
+            <rect x="-50000" y="-50000" width="100000" height="100000" fill="#fff"/>
+            <text id="word" text-anchor="middle" font-family="'Playfair Display', Georgia, serif" font-weight="700" fill="#000">DEMYA</text>
+          </mask>
+        </defs>
+        <rect class="wall" x="-50000" y="-50000" width="100000" height="100000" mask="url(#cut)"/>
+      </svg>
+
+      <div class="veil-hint" id="hint">
+        <p class="lines" data-nl="Meubelen · Verlichting · Groen" data-en="Furniture · Lighting · Greenery">Meubelen · Verlichting · Groen</p>
+        <p class="eyebrow" data-nl="Scroll om binnen te stappen" data-en="Scroll to step inside">Scroll om binnen te stappen</p>
+        <div class="pull"></div>
+      </div>
+
+      <div class="hero-content" id="heroContent">
+        <p class="eyebrow" data-nl="Officieel vertegenwoordiger Benelux · Projecten in heel Europa" data-en="Official Benelux representative · Projects across Europe">Officieel vertegenwoordiger Benelux · Projecten in heel Europa</p>
+        <h1 class="hero-title">
+          <span data-nl="Meubelen." data-en="Furniture.">Meubelen.</span>
+          <span class="it" data-nl="Verlichting." data-en="Lighting.">Verlichting.</span>
+          <span data-nl="Vakmanschap." data-en="Craftsmanship.">Vakmanschap.</span>
+        </h1>
+        <p class="hero-sub" data-nl="Demya brengt de beste merken voor meubelen, verlichting en groen naar hotels, restaurants en ontwerpers. Vanuit Amstelveen, voor de Benelux en heel Europa. Van concept tot oplevering." data-en="Demya brings the finest brands in furniture, lighting and greenery to hotels, restaurants and designers. Based in Amstelveen, working across the Benelux and all of Europe. From concept to completion.">Demya brengt de beste merken voor meubelen, verlichting en groen naar hotels, restaurants en ontwerpers. Vanuit Amstelveen, voor de Benelux en heel Europa. Van concept tot oplevering.</p>
+        <div class="actions">
+          <a href="#contact" class="btn btn-primary" data-nl="Bespreek uw project" data-en="Discuss your project">Bespreek uw project</a>
+          <a href="#brands" class="btn btn-ghost" data-nl="Onze merken" data-en="Our brands">Onze merken</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee-track">
+      <span>Parla Design</span><span class="dot">✦</span><span class="it">Byzantivm</span><span class="dot">✦</span><span>Minimis</span><span class="dot">✦</span><span class="it">The Artificial Forest</span><span class="dot">✦</span><span>FF&amp;E</span><span class="dot">✦</span>
+      <span>Parla Design</span><span class="dot">✦</span><span class="it">Byzantivm</span><span class="dot">✦</span><span>Minimis</span><span class="dot">✦</span><span class="it">The Artificial Forest</span><span class="dot">✦</span><span>FF&amp;E</span><span class="dot">✦</span>
+    </div>
+  </div>
+
+  <!-- INTRO -->
+  <section class="intro wrap" aria-labelledby="introTitle">
+    <div class="intro-grid">
+      <div class="slide">
+        <p class="eyebrow" data-nl="Onze merken" data-en="Our brands">Onze merken</p>
+        <h2 id="introTitle" data-html data-nl="Vier lijnen.<br><span class='it'>Eén partner.</span>" data-en="Four lines.<br><span class='it'>One partner.</span>">Vier lijnen.<br><span class="it">Eén partner.</span></h2>
+      </div>
+      <p class="lead slide" data-html data-nl="Wij werken met een kleine groep merken die elk de beste zijn in hun vak. <strong>Parla Design</strong> en <strong>Minimis</strong> vertegenwoordigen wij officieel in de Benelux. <strong>Byzantivm</strong> is ons eigen merk en <strong>The Artificial Forest</strong> is nieuw bij Demya. U heeft één aanspreekpunt, van de eerste schets tot de oplevering, waar in Europa uw project ook is." data-en="We work with a small group of brands, each among the best at what they do. We are the official Benelux representative of <strong>Parla Design</strong> and <strong>Minimis</strong>. <strong>Byzantivm</strong> is our own brand, and <strong>The Artificial Forest</strong> is new at Demya. You have one point of contact from the first sketch to completion, wherever in Europe your project is.">Wij werken met een kleine groep merken die elk de beste zijn in hun vak. <strong>Parla Design</strong> en <strong>Minimis</strong> vertegenwoordigen wij officieel in de Benelux. <strong>Byzantivm</strong> is ons eigen merk en <strong>The Artificial Forest</strong> is nieuw bij Demya. U heeft één aanspreekpunt, van de eerste schets tot de oplevering, waar in Europa uw project ook is.</p>
+    </div>
+    <div class="figures">
+      <div class="fig"><b data-count="1910" data-plain>1910</b><span data-nl="Het erfgoed van Parla Design" data-en="Parla Design's heritage">Het erfgoed van Parla Design</span></div>
+      <div class="fig"><b data-count="15000" data-suffix=" m²">15.000 m²</b><span data-nl="Eigen fabriek van Parla in Istanbul" data-en="Parla's own factory in Istanbul">Eigen fabriek van Parla in Istanbul</span></div>
+      <div class="fig"><b data-count="20" data-suffix="+">20+</b><span data-nl="Jaar Byzantivm verlichting wereldwijd" data-en="Years of Byzantivm lighting worldwide">Jaar Byzantivm verlichting wereldwijd</span></div>
+      <div class="fig"><b data-count="4">4</b><span data-nl="Merken, één aanspreekpunt" data-en="Brands, one point of contact">Merken, één aanspreekpunt</span></div>
+    </div>
+  </section>
+
+  <!-- BRANDS -->
+  <section class="brands wrap" id="brands" aria-label="Merken">
+
+    <!-- PARLA -->
+    <article class="room-row">
+      <div class="frame">
+        <img data-parallax src="https://parladesign.com/wp-content/uploads/2026/06/1-Hotel_Featured-image@2x.jpg" alt="Parla Design in 1 Hotel Copenhagen" loading="lazy" onerror="demyaImgFail(this)"/>
+        <span class="frame-label">1 Hotel Copenhagen · Parla Design</span>
+      </div>
+      <div class="info slide">
+        <div class="role"><span class="key" data-nl="Officieel vertegenwoordiger Benelux" data-en="Official Benelux representative">Officieel vertegenwoordiger Benelux</span><span data-nl="Projecten in heel Europa" data-en="Projects across Europe">Projecten in heel Europa</span></div>
+        <h3>Parla Design</h3>
+        <p class="cat" data-nl="Losse meubelen &amp; maatwerk schrijnwerk" data-en="Loose furniture &amp; bespoke joinery">Losse meubelen &amp; maatwerk schrijnwerk</p>
+        <p class="desc" data-nl="Parla Design maakt hoogwaardige meubelen voor de horeca, met een erfgoed dat teruggaat tot 1910. Vanuit een eigen fabriek van 15.000 m² in Istanbul werken zij voor de meest veeleisende opdrachtgevers ter wereld, van Four Seasons tot Rosewood en Mandarin Oriental." data-en="Parla Design makes high-end furniture for hospitality, with a heritage dating back to 1910. From their own 15,000 m² factory in Istanbul they work for the world's most demanding clients, from Four Seasons to Rosewood and Mandarin Oriental.">Parla Design maakt hoogwaardige meubelen voor de horeca, met een erfgoed dat teruggaat tot 1910. Vanuit een eigen fabriek van 15.000 m² in Istanbul werken zij voor de meest veeleisende opdrachtgevers ter wereld, van Four Seasons tot Rosewood en Mandarin Oriental.</p>
+        <a class="link" href="https://www.parladesign.com" target="_blank" rel="noopener">parladesign.com ↗</a>
+      </div>
+    </article>
+
+    <!-- BYZANTIVM -->
+    <article class="room-row flip">
+      <div class="frame">
+        <img data-parallax src="img/byzantivm-ballroom.jpg" alt="Kristallen kroonluchter van Byzantivm in een balzaal" loading="lazy"/>
+        <span class="frame-label" data-nl="Maatwerk kroonluchter · Byzantivm" data-en="Bespoke chandelier · Byzantivm">Maatwerk kroonluchter · Byzantivm</span>
+      </div>
+      <div class="info slide">
+        <div class="role"><span class="key" data-nl="Ons eigen merk" data-en="Our own brand">Ons eigen merk</span><span data-nl="Wereldwijd" data-en="Worldwide">Wereldwijd</span></div>
+        <h3>Byzantivm</h3>
+        <p class="cat" data-nl="Decoratieve verlichting op maat" data-en="Bespoke decorative lighting">Decoratieve verlichting op maat</p>
+        <p class="desc" data-nl="Byzantivm is ons eigen merk voor decoratieve verlichting op maat in de luxe horeca. Met meer dan twintig jaar ervaring in de Golfregio, de VS en Europa ontwerpen en maken wij verlichtingsinstallaties voor 4- en 5-sterrenhotels, fine-dining restaurants, resorts en superjachten." data-en="Byzantivm is our own brand of bespoke decorative lighting for luxury hospitality. With more than twenty years of experience across the Gulf region, the US and Europe, we design and make lighting installations for 4 and 5-star hotels, fine-dining restaurants, resorts and superyachts.">Byzantivm is ons eigen merk voor decoratieve verlichting op maat in de luxe horeca. Met meer dan twintig jaar ervaring in de Golfregio, de VS en Europa ontwerpen en maken wij verlichtingsinstallaties voor 4- en 5-sterrenhotels, fine-dining restaurants, resorts en superjachten.</p>
+        <a class="link" href="https://www.byzantivm.com" target="_blank" rel="noopener">byzantivm.com ↗</a>
+      </div>
+    </article>
+
+    <!-- MINIMIS -->
+    <article class="room-row">
+      <div class="frame wide spot" id="spot">
+        <img data-parallax src="img/minimis-spots.jpg" alt="Architecturale spots van Minimis" loading="lazy" style="object-position: center 40%;"/>
+        <span class="spot-tip" data-nl="Beweeg om te belichten" data-en="Move to light it up">Beweeg om te belichten</span>
+        <span class="frame-label" data-nl="Architecturale spots · Minimis" data-en="Architectural spots · Minimis">Architecturale spots · Minimis</span>
+      </div>
+      <div class="info slide">
+        <div class="role"><span class="key" data-nl="Officieel vertegenwoordiger Benelux" data-en="Official Benelux representative">Officieel vertegenwoordiger Benelux</span><span data-nl="Projecten in heel Europa" data-en="Projects across Europe">Projecten in heel Europa</span></div>
+        <img class="brand-logo" src="img/minimis-logo.jpg" alt="Minimis" width="44" height="45" loading="lazy"/>
+        <h3>Minimis</h3>
+        <p class="cat" data-nl="Architecturale verlichting" data-en="Architectural lighting">Architecturale verlichting</p>
+        <p class="desc" data-nl="Minimis is gespecialiseerd in hoogwaardige architecturale verlichting voor veeleisende omgevingen. Technische precisie en verfijnde vormgeving, voor plekken waar licht niet alleen verlicht maar de ruimte bepaalt." data-en="Minimis specialises in high-quality architectural lighting for demanding environments. Technical precision and refined design, for places where light does more than illuminate: it defines the space.">Minimis is gespecialiseerd in hoogwaardige architecturale verlichting voor veeleisende omgevingen. Technische precisie en verfijnde vormgeving, voor plekken waar licht niet alleen verlicht maar de ruimte bepaalt.</p>
+        <a class="link" href="https://www.minim.is" target="_blank" rel="noopener">minim.is ↗</a>
+      </div>
+    </article>
+
+    <!-- THE ARTIFICIAL FOREST -->
+    <article class="room-row flip forest">
+      <div class="frame" id="forestFrame">
+        <canvas id="forest" aria-label="Bewegend bos, getekend in de browser" role="img"></canvas>
+        <span class="frame-label">The Artificial Forest</span>
+      </div>
+      <div class="info slide">
+        <div class="role"><span class="key" data-nl="Nieuw bij Demya" data-en="New at Demya">Nieuw bij Demya</span><span data-nl="Benelux &amp; Europa" data-en="Benelux &amp; Europe">Benelux &amp; Europa</span></div>
+        <h3>The Artificial Forest</h3>
+        <p class="cat" data-nl="Kunstbomen &amp; groeninstallaties" data-en="Artificial trees &amp; green installations">Kunstbomen &amp; groeninstallaties</p>
+        <p class="desc" data-nl="Natuurgetrouwe kunstbomen en groeninstallaties op maat, voor lobby's, restaurants, atria en publieke ruimtes. Groen dat het hele jaar mooi blijft, zonder water of daglicht." data-en="Lifelike artificial trees and green installations made to measure, for lobbies, restaurants, atriums and public spaces. Greenery that looks its best all year round, without water or daylight.">Natuurgetrouwe kunstbomen en groeninstallaties op maat, voor lobby's, restaurants, atria en publieke ruimtes. Groen dat het hele jaar mooi blijft, zonder water of daglicht.</p>
+        <a class="link" href="https://theartificialforest.com" target="_blank" rel="noopener">theartificialforest.com ↗</a>
+      </div>
+    </article>
+  </section>
+
+  <!-- PROCESS -->
+  <section class="process" id="process" aria-labelledby="processTitle">
+    <div class="wrap">
+      <p class="eyebrow" data-nl="Werkwijze" data-en="How we work">Werkwijze</p>
+      <h2 id="processTitle" data-html data-nl="Van concept <span class='it'>tot oplevering</span>" data-en="From concept <span class='it'>to completion</span>">Van concept <span class="it">tot oplevering</span></h2>
+      <ol class="steps" id="steps">
+        <li><h4 data-nl="Concept" data-en="Concept">Concept</h4><p data-nl="We denken mee vanaf de eerste schets: welke merken, materialen en lichtsfeer passen bij uw project." data-en="We join from the first sketch: which brands, materials and lighting mood suit your project.">We denken mee vanaf de eerste schets: welke merken, materialen en lichtsfeer passen bij uw project.</p></li>
+        <li><h4 data-nl="Specificatie" data-en="Specification">Specificatie</h4><p data-nl="Maatvoering, monsters, technische tekeningen en offertes, afgestemd met architect en aannemer." data-en="Dimensions, samples, technical drawings and quotes, agreed with the architect and contractor.">Maatvoering, monsters, technische tekeningen en offertes, afgestemd met architect en aannemer.</p></li>
+        <li><h4 data-nl="Productie" data-en="Production">Productie</h4><p data-nl="De stukken worden gemaakt in de werkplaatsen van onze merken. Wij bewaken planning en kwaliteit." data-en="The pieces are made in our brands' own workshops. We keep track of schedule and quality.">De stukken worden gemaakt in de werkplaatsen van onze merken. Wij bewaken planning en kwaliteit.</p></li>
+        <li><h4 data-nl="Oplevering" data-en="Completion">Oplevering</h4><p data-nl="Transport en levering op locatie, in de Benelux en in heel Europa, tot alles op zijn plek staat." data-en="Shipping and delivery to site, in the Benelux and across Europe, until everything is in place.">Transport en levering op locatie, in de Benelux en in heel Europa, tot alles op zijn plek staat.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section class="contact wrap" id="contact" aria-labelledby="contactTitle">
+    <div class="contact-grid">
+      <div class="contact-left slide">
+        <p class="eyebrow">Contact</p>
+        <h2 id="contactTitle" data-html data-nl="Laten we uw<br><span class='it'>project bespreken</span>" data-en="Let's discuss<br><span class='it'>your project</span>">Laten we uw<br><span class="it">project bespreken</span></h2>
+        <p data-nl="Of u nu in de conceptfase zit of klaar bent om te specificeren: wij praten graag met u over meubelen, verlichting, groen of een combinatie daarvan." data-en="Whether you are at concept stage or ready to specify, we'd welcome a conversation about furniture, lighting, greenery or a combination.">Of u nu in de conceptfase zit of klaar bent om te specificeren: wij praten graag met u over meubelen, verlichting, groen of een combinatie daarvan.</p>
+        <dl class="details">
+          <div class="cd"><dt data-nl="Contactpersoon" data-en="Contact">Contactpersoon</dt><dd>Umut Aktar · Demya Netherlands</dd></div>
+          <div class="cd"><dt data-nl="Adres" data-en="Address">Adres</dt><dd>Sint Gotthard 1, 1186EM Amstelveen</dd></div>
+          <div class="cd"><dt data-nl="Telefoon" data-en="Phone">Telefoon</dt><dd><a href="tel:+31627653383">+31 6 27 65 33 83</a></dd></div>
+          <div class="cd"><dt data-nl="E-mail" data-en="Email">E-mail</dt><dd><a href="mailto:we@demya.nl">we@demya.nl</a></dd></div>
+          <div class="cd"><dt>LinkedIn</dt><dd><a href="https://www.linkedin.com/in/umut-aktar-150391424" target="_blank" rel="noopener">Demya Netherlands ↗</a></dd></div>
+        </dl>
+      </div>
+
+      <form class="contact-form slide" id="contactForm" name="contact" method="POST" data-netlify="true" netlify-honeypot="bot-field">
+        <input type="hidden" name="form-name" value="contact"/>
+        <p class="hp"><label>Laat leeg <input id="botField" name="bot-field" tabindex="-1" autocomplete="off"/></label></p>
+        <div class="form-row">
+          <div class="fg"><label for="fFirst" data-nl="Voornaam" data-en="First name">Voornaam</label><input id="fFirst" type="text" name="First Name" autocomplete="given-name" required data-ph-nl="Uw voornaam" data-ph-en="Your first name" placeholder="Uw voornaam"/></div>
+          <div class="fg"><label for="fLast" data-nl="Achternaam" data-en="Last name">Achternaam</label><input id="fLast" type="text" name="Last Name" autocomplete="family-name" data-ph-nl="Uw achternaam" data-ph-en="Your last name" placeholder="Uw achternaam"/></div>
+        </div>
+        <div class="fg"><label for="fCompany" data-nl="Bedrijf" data-en="Company">Bedrijf</label><input id="fCompany" type="text" name="Company" autocomplete="organization" data-ph-nl="Hotel, ontwerpstudio, restaurant…" data-ph-en="Hotel, design studio, restaurant…" placeholder="Hotel, ontwerpstudio, restaurant…"/></div>
+        <div class="fg"><label for="fEmail" data-nl="E-mail" data-en="Email">E-mail</label><input id="fEmail" type="email" name="Email" autocomplete="email" required data-ph-nl="u@bedrijf.nl" data-ph-en="you@company.com" placeholder="u@bedrijf.nl"/></div>
+        <div class="fg"><label for="fInterest" data-nl="Interesse" data-en="Interest">Interesse</label>
+          <select id="fInterest" name="Interest">
+            <option value="" disabled selected data-nl="Kies een categorie" data-en="Choose a category">Kies een categorie</option>
+            <option value="Loose furniture — Parla Design" data-nl="Losse meubelen · Parla Design" data-en="Loose furniture · Parla Design">Losse meubelen · Parla Design</option>
+            <option value="Bespoke furniture — Parla Design" data-nl="Maatwerk meubelen · Parla Design" data-en="Bespoke furniture · Parla Design">Maatwerk meubelen · Parla Design</option>
+            <option value="Decorative lighting — Byzantivm" data-nl="Decoratieve verlichting · Byzantivm" data-en="Decorative lighting · Byzantivm">Decoratieve verlichting · Byzantivm</option>
+            <option value="Architectural lighting — Minimis" data-nl="Architecturale verlichting · Minimis" data-en="Architectural lighting · Minimis">Architecturale verlichting · Minimis</option>
+            <option value="Artificial trees — The Artificial Forest" data-nl="Kunstbomen &amp; groen · The Artificial Forest" data-en="Artificial trees &amp; greenery · The Artificial Forest">Kunstbomen &amp; groen · The Artificial Forest</option>
+            <option value="Combination" data-nl="Combinatie van merken" data-en="A combination of brands">Combinatie van merken</option>
+            <option value="Other" data-nl="Anders" data-en="Other">Anders</option>
+          </select>
+        </div>
+        <div class="fg"><label for="fMessage" data-nl="Bericht" data-en="Message">Bericht</label><textarea id="fMessage" name="Message" data-ph-nl="Vertel ons over uw project: naam, locatie, planning en omvang." data-ph-en="Tell us about your project: name, location, timeline and scope." placeholder="Vertel ons over uw project: naam, locatie, planning en omvang."></textarea></div>
+        <div class="form-msg" id="formOk" hidden><strong data-nl="Bedankt." data-en="Thank you.">Bedankt.</strong> <span data-nl="Uw aanvraag is verstuurd. Wij nemen snel contact met u op." data-en="Your enquiry has been sent. We'll be in touch shortly.">Uw aanvraag is verstuurd. Wij nemen snel contact met u op.</span></div>
+        <div class="form-msg err" id="formErr" hidden data-nl="Versturen lukte niet. Probeer het opnieuw of mail ons op we@demya.nl." data-en="Your enquiry couldn't be sent. Try again, or email us at we@demya.nl.">Versturen lukte niet. Probeer het opnieuw of mail ons op we@demya.nl.</div>
+        <button type="submit" class="btn btn-primary" id="formBtn" data-nl="Verstuur aanvraag" data-en="Send enquiry">Verstuur aanvraag</button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div class="foot-logo">Dem<em>y</em>a</div>
+    <div class="foot-links">
+      <a href="https://www.parladesign.com" target="_blank" rel="noopener">Parla Design</a>
+      <a href="https://www.byzantivm.com" target="_blank" rel="noopener">Byzantivm</a>
+      <a href="https://www.minim.is" target="_blank" rel="noopener">Minimis</a>
+      <a href="https://theartificialforest.com" target="_blank" rel="noopener">The Artificial Forest</a>
+      <a href="https://www.linkedin.com/in/umut-aktar-150391424" target="_blank" rel="noopener">LinkedIn</a>
+    </div>
+    <div>© <span id="year">2026</span> Demya Netherlands · KvK 42045224 · BTW NL005453500B88<br/>Sint Gotthard 1, 1186EM Amstelveen · <a href="mailto:we@demya.nl">we@demya.nl</a></div>
+  </div>
+</footer>
+
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+
+  /* ── language ── */
+  let lang = 'nl';
+  function setLang(l) {
+    lang = l;
+    document.documentElement.lang = l;
+    $$('[data-' + l + ']').forEach(el => { if (el.hasAttribute('data-html')) el.innerHTML = el.dataset[l]; else el.textContent = el.dataset[l]; });
+    $$('[data-ph-' + l + ']').forEach(el => { el.placeholder = el.getAttribute('data-ph-' + l); });
+    $$('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === l));
+    store.set('demya-lang', l);
+  }
+  $$('.lang-btn').forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
+  const saved = store.get('demya-lang');
+  const browser = (navigator.language || 'nl').toLowerCase();
+  const startLang = saved || (browser.startsWith('nl') ? 'nl' : 'en');
+  setLang(startLang);
+
+  /* ── loader + nav ── */
+  const loader = $('#lineLoader');
+  requestAnimationFrame(() => { loader.style.width = '70%'; });
+  addEventListener('load', () => loader.classList.add('done'));
+  $('#year').textContent = new Date().getFullYear();
+  const nav = $('#nav');
+
+  /* ── portal ── */
+  const portal = $('#portal'), stage = $('#stage'), room = $('#room'), veil = $('#veil'), word = $('#word'), hint = $('#hint'), hero = $('#heroContent');
+  let portalOn = !reduce, sMax = 60, vw = 0, vh = 0;
+  const FONT = '"Playfair Display", Georgia, serif';
+
+  function layoutPortal() {
+    vw = stage.clientWidth; vh = stage.clientHeight;
+    const c = document.createElement('canvas'), k = 0.5; // scan at half size
+    c.width = Math.ceil(vw * k); c.height = Math.ceil(vh * k);
+    const ctx = c.getContext('2d');
+    ctx.font = '700 100px ' + FONT;
+    const m = ctx.measureText('DEMYA');
+    const size = Math.min(100 * (vw * (vw < 640 ? 0.92 : 0.84)) / m.width, vh * 0.36);
+    ctx.font = '700 ' + size + 'px ' + FONT;
+    const mm = ctx.measureText('DEMYA');
+    const asc = mm.actualBoundingBoxAscent || size * 0.72, desc = mm.actualBoundingBoxDescent || 0;
+    const cy = vh * 0.44, base = cy + (asc - desc) / 2;
+    word.setAttribute('font-size', size);
+    word.setAttribute('x', vw / 2);
+    word.setAttribute('y', base);
+    // find the thickest point of a letter near the centre; we zoom into it so the letter opens up into the room
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#000';
+    ctx.fillText('DEMYA', vw / 2, base);
+    const W = c.width, H = c.height, data = ctx.getImageData(0, 0, W, H).data;
+    const filled = (x, y) => x >= 0 && y >= 0 && x < W && y < H && data[(y * W + x) * 4 + 3] > 140;
+    const dirs = []; for (let i = 0; i < 16; i++) dirs.push([Math.cos(i * Math.PI / 8), Math.sin(i * Math.PI / 8)]);
+    const x0 = Math.floor(W * 0.08), x1 = Math.ceil(W * 0.92), y0 = Math.floor((cy - asc) * k), y1 = Math.ceil((cy + asc) * k);
+    let best = { r: 0, d: Infinity, x: W / 2, y: cy * k };
+    for (let y = Math.max(0, y0); y < Math.min(H, y1); y += 2) for (let x = x0; x < x1; x += 2) {
+      if (!filled(x, y)) continue;
+      let r = 1;
+      outer: for (; r < 80; r++) for (const [dx, dy] of dirs) if (!filled(Math.round(x + dx * r), Math.round(y + dy * r))) break outer;
+      const d = Math.hypot(x - W / 2, y - cy * k);
+      if (r > best.r + 1 || (Math.abs(r - best.r) <= 1 && d < best.d)) best = { r, d, x, y };
+    }
+    const ox = best.x / k, oy = best.y / k, rr = Math.max(2, best.r / k);
+    veil.style.transformOrigin = ox + 'px ' + oy + 'px';
+    room.style.transformOrigin = (ox / vw * 100) + '% ' + (oy / vh * 100) + '%';
+    sMax = Math.min(900, Math.hypot(vw, vh) / rr * 1.6);
+  }
+
+  function updatePortal() {
+    if (!portalOn) return;
+    const top = portal.getBoundingClientRect().top;
+    const span = portal.offsetHeight - vh;
+    const p = clamp(-top / span);
+    const q = clamp(p / 0.72);
+    const s = Math.pow(sMax, q * q * 0.55 + q * 0.45);
+    veil.style.transform = 'scale(' + s + ')';
+    const fade = clamp((q - 0.82) / 0.18);
+    veil.style.opacity = 1 - fade;
+    veil.style.visibility = fade >= 1 ? 'hidden' : 'visible';
+    hint.style.opacity = 1 - clamp(p / 0.12);
+    room.style.transform = 'scale(' + (1.22 - 0.22 * q) + ')';
+    const c = clamp((p - 0.7) / 0.24);
+    hero.style.opacity = c;
+    hero.style.transform = 'translateY(' + ((1 - c) * 36) + 'px)';
+    hero.style.pointerEvents = c > 0.5 ? 'auto' : 'none';
+  }
+
+  function startPortal() {
+    if (!portalOn) { document.documentElement.classList.add('no-portal'); return; }
+    try { layoutPortal(); } catch (e) { portalOn = false; document.documentElement.classList.add('no-portal'); return; }
+    updatePortal();
+  }
+  (document.fonts && document.fonts.load ? document.fonts.load('700 100px "Playfair Display"').catch(() => {}) : Promise.resolve()).then(startPortal);
+  let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (portalOn) { layoutPortal(); updatePortal(); } }, 150); });
+
+  /* ── reveal on scroll ── */
+  const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('in'); if (e.target.dataset.count !== undefined) countUp(e.target); io.unobserve(e.target); }
+  }), { threshold: 0.18, rootMargin: '0px 0px -6% 0px' }) : null;
+  const revealables = $$('.frame, .slide, .steps, [data-count]');
+  if (io && !reduce) revealables.forEach(el => io.observe(el)); else revealables.forEach(el => el.classList.add('in'));
+
+  function countUp(el) {
+    const to = +el.dataset.count, suf = el.dataset.suffix || '', plain = el.hasAttribute('data-plain');
+    const from = plain ? Math.round(to * 0.94) : 0, t0 = performance.now(), dur = 1600;
+    const fmt = v => (plain ? String(v) : v.toLocaleString(lang === 'nl' ? 'nl-NL' : 'en-GB')) + suf;
+    (function tick(t) { const k = clamp((t - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = fmt(Math.round(from + (to - from) * e)); if (k < 1) requestAnimationFrame(tick); })(t0);
+  }
+
+  /* ── parallax inside frames ── */
+  const par = $$('[data-parallax]');
+  function updateParallax() {
+    if (reduce) return;
+    for (const img of par) {
+      if (!img.isConnected) continue; // a photo that failed to load was swapped for a panel
+      const r = img.parentElement.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > innerHeight) continue;
+      const k = (r.top + r.height / 2 - innerHeight / 2) / innerHeight;
+      img.style.transform = 'translateY(' + (k * -6) + '%)';
+    }
+  }
+
+  let ticking = false;
+  function onScroll() {
+    if (ticking) return; ticking = true;
+    requestAnimationFrame(() => { ticking = false; nav.classList.toggle('scrolled', scrollY > 40); updatePortal(); updateParallax(); });
+  }
+  addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  /* ── light that follows the visitor ── */
+  const glow = $('#glow');
+  if (!reduce && matchMedia('(pointer: fine)').matches) {
+    addEventListener('pointermove', e => { glow.classList.add('on'); glow.style.transform = 'translate(' + e.clientX + 'px,' + e.clientY + 'px)'; }, { passive: true });
+    document.addEventListener('pointerleave', () => glow.classList.remove('on'));
+  }
+
+  /* ── Minimis spotlight ── */
+  const spot = $('#spot');
+  let spotUser = false, spotVisible = false;
+  const setSpot = (x, y) => { spot.style.setProperty('--sx', x + '%'); spot.style.setProperty('--sy', y + '%'); };
+  spot.addEventListener('pointermove', e => { spotUser = true; const r = spot.getBoundingClientRect(); setSpot((e.clientX - r.left) / r.width * 100, (e.clientY - r.top) / r.height * 100); });
+  spot.addEventListener('pointerleave', () => { spotUser = false; });
+  if (io) new IntersectionObserver(es => es.forEach(e => { spotVisible = e.isIntersecting; if (spotVisible) requestAnimationFrame(spotLoop); })).observe(spot);
+  function spotLoop(t) {
+    if (!spotVisible || reduce) return;
+    if (!spotUser) setSpot(50 + Math.sin(t / 2100) * 30, 50 + Math.sin(t / 1300) * 16);
+    requestAnimationFrame(spotLoop);
+  }
+
+  /* ── The Artificial Forest: a slow, living forest that leans with the visitor ── */
+  const cvs = $('#forest'), fctx = cvs.getContext('2d');
+  let trees = [], fw = 0, fh = 0, wind = 0, lastX = null, forestVisible = false, rnd;
+  function seeded(s) { return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
+  function grow(d, len) {
+    const b = { len, d, ang: 0, ph: rnd() * 6.28, kids: [] };
+    if (d > 0) {
+      const n = d > 4 ? 2 : (rnd() < 0.45 ? 3 : 2);
+      for (let i = 0; i < n; i++) {
+        const k = grow(d - 1, len * (0.66 + rnd() * 0.14));
+        k.ang = (i - (n - 1) / 2) * (0.42 + rnd() * 0.22) + (rnd() - 0.5) * 0.25;
+        b.kids.push(k);
+      }
+    } else b.leaf = rnd() < 0.12 ? 'glint' : 'leaf';
+    return b;
+  }
+  function layoutForest() {
+    const dpr = Math.min(2, devicePixelRatio || 1), r = cvs.getBoundingClientRect();
+    fw = r.width; fh = r.height; cvs.width = fw * dpr; cvs.height = fh * dpr; fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    rnd = seeded(1910);
+    trees = [];
+    const layers = [{ n: 6, h: 0.16, a: 0.35, y: 0.80 }, { n: 5, h: 0.21, a: 0.6, y: 0.88 }, { n: 4, h: 0.27, a: 1, y: 0.98 }];
+    layers.forEach((L, li) => { for (let i = 0; i < L.n; i++) trees.push({ x: fw * ((i + 0.5 + (rnd() - 0.5) * 0.6) / L.n), y: fh * L.y, a: L.a, li, root: grow(li === 2 ? 7 : 6, fh * L.h * (0.8 + rnd() * 0.4)) }); });
+  }
+  function drawBranch(b, t, lw, alpha) {
+    const sway = Math.sin(t * 0.0009 + b.ph) * (0.02 + 0.012 * (7 - b.d)) * (1 + wind * 2.5) + wind * 0.05 * (7 - b.d) / 7;
+    fctx.save(); fctx.rotate(b.ang + sway);
+    fctx.strokeStyle = 'rgba(176, 160, 132,' + (0.55 * alpha) + ')'; fctx.lineWidth = lw;
+    fctx.beginPath(); fctx.moveTo(0, 0); fctx.lineTo(0, -b.len); fctx.stroke();
+    fctx.translate(0, -b.len);
+    if (b.leaf) {
+      if (b.leaf === 'glint') { fctx.fillStyle = 'rgba(226, 188, 134,' + (0.5 + 0.5 * Math.sin(t * 0.002 + b.ph)) * alpha + ')'; fctx.beginPath(); fctx.arc(0, 0, 1.6, 0, 6.28); fctx.fill(); }
+      else { fctx.fillStyle = 'rgba(143, 166, 131,' + 0.75 * alpha + ')'; fctx.beginPath(); fctx.ellipse(0, -3, 2.4, 5, Math.sin(b.ph) * 0.8, 0, 6.28); fctx.fill(); }
+    }
+    for (const k of b.kids) drawBranch(k, t, lw * 0.72, alpha);
+    fctx.restore();
+  }
+  function drawForest(t) {
+    const g = fctx.createLinearGradient(0, 0, 0, fh); g.addColorStop(0, '#0d110c'); g.addColorStop(1, '#171d14');
+    fctx.fillStyle = g; fctx.fillRect(0, 0, fw, fh);
+    const m = fctx.createRadialGradient(fw * 0.5, fh * 0.35, 0, fw * 0.5, fh * 0.35, fh * 0.7);
+    m.addColorStop(0, 'rgba(196,150,90,.16)'); m.addColorStop(1, 'rgba(196,150,90,0)');
+    fctx.fillStyle = m; fctx.fillRect(0, 0, fw, fh);
+    for (const tr of trees) { fctx.save(); fctx.translate(tr.x, tr.y); drawBranch(tr.root, t + tr.li * 400, 2 + tr.li * 1.6, tr.a); fctx.restore(); }
+    wind *= 0.96;
+  }
+  function forestLoop(t) { if (!forestVisible) return; drawForest(t); if (!reduce) requestAnimationFrame(forestLoop); }
+  $('#forestFrame').addEventListener('pointermove', e => { if (lastX !== null) wind = clamp(wind + (e.clientX - lastX) * 0.004, -1, 1); lastX = e.clientX; });
+  $('#forestFrame').addEventListener('pointerleave', () => { lastX = null; });
+  layoutForest(); drawForest(0);
+  if (io) new IntersectionObserver(es => es.forEach(e => { forestVisible = e.isIntersecting; if (forestVisible) requestAnimationFrame(forestLoop); })).observe(cvs);
+  addEventListener('resize', () => { layoutForest(); drawForest(performance.now()); });
+
+  /* ── contact form (Netlify Forms) ── */
+  const form = $('#contactForm'), ok = $('#formOk'), err = $('#formErr'), btn = $('#formBtn');
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    ok.hidden = true; err.hidden = true; btn.disabled = true;
+    try {
+      const res = await fetch('/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(new FormData(form)).toString() });
+      if (!res.ok) throw new Error(res.status);
+      form.reset(); ok.hidden = false;
+    } catch (x) { err.hidden = false; }
+    btn.disabled = false;
+  });
+})();
+</script>
+</body>
+</html>
