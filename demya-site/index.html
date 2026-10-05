@@ -158,7 +158,7 @@
   .frame { position: relative; aspect-ratio: 4 / 5; max-width: 100%; overflow: hidden; background: var(--ink-2); clip-path: inset(7% 7% 7% 7%); transition: clip-path 1.4s var(--ease); }
   .frame.wide { aspect-ratio: 5 / 4; }
   .frame.in { clip-path: inset(0 0 0 0); }
-  .frame > img, .frame > canvas { position: absolute; left: 0; top: -8%; width: 100%; height: 116%; object-fit: cover; will-change: transform; }
+  .frame > img { position: absolute; left: 0; top: -8%; width: 100%; height: 116%; object-fit: cover; will-change: transform; }
   .frame-label { position: absolute; left: 18px; bottom: 16px; z-index: 3; font-size: .75rem; letter-spacing: .14em; text-transform: uppercase; color: var(--cream); opacity: .85; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
   .frame-fallback { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; background: radial-gradient(circle at 30% 20%, #2a241b, var(--ink-2) 70%); }
   .frame-fallback b { font-family: var(--display); font-weight: 400; font-size: clamp(3rem, 8vw, 6rem); letter-spacing: .12em; color: var(--cream); }
@@ -184,6 +184,9 @@
 
   /* The Artificial Forest */
   .forest .frame { background: #0f130e; }
+  .forest .frame::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; background: linear-gradient(to bottom, rgba(18,17,15,0) 55%, rgba(18,17,15,.7)); }
+  .frame > img.fade { opacity: 0; scale: 1.02; transition: opacity 1.8s ease, scale 7s linear; }
+  .frame > img.fade.on { opacity: 1; scale: 1.1; }
   .forest .role span.key { border-color: var(--moss); color: var(--moss); }
   .forest .cat { color: var(--moss); }
   .forest .link { border-color: var(--moss); }
@@ -257,6 +260,7 @@
     .marquee-track, .pull { animation: none; }
     .frame, .slide { transition: none; clip-path: none; transform: none; }
     .glow { display: none; }
+    .frame > img.fade, .frame > img.fade.on { scale: 1; transition: opacity .3s; }
   }
 </style>
 </head>
@@ -364,9 +368,9 @@
 
     <!-- BYZANTIVM -->
     <article class="room-row flip">
-      <div class="frame">
-        <img data-parallax src="img/byzantivm-ballroom.jpg" alt="Kristallen kroonluchter van Byzantivm in een balzaal" loading="lazy"/>
-        <span class="frame-label" data-nl="Maatwerk kroonluchter · Byzantivm" data-en="Bespoke chandelier · Byzantivm">Maatwerk kroonluchter · Byzantivm</span>
+      <div class="frame wide">
+        <img data-parallax src="img/byzantivm-restaurant.jpg" alt="Restaurant met een grote koepellamp van Byzantivm boven de tafels" loading="lazy"/>
+        <span class="frame-label" data-nl="Maatwerk koepelverlichting · Byzantivm" data-en="Bespoke dome lighting · Byzantivm">Maatwerk koepelverlichting · Byzantivm</span>
       </div>
       <div class="info slide">
         <div class="role"><span class="key" data-nl="Ons eigen merk" data-en="Our own brand">Ons eigen merk</span><span data-nl="Wereldwijd" data-en="Worldwide">Wereldwijd</span></div>
@@ -397,7 +401,9 @@
     <!-- THE ARTIFICIAL FOREST -->
     <article class="room-row flip forest">
       <div class="frame" id="forestFrame">
-        <canvas id="forest" aria-label="Bewegend bos, getekend in de browser" role="img"></canvas>
+        <img data-parallax class="fade on" src="img/forest-canopy.jpg" alt="Kunstboom van The Artificial Forest, van onderen gezien: stammen en bladerdak" loading="lazy"/>
+        <img data-parallax class="fade" src="img/forest-tree.jpg" alt="Grote kunstboom van The Artificial Forest in de werkplaats" loading="lazy"/>
+        <img data-parallax class="fade" src="img/forest-lemon.jpg" alt="Kunstboom met citroenen van The Artificial Forest in de werkplaats" loading="lazy" style="object-position: 48% center;"/>
         <span class="frame-label">The Artificial Forest</span>
       </div>
       <div class="info slide">
@@ -640,58 +646,14 @@
     requestAnimationFrame(spotLoop);
   }
 
-  /* ── The Artificial Forest: a slow, living forest that leans with the visitor ── */
-  const cvs = $('#forest'), fctx = cvs.getContext('2d');
-  let trees = [], fw = 0, fh = 0, wind = 0, lastX = null, forestVisible = false, rnd;
-  function seeded(s) { return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
-  function grow(d, len) {
-    const b = { len, d, ang: 0, ph: rnd() * 6.28, kids: [] };
-    if (d > 0) {
-      const n = d > 4 ? 2 : (rnd() < 0.45 ? 3 : 2);
-      for (let i = 0; i < n; i++) {
-        const k = grow(d - 1, len * (0.66 + rnd() * 0.14));
-        k.ang = (i - (n - 1) / 2) * (0.42 + rnd() * 0.22) + (rnd() - 0.5) * 0.25;
-        b.kids.push(k);
-      }
-    } else b.leaf = rnd() < 0.12 ? 'glint' : 'leaf';
-    return b;
-  }
-  function layoutForest() {
-    const dpr = Math.min(2, devicePixelRatio || 1), r = cvs.getBoundingClientRect();
-    fw = r.width; fh = r.height; cvs.width = fw * dpr; cvs.height = fh * dpr; fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    rnd = seeded(1910);
-    trees = [];
-    const layers = [{ n: 6, h: 0.16, a: 0.35, y: 0.80 }, { n: 5, h: 0.21, a: 0.6, y: 0.88 }, { n: 4, h: 0.27, a: 1, y: 0.98 }];
-    layers.forEach((L, li) => { for (let i = 0; i < L.n; i++) trees.push({ x: fw * ((i + 0.5 + (rnd() - 0.5) * 0.6) / L.n), y: fh * L.y, a: L.a, li, root: grow(li === 2 ? 7 : 6, fh * L.h * (0.8 + rnd() * 0.4)) }); });
-  }
-  function drawBranch(b, t, lw, alpha) {
-    const sway = Math.sin(t * 0.0009 + b.ph) * (0.02 + 0.012 * (7 - b.d)) * (1 + wind * 2.5) + wind * 0.05 * (7 - b.d) / 7;
-    fctx.save(); fctx.rotate(b.ang + sway);
-    fctx.strokeStyle = 'rgba(176, 160, 132,' + (0.55 * alpha) + ')'; fctx.lineWidth = lw;
-    fctx.beginPath(); fctx.moveTo(0, 0); fctx.lineTo(0, -b.len); fctx.stroke();
-    fctx.translate(0, -b.len);
-    if (b.leaf) {
-      if (b.leaf === 'glint') { fctx.fillStyle = 'rgba(226, 188, 134,' + (0.5 + 0.5 * Math.sin(t * 0.002 + b.ph)) * alpha + ')'; fctx.beginPath(); fctx.arc(0, 0, 1.6, 0, 6.28); fctx.fill(); }
-      else { fctx.fillStyle = 'rgba(143, 166, 131,' + 0.75 * alpha + ')'; fctx.beginPath(); fctx.ellipse(0, -3, 2.4, 5, Math.sin(b.ph) * 0.8, 0, 6.28); fctx.fill(); }
-    }
-    for (const k of b.kids) drawBranch(k, t, lw * 0.72, alpha);
-    fctx.restore();
-  }
-  function drawForest(t) {
-    const g = fctx.createLinearGradient(0, 0, 0, fh); g.addColorStop(0, '#0d110c'); g.addColorStop(1, '#171d14');
-    fctx.fillStyle = g; fctx.fillRect(0, 0, fw, fh);
-    const m = fctx.createRadialGradient(fw * 0.5, fh * 0.35, 0, fw * 0.5, fh * 0.35, fh * 0.7);
-    m.addColorStop(0, 'rgba(196,150,90,.16)'); m.addColorStop(1, 'rgba(196,150,90,0)');
-    fctx.fillStyle = m; fctx.fillRect(0, 0, fw, fh);
-    for (const tr of trees) { fctx.save(); fctx.translate(tr.x, tr.y); drawBranch(tr.root, t + tr.li * 400, 2 + tr.li * 1.6, tr.a); fctx.restore(); }
-    wind *= 0.96;
-  }
-  function forestLoop(t) { if (!forestVisible) return; drawForest(t); if (!reduce) requestAnimationFrame(forestLoop); }
-  $('#forestFrame').addEventListener('pointermove', e => { if (lastX !== null) wind = clamp(wind + (e.clientX - lastX) * 0.004, -1, 1); lastX = e.clientX; });
-  $('#forestFrame').addEventListener('pointerleave', () => { lastX = null; });
-  layoutForest(); drawForest(0);
-  if (io) new IntersectionObserver(es => es.forEach(e => { forestVisible = e.isIntersecting; if (forestVisible) requestAnimationFrame(forestLoop); })).observe(cvs);
-  addEventListener('resize', () => { layoutForest(); drawForest(performance.now()); });
+  /* ── The Artificial Forest: the photos fade from one tree to the next while the section is on screen ── */
+  const forestImgs = $$('#forestFrame img.fade');
+  let forestIdx = 0, forestTimer = null;
+  function nextTree() { forestImgs[forestIdx].classList.remove('on'); forestIdx = (forestIdx + 1) % forestImgs.length; forestImgs[forestIdx].classList.add('on'); }
+  if (io && !reduce) new IntersectionObserver(es => es.forEach(e => {
+    clearInterval(forestTimer);
+    if (e.isIntersecting) forestTimer = setInterval(nextTree, 5000);
+  })).observe($('#forestFrame'));
 
   /* ── contact form (Netlify Forms) ── */
   const form = $('#contactForm'), ok = $('#formOk'), err = $('#formErr'), btn = $('#formBtn');
