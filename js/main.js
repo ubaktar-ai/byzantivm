@@ -24,6 +24,8 @@ import { viewProject } from './views/project.js';
 import { viewClients, viewClient } from './views/clients.js';
 import { viewTasks } from './views/tasks.js';
 import { viewTeam } from './views/team.js';
+import { viewSocial } from './views/social.js';
+import { openPostSheet, openIdeasSheet, openVoiceSheet, openSocialContactSheet, markPostPosted, advanceContact } from './social.js';
 
 const MODE_KEY = 'studio-mode';
 const configured = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
@@ -226,6 +228,7 @@ function render() {
     calendar: viewCalendar,
     activity: viewActivity,
     team: viewTeam,
+    social: () => viewSocial(r.id),
   };
   $('#view').innerHTML = (views[r.name] || viewOverview)();
 
@@ -370,6 +373,19 @@ document.addEventListener('click', e => {
     case 'edit-delivery': { const p = store.get('projects', id); if (p) openDeliverySheet(p); break; }
     case 'pdf-quote': makePdf('quote', id); break;
     case 'pdf-invoice': makePdf('invoice', id); break;
+    case 'new-post': openPostSheet(null); break;
+    case 'edit-post': {
+      if (e.target.closest('a')) break; // "View" opens the live post
+      const p = store.get('social_posts', id);
+      if (p) openPostSheet(p);
+      break;
+    }
+    case 'post-posted': { e.stopPropagation(); const p = store.get('social_posts', id); if (p) markPostPosted(p); break; }
+    case 'post-ideas': openIdeasSheet(); break;
+    case 'social-voice': openVoiceSheet(); break;
+    case 'new-person': openSocialContactSheet(null); break;
+    case 'edit-person': { const c = store.get('social_contacts', id); if (c) openSocialContactSheet(c); break; }
+    case 'person-next': { e.stopPropagation(); const c = store.get('social_contacts', id); if (c) advanceContact(c); break; }
     case 'edit-company': { const c = store.get('companies', id); if (c) openCompanySheet(c); break; }
     case 'load-sample': loadSample(); break;
     case 'reset-demo':
@@ -719,6 +735,22 @@ async function loadSample() {
   await invoice(cabinets, 'balance', 'DEM-2025-099', cabTotal / 2, 'paid', -25, -20);
   await drawing(cabinets.items[0], [[1, -90, 'approved', -85, '']]);
   await store.insert('shipments', { project_id: cabinets.p.id, carrier: 'Own transport', tracking: '', status: 'delivered', shipped_date: d(-14), delivered_date: d(-12), packages: '2 cabinets, blanket-wrapped', cost: 180, notes: '' });
+
+  // Demya social: a post ready to go, an idea in the drafts, and people to build a network with
+  await store.insert('social_posts', { company_id: 'demya', project_id: nordOrder.p.id, platform: 'linkedin', status: 'approved', language: 'en', scheduled_for: d(1),
+    title: 'Nordlicht conference table leaves the workshop',
+    idea: 'The 3.6 m oak conference table for Nordlicht is crated and ready to ship to Berlin.',
+    body: 'Three point six metres of oak, one piece of steel, and a lot of patience.\n\nThis week the conference table for Nordlicht’s new Berlin HQ left Meubelmakerij Jansen in Eindhoven. The oak veneer top sits on a powder-coated steel base we developed with the workshop so the table could travel in one crate and be assembled on site in under an hour.\n\nArchitects: how early do you like to involve the maker when a piece has to fit a tight delivery route?',
+    hashtags: '#customfurniture #dutchdesign #workplacedesign #oak #madetomeasure', sort_order: 0 });
+  await store.insert('social_posts', { company_id: 'demya', project_id: sofa.p.id, platform: 'instagram', status: 'draft', language: 'en',
+    title: 'Linen sample board for the Amstelveen sofa',
+    idea: 'Close-up of the linen samples and feather cushion build for the Villa Amstelveen sofa.', body: '', hashtags: '', sort_order: 1 });
+  await store.insert('social_contacts', { company_id: 'demya', name: 'Lotte Smit', role: 'Interior architect', organisation: 'Studio Smit', category: 'architect', platform: 'linkedin',
+    status: 'to_connect', notes: 'Did the Hotel Jakarta restaurant refit. Met briefly at Dutch Design Week.' });
+  await store.insert('social_contacts', { company_id: 'demya', name: 'Pieter de Boer', role: 'Owner', organisation: 'Boer & Zn Hotels', category: 'hospitality', platform: 'both',
+    status: 'requested', next_follow_up: d(-1), notes: 'Opening a boutique hotel in Utrecht next year.' });
+  await store.insert('social_contacts', { company_id: 'demya', name: 'Eva van Dijk', role: 'Interior architect', organisation: 'Van Dijk Interiors', category: 'interior', platform: 'linkedin',
+    status: 'client', notes: 'Client — Herengracht cabinets, Villa Amstelveen sofa.' });
 
   const t = store.all('tasks').find(x => x.title === 'Order bouclé swatches for Sophie');
   if (t) {

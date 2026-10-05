@@ -70,6 +70,17 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
   - Tap a day to see its list, and add a task due that day.
   - **Timeline** shows every project as a bar from start to deadline, with drawing due dates as ◆ and a red *today* line.
     Late projects are outlined in red.
+- **Social (Demya)**: a *Social* screen for growing Demya on LinkedIn and Instagram.
+  - **Posts**: a queue of drafts → *Ready to post* → *Posted*. Each post can link to an order and use that order's photos.
+    **✨ Write with AI** drafts the LinkedIn and Instagram versions from the order's products, materials and photos,
+    in English or Dutch. **✨ Ideas for this week** suggests posts from Demya's real orders.
+    **Voice** tells the AI who Demya wants to reach and how it sounds.
+  - Nothing is posted automatically. **Share with photos…** opens the iPad share sheet with the photos and text
+    (the caption is also copied, because Instagram drops shared text). **Copy text** and **Open LinkedIn** also work.
+  - **Network**: the people Demya wants to know (architects, interior designers, hotels, developers), with status
+    *To connect → Request sent → Connected → In conversation → Client*, a follow-up date, and an AI-written
+    connection note or follow-up message to send from their profile. One tap moves someone to the next step and sets the next follow-up.
+    Requests are sent by hand on purpose: LinkedIn and Instagram block accounts that automate them.
 - **Activity feed**: a live record of who did what, for example *"Elena moved Logo concepts to Design"* or
   *"Umut marked invoice BYZ-2026-002 paid"*. You can filter it by person. Recent activity also shows on the Overview and on each project's Details tab.
 The database tables for all of these are already created by `supabase/schema.sql`.
@@ -94,6 +105,7 @@ The script is safe to run again later. It only creates things that are missing.
 - `004_company_country.sql` sets Byzantivm to US/USD and Demya to NL/EUR, allows only USD and EUR, and adds the VAT treatment per document.
 - `005_order_workflow.sql` adds the order workflow: the new stages, products, drawings per product, deposit/balance invoice types, delivery address and shipments.
 - `006_file_sections.sql` lets files belong to a tab (inquiry, supplier quote, drawings, money, shipping, documents) and to a product.
+- `007_social.sql` adds the Social screen for Demya: posts, the network list, and Demya's voice.
 
 ### 2. Connect the app
 
@@ -146,6 +158,22 @@ With the Supabase CLI instead: `supabase secrets set ANTHROPIC_API_KEY=sk-ant-�
 The function uses the model `claude-opus-5-5`. If the AI declines a document (rare), Anthropic automatically retries on a
 fallback model. To stop using AI, delete the secret or the function — uploading files keeps working.
 
+### 7. Social posts with AI (optional)
+
+**✨ Write with AI**, **✨ Ideas for this week** and the networking messages on the *Social* screen use a second
+Supabase function, `social-writer`. It uses the same `ANTHROPIC_API_KEY` secret as step 6. Each draft costs about
+**$0.01–0.05**; with photos it costs a little more.
+
+1. Run [`supabase/migrations/007_social.sql`](supabase/migrations/007_social.sql) in the SQL Editor (new databases get it from `schema.sql`).
+2. *Edge Functions* → **Deploy a new function** → *Via Editor*. Name it exactly `social-writer`, paste everything from
+   [`supabase/functions/social-writer/index.ts`](supabase/functions/social-writer/index.ts) → **Deploy**.
+3. In the function's settings, turn **off** *Verify JWT* (the function checks the caller itself, like `read-document`).
+
+With the Supabase CLI: `supabase functions deploy social-writer --no-verify-jwt`.
+
+The AI is told the order's name, brief, products and materials, but never the client's name. It only describes what's
+in the photos and the order, and every draft is shown for editing before anything is shared.
+
 ## Demo mode
 
 Without a key, or by tapping **Try demo mode** on the sign-in screen, the app runs with data stored only on that device.
@@ -161,12 +189,14 @@ Use **Load sample data** to look around. (*Read with AI* only works with the tea
 | `js/store.js` | In-memory data with optimistic saves and live updates from teammates |
 | `js/forms.js` | Create/edit sheets: projects, tasks (with comments and files), clients, contacts |
 | `js/files.js` | File uploads (photo downscaling), document cards per tab, thumbnails, viewer, delete |
+| `js/social.js`, `js/views/social.js` | *Social* (Demya): post queue, AI drafts and ideas, sharing, the network list |
 | `js/ai.js` | *Read with AI*: calls the `read-document` function and shows the check-before-saving sheets |
 | `js/money.js` | Quote / cost / invoice sheets, totals, numbering, amount parsing |
 | `js/pdf.js` | PDF quotes & invoices (jsPDF + Inter font), English / Dutch |
 | `js/views/*.js` | Screens: overview, projects, project (order, drawings, money, shipping…), calendar & timeline, activity, clients, tasks, team, sign-in |
 | `js/config.js` | Supabase URL and anon key |
 | `supabase/schema.sql` | Database tables, security rules, activity log, live updates, file storage |
+| `supabase/functions/social-writer/` | Edge Function that drafts posts, post ideas and networking messages with Claude |
 | `supabase/functions/read-document/` | Edge Function that reads an inquiry / supplier quote with Claude (key kept in Supabase secrets) |
 | `vendor/supabase.js` | Supabase JS client v2.117.2 (MIT), bundled so the app needs no CDN |
 | `vendor/jspdf.umd.min.js`, `vendor/fonts/` | jsPDF 4.2.1 (MIT) and the Inter font (SIL OFL), loaded only when a PDF is made |

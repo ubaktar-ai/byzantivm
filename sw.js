@@ -1,7 +1,7 @@
 // Offline support: keep a copy of the app so it opens without a connection.
 // Only same-origin files are cached; Supabase API calls always go to the network.
 // Bump VERSION whenever you change any file below.
-const VERSION = 'v13';
+const VERSION = 'v14';
 const CACHE = `studio-${VERSION}`;
 const SHELL = [
   './',
@@ -18,6 +18,7 @@ const SHELL = [
   './js/forms.js',
   './js/files.js',
   './js/ai.js',
+  './js/social.js',
   './js/money.js',
   './js/pdf.js',
   './js/views/common.js',
@@ -34,6 +35,7 @@ const SHELL = [
   './js/views/clients.js',
   './js/views/tasks.js',
   './js/views/team.js',
+  './js/views/social.js',
   './icons/icon.svg',
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',

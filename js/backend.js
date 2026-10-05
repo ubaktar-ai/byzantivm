@@ -11,7 +11,7 @@ export const RELATIONS = {
   projects: [['tasks', 'project_id', 'cascade'], ['comments', 'project_id', 'cascade'],
     ['deliverables', 'project_id', 'cascade'], ['attachments', 'project_id', 'cascade'],
     ['quotes', 'project_id', 'cascade'], ['costs', 'project_id', 'cascade'], ['invoices', 'project_id', 'cascade'],
-    ['items', 'project_id', 'cascade'], ['shipments', 'project_id', 'cascade']],
+    ['items', 'project_id', 'cascade'], ['shipments', 'project_id', 'cascade'], ['social_posts', 'project_id', 'null']],
   items: [['deliverables', 'item_id', 'cascade'], ['attachments', 'item_id', 'null']],
   quotes: [['quote_items', 'quote_id', 'cascade']],
   tasks: [['comments', 'task_id', 'cascade'], ['attachments', 'task_id', 'cascade']],
@@ -82,8 +82,17 @@ export class SupabaseBackend {
   }
 
   // Ask the "read-document" Edge Function (Claude) to read an uploaded PDF or photo.
-  async readDocument(path, mode) {
-    const { data, error } = await this.sb.functions.invoke('read-document', { body: { path, mode } });
+  readDocument(path, mode) {
+    return this.callFunction('read-document', { path, mode });
+  }
+
+  // Ask the "social-writer" Edge Function (Claude) for post drafts, post ideas or a networking message.
+  socialWriter(body) {
+    return this.callFunction('social-writer', body);
+  }
+
+  async callFunction(name, body) {
+    const { data, error } = await this.sb.functions.invoke(name, { body });
     if (error) {
       let msg = error.message || String(error);
       const status = error.context && error.context.status;
@@ -191,6 +200,8 @@ const DEFAULTS = {
   invoices: () => ({ number: '', title: '', issue_date: null, due_date: null, amount: 0, status: 'draft', paid_date: null, notes: '', kind: 'other' }),
   items: () => ({ description: '', quantity: 1, dimensions: '', materials: '', weight_kg: null, supplier: '', supplier_ref: '', unit_cost: 0, unit_price: 0, production: 'not_started', sort_order: 0 }),
   shipments: () => ({ carrier: '', tracking: '', status: 'preparing', shipped_date: null, delivered_date: null, cost: 0, packages: '', notes: '' }),
+  social_posts: () => ({ project_id: null, status: 'draft', title: '', idea: '', body: '', hashtags: '', photo_ids: [], language: 'en', scheduled_for: null, posted_at: null, posted_url: '', sort_order: 0 }),
+  social_contacts: () => ({ role: '', organisation: '', category: 'other', platform: 'linkedin', profile_url: '', status: 'to_connect', message: '', next_follow_up: null, notes: '' }),
   team_members: () => ({}),
   profiles: () => ({ full_name: '', color: '#64748b' }),
 };
@@ -217,7 +228,7 @@ export class LocalBackend {
       team_members: [{ email: DEMO_USER.email, added_at: now }],
       clients: [], contacts: [], projects: [], tasks: [], comments: [], activity: [],
       deliverables: [], feedback_rounds: [], attachments: [], quotes: [], quote_items: [], costs: [], invoices: [],
-      items: [], shipments: [],
+      items: [], shipments: [], social_posts: [], social_contacts: [],
     };
   }
 
@@ -238,6 +249,11 @@ export class LocalBackend {
   async hasColumn() { return true; }
   async readDocument() {
     const err = new Error('Reading documents with AI works with the team database, not in demo mode.');
+    err.demo = true;
+    throw err;
+  }
+  async socialWriter() {
+    const err = new Error('Writing with AI works with the team database, not in demo mode.');
     err.demo = true;
     throw err;
   }
