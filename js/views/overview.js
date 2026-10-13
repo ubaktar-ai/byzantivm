@@ -6,6 +6,8 @@ import { waitingOnClients, daysSince } from './deliverables.js';
 import { invoiceState } from '../money.js';
 import { activityEntries, activityItem } from './activity.js';
 import { money } from '../lib.js';
+import { qcReady } from './qc.js';
+import { qcInbox } from './qc-more.js';
 
 export function viewOverview() {
   const now = new Date();
@@ -92,6 +94,23 @@ export function viewOverview() {
         })()}
       </div>
       <div>
+        ${(() => {
+          if (!qcReady()) return '';
+          const inbox = qcInbox(projects);
+          if (!inbox.length) return '';
+          return `
+            <h2 class="section">Quality control — needs you</h2>
+            <div class="card-surface">${inbox.slice(0, 8).map(x => {
+              const p = store.get('projects', x.pid);
+              return `
+              <a class="project-mini" href="#/project/${x.pid}/qc">
+                <div class="row"><b><span class="dot" style="background:${esc(companyColor(p.company_id))}"></span> ${esc(x.item || p.name)}</b>
+                  <span class="chip ${x.bad ? 'overdue' : ''}">${esc(new Date(x.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }))}</span></div>
+                <div class="row sub-row"><span>${esc(x.text.length > 110 ? x.text.slice(0, 110) + '…' : x.text)}</span></div>
+                <div class="row sub-row"><span>${esc(p.order_no ? `${p.order_no} · ` : '')}${esc(p.name)}</span></div>
+              </a>`;
+            }).join('')}</div>`;
+        })()}
         ${(() => {
           const waiting = waitingOnClients(p => inScope(p.company_id));
           if (!waiting.length) return '';

@@ -11,7 +11,7 @@ export const SHIPMENT_STATUSES = [
   { id: 'delivered', label: 'Delivered' },
 ];
 
-const CARRIERS = ['UPS', 'FedEx', 'DHL Express', 'DHL Freight', 'DPD', 'PostNL', 'GLS', 'TNT', 'Own transport', 'Freight forwarder'];
+export const CARRIERS = ['UPS', 'FedEx', 'DHL Express', 'DHL Freight', 'DPD', 'PostNL', 'GLS', 'TNT', 'Own transport', 'Freight forwarder'];
 
 // Tap-to-track links for the common carriers.
 export function trackingUrl(carrier, code) {

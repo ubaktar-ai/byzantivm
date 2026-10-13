@@ -301,6 +301,7 @@ document.addEventListener('click', e => {
   if (!el || !$('#app').contains(el)) return;
   const { action, id } = el.dataset;
   const task = () => store.get('tasks', id);
+  if (action && action.startsWith('qc-')) { qcAction(action, el); return; }
 
   switch (action) {
     case 'set-company': setUi({ company: id }); render(); break;
@@ -373,10 +374,6 @@ document.addEventListener('click', e => {
     }
     case 'edit-delivery': { const p = store.get('projects', id); if (p) openDeliverySheet(p); break; }
     case 'pdf-quote': makePdf('quote', id); break;
-    case 'qc-spec': case 'qc-issue-version': case 'qc-approval': case 'qc-versions': case 'qc-inspect':
-    case 'qc-view-inspection': case 'qc-new-issue': case 'qc-view-issue': case 'qc-make-lighting':
-    case 'qc-pdf-spec': case 'qc-pdf-order':
-      qcAction(action, el); break;
     case 'pdf-invoice': makePdf('invoice', id); break;
     case 'new-post': openPostSheet(null); break;
     case 'edit-post': {

@@ -55,6 +55,7 @@ export function viewTeam() {
               <input type="color" name="color-${esc(c.id)}" value="${esc(c.color)}" aria-label="${esc(c.name)} colour">
               <input name="name-${esc(c.id)}" value="${esc(c.name)}" required aria-label="Company name">
               ${docsReady() ? `<button type="button" class="btn" data-action="edit-company" data-id="${esc(c.id)}">Document details</button>` : ''}
+              ${!store.missing.has('qc_samples') ? `<button type="button" class="btn" data-action="qc-template" data-id="${esc(c.id)}">QC report template</button>` : ''}
             </div>`).join('')}
           <div class="head-actions"><button class="btn" type="submit">Save companies</button></div>
         </form>

@@ -67,7 +67,9 @@ export const SPEC_SECTIONS = [
     { key: 'cri', label: 'CRI', type: 'list', list: ['≥80', '≥90', '≥95', '≥97'], check: true },
     { key: 'r9', label: 'R9', type: 'text', placeholder: 'e.g. >50', show: led, check: true },
     { key: 'lumens', label: 'Light output', type: 'text', placeholder: 'e.g. 1800 lm', check: true },
-    { key: 'beam_angle', label: 'Beam angle', type: 'text', placeholder: 'e.g. 36°', show: led, check: true },
+    { key: 'light_direction', label: 'Light direction / effect', type: 'list', list: ['Downlight', 'Uplight', 'Up & down', 'Diffuse — all around', 'Wall wash', 'Grazing', 'Accent / spot', 'Step light — angled down'], check: true },
+    { key: 'beam_angle', label: 'Beam angle', type: 'list', list: ['10°', '15°', '24°', '30°', '36°', '40°', '60°', '90°', '120°'], placeholder: 'e.g. 36°', check: true },
+    { key: 'aiming', label: 'Aiming / tilt', type: 'text', placeholder: 'e.g. 30° facing down, toward the step', check: true, measure: true },
     { key: 'binning', label: 'Colour consistency (binning)', type: 'list', list: ['≤2 SDCM', '≤3 SDCM', '≤5 SDCM'], show: led, check: true },
     { key: 'lifetime', label: 'Lifetime', type: 'text', placeholder: 'e.g. L70 50,000 h', show: led },
   ] },
@@ -96,6 +98,8 @@ export const SPEC_SECTIONS = [
     { key: 'location_rating', label: 'Location rating', type: 'list', list: ['Dry', 'Damp', 'Wet'], check: true },
     { key: 'ip_rating', label: 'IP rating', type: 'list', list: ['IP20', 'IP44', 'IP54', 'IP65', 'IP67'], check: true },
     { key: 'labels', label: 'Certification & rating label on every unit', type: 'yesno', check: true },
+    { key: 'cert_stickers', label: 'Certification stickers required', type: 'list', list: ['UL label', 'ETL label', 'CE label', 'UL + CE labels', 'ETL + CE labels', 'UKCA label', 'UL + CE + UKCA labels'], check: true, photo: true },
+    { key: 'sticker_position', label: 'Sticker position', type: 'text', placeholder: 'e.g. inside canopy + on driver, visible after install', check: true, photo: true },
     { key: 'wiring', label: 'Wiring / earthing', type: 'text', placeholder: 'e.g. 3-wire: black, white, green ground', check: true },
   ] },
   { id: 'mounting', title: 'Cable & mounting', fields: [
@@ -127,6 +131,34 @@ export const SPEC_SECTIONS = [
 ];
 
 export const ALL_FIELDS = SPEC_SECTIONS.flatMap(s => s.fields);
+
+// Pictures on the spec (part of each version). The outcome comes from the final & packing inspections.
+export const IMAGE_GROUPS = [
+  { id: 'vision', label: "Client's vision", hint: 'references, mood images, sketches from the client' },
+  { id: 'offer', label: 'What we offer', hint: 'our drawing, render or proposal image' },
+];
+
+// ---------- What each party sees on its sheet ----------
+// Visibility per field: 'cs' client & supplier · 'c' client only · 's' supplier only · 'none' neither.
+// Each company has a template (defaults, and 'off' = not used by that company); each spec can change it per field.
+const SUPPLIER_ONLY = ['tolerance', 'material_detail', 'driver_type', 'driver_output', 'driver_distance', 'driver_access', 'wiring',
+  'mounting_hardware', 'packaging', 'label_tag', 'install_manual', 'wiring_diagram', 'test_report', 'sticker_position'];
+export const SHOW_OPTIONS = [
+  { id: 'cs', label: 'Client & supplier' }, { id: 'c', label: 'Client only' }, { id: 's', label: 'Supplier only' },
+  { id: 'none', label: 'Neither (internal)' }, { id: 'off', label: 'Not used' },
+];
+export const templateShow = (template, key) => ((template || {}).fields || {})[key] || (SUPPLIER_ONLY.includes(key) ? 's' : 'cs');
+export function showOf(spec, key, template) {
+  const own = ((spec || {})._show || {})[key];
+  if (own) return own;
+  const t = templateShow(template, key);
+  return t === 'off' ? 'none' : t;
+}
+export const showsFor = (spec, key, party, template) => {
+  if (!party) return true;
+  const v = showOf(spec, key, template);
+  return party === 'client' ? v === 'cs' || v === 'c' : v === 'cs' || v === 's';
+};
 
 export function defaultSpec(market = 'EU') {
   const us = market === 'US';
@@ -165,15 +197,17 @@ export function fieldValue(f, s) {
 }
 
 // The product facts that belong to a spec version (copied in when the version is issued).
-export const productFacts = it => ({ name: it.name, quantity: Number(it.quantity) || 1, supplier: it.supplier || '', supplier_ref: it.supplier_ref || '' });
+export const productFacts = it => ({ name: it.name, item_no: it.item_no || '', quantity: Number(it.quantity) || 1, supplier: it.supplier || '', supplier_ref: it.supplier_ref || '' });
 
 // Readable list of what's in a spec: [{ section, rows: [[label, value]] }]
-export function specRows(spec) {
+// party: 'client' | 'supplier' | undefined (everything) — only filled-in fields chosen for that party.
+export function specRows(spec, party, template) {
   const s = spec || {};
+  const ok = f => showsFor(s, f.key, party, template);
   return SPEC_SECTIONS.map(sec => ({
     title: sec.title,
-    rows: sec.fields.filter(f => visible(f, s) && f.type !== 'lines').map(f => [f.label, fieldValue(f, s)]).filter(([, v]) => v),
-    lines: sec.fields.filter(f => f.type === 'lines').flatMap(f => String(s[f.key] || '').split('\n').map(x => x.trim()).filter(Boolean)),
+    rows: sec.fields.filter(f => visible(f, s) && f.type !== 'lines' && ok(f)).map(f => [f.label, fieldValue(f, s)]).filter(([, v]) => v),
+    lines: sec.fields.filter(f => f.type === 'lines' && ok(f)).flatMap(f => String(s[f.key] || '').split('\n').map(x => x.trim()).filter(Boolean)),
   })).filter(sec => sec.rows.length || sec.lines.length);
 }
 
@@ -182,13 +216,17 @@ export function specDiff(a, b) {
   const sa = a || {}, sb = b || {};
   const out = [];
   const pa = sa._product || {}, pb = sb._product || {};
-  [['name', 'Product'], ['quantity', 'Quantity'], ['supplier', 'Supplier'], ['supplier_ref', 'Supplier ref.']].forEach(([k, l]) => {
-    if (String(pa[k] ?? '') !== String(pb[k] ?? '')) out.push({ label: l, from: String(pa[k] ?? ''), to: String(pb[k] ?? '') });
+  [['name', 'Product'], ['item_no', 'Item no.'], ['quantity', 'Quantity'], ['supplier', 'Supplier'], ['supplier_ref', 'Supplier ref.']].forEach(([k, l]) => {
+    if (String(pa[k] ?? '') !== String(pb[k] ?? '')) out.push({ key: `_${k}`, label: l, from: String(pa[k] ?? ''), to: String(pb[k] ?? '') });
+  });
+  IMAGE_GROUPS.forEach(g => {
+    const ia = ((sa._images || {})[g.id] || []).join(), ib = ((sb._images || {})[g.id] || []).join();
+    if (ia !== ib) out.push({ key: `_img_${g.id}`, label: `Images: ${g.label}`, from: `${((sa._images || {})[g.id] || []).length} image(s)`, to: `${((sb._images || {})[g.id] || []).length} image(s)` });
   });
   ALL_FIELDS.forEach(f => {
     const va = visible(f, sa) ? fieldValue(f, sa) : '';
     const vb = visible(f, sb) ? fieldValue(f, sb) : '';
-    if (va !== vb) out.push({ label: f.label, from: va, to: vb });
+    if (va !== vb) out.push({ key: f.key, label: f.label, from: va, to: vb });
   });
   return out;
 }
@@ -196,7 +234,8 @@ export function specDiff(a, b) {
 export const STAGES = [
   { id: 'sample', label: 'Samples' },
   { id: 'production', label: 'During production' },
-  { id: 'final', label: 'Final (before shipping)' },
+  { id: 'final', label: 'Final (production finished)' },
+  { id: 'packing', label: 'Packed & ready for collection' },
   { id: 'delivery', label: 'On delivery / site' },
 ];
 export const INSPECTORS = [
@@ -211,7 +250,21 @@ export function checklist(spec, stage) {
   const s = spec || {};
   const p = s._product || {};
   const lines = [];
-  const add = (key, label, expected = '', measure = false) => lines.push({ key, label, expected, measure });
+  const add = (key, label, expected = '', measure = false, photo = false) => lines.push({ key, label, expected, measure, photo });
+  const stickers = [fieldValue({ key: 'cert_stickers', type: 'list' }, s), s.sticker_position].filter(Boolean).join(' — ');
+  if (stage === 'packing') {
+    add('qty', 'All units packed', `${p.quantity || 1} pcs`, true);
+    add('packaging', 'Packaging as specified', fieldValue({ key: 'packaging', type: 'list' }, s) || 'Sturdy, protected for transport');
+    add('wrapped', 'Every unit wrapped and protected (corners, finish, no loose parts)');
+    add('glass', 'Glass / shades packed separately and cushioned', fieldValue({ key: 'glass', type: 'list' }, s));
+    if (stickers) add('stickers', 'Certification stickers on every unit, placed correctly — photo', stickers, false, true);
+    add('box_labels', 'Boxes labelled: order no., item no., location tag, quantity, FRAGILE / THIS SIDE UP', [p.item_no, fieldValue({ key: 'location_tag', type: 'text' }, s)].filter(Boolean).join(' · '));
+    add('docs', 'Manual, wiring diagram, test report and spare parts inside');
+    add('box_count', 'Number of boxes / crates and their size & weight', '', true);
+    add('box_photos', 'Photo of every packed box, open and closed', '', false, true);
+    add('ready', 'Ready for collection (date)', '', true);
+    return lines;
+  }
   if (stage === 'delivery') {
     add('qty', 'All units delivered', `${p.quantity || 1} pcs`, true);
     add('packaging_ok', 'Packaging undamaged on arrival');
@@ -231,18 +284,15 @@ export function checklist(spec, stage) {
       return;
     }
     const v = fieldValue(f, s);
-    if (v && v !== 'No') add(f.key, f.label, v, !!f.measure);
+    if (v && v !== 'No') add(f.key, f.label, v, !!f.measure, !!f.photo && stage === 'final'); // photo proof once production is finished
   }));
   if (stage === 'final' || stage === 'production') {
     add('light_test', 'Every unit switched on and tested (burn-in)');
     if (dimmable(s)) add('dim_test', `Dimming tested on ${s.dimmer || 'the specified dimmer'} — full range, no flicker or buzz`, dimLabel(s.dimming));
     add('colour_match', 'All units side by side: finish and light colour match each other and the sample');
+    if (s.beam_angle || s.light_direction || s.aiming) add('light_effect', 'Light effect as specified: direction, beam and aiming', [fieldValue({ key: 'light_direction', type: 'list' }, s), s.beam_angle, s.aiming].filter(Boolean).join(' · '), false, true);
     add('workmanship', 'No scratches, dents, glue marks, loose parts or finish defects');
     add('electrical_safety', 'Wiring, strain relief and earth / ground connection correct');
-  }
-  if (stage === 'final') {
-    add('packed', 'Packed as specified, protected for transport');
-    add('docs', 'Manual, wiring diagram, test report and spare parts packed');
   }
   return lines;
 }

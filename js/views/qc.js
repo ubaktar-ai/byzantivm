@@ -2,26 +2,41 @@
 // inspections with checklists and photos, an issues log, and checks that block production / shipping.
 // Everything saved here is permanent: new information is added, nothing is edited or deleted.
 import { esc, icon, todayStr, fmtDate, toast, openSheet, sheetHeader, options, label, $, $$ } from '../lib.js';
-import { store, productsOf, personName } from '../store.js';
+import { store, productsOf, personName, me } from '../store.js';
 import {
   SPEC_SECTIONS, defaultSpec, visible, fieldValue, productFacts, specRows, specDiff, checklist,
-  STAGES as QC_STAGES, INSPECTORS,
+  STAGES as QC_STAGES, INSPECTORS, IMAGE_GROUPS, showOf, templateShow, ALL_FIELDS,
 } from '../qc-spec.js';
+import {
+  samplesBlock, requestsBlock, submissionsBlock, linksBlock, openRequests, requestsOf, requestStatus, moreAction, moreHistory,
+} from './qc-more.js';
 import { uploadFiles } from '../files.js';
 import { emptyState } from './common.js';
 
 // ---------- Data helpers ----------
 
-export const qcReady = () => store.loaded && !store.missing.has('spec_versions');
-const byCreated = (a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0);
+export const qcReady = () => store.loaded && !store.missing.has('spec_versions') && !store.missing.has('qc_samples');
+export const byCreated = (a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0);
 export const lightingOf = pid => productsOf(pid).filter(i => i.category === 'lighting');
 export const guessCategory = name => (/light|lamp|pendant|chandelier|sconce|lumin|lantern|bulb|led\b|spot|downlight/i.test(name || '') ? 'lighting' : 'furniture');
 
-const versionsOf = itemId => store.all('spec_versions').filter(v => v.item_id === itemId).sort((a, b) => a.version_no - b.version_no);
-const latestVersion = itemId => versionsOf(itemId).pop() || null;
-const approvalsOf = versionId => store.all('qc_approvals').filter(a => a.version_id === versionId).sort(byCreated);
-const lastDecision = (versionId, party) => approvalsOf(versionId).filter(a => a.party === party).pop() || null;
-const inspectionsOf = itemId => store.all('qc_inspections').filter(i => i.item_id === itemId).sort(byCreated);
+export const companyOf = p => (p && store.get('companies', p.company_id)) || {};
+export const templateOf = p => companyOf(p).qc_template || {};
+// "01", "02"… by position unless the product has its own item no.
+export const itemNo = it => it.item_no || String(productsOf(it.project_id).findIndex(x => x.id === it.id) + 1).padStart(2, '0');
+export function nextOrderNo(companyId) {
+  const c = store.get('companies', companyId);
+  const code = (c ? c.name : 'ORD').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'ORD';
+  const prefix = `${code}-O-${new Date().getFullYear()}-`;
+  const used = store.all('projects').map(p => p.order_no || '').filter(n => n.startsWith(prefix)).map(n => parseInt(n.slice(prefix.length), 10) || 0);
+  return prefix + String((used.length ? Math.max(...used) : 0) + 1).padStart(3, '0');
+}
+
+export const versionsOf = itemId => store.all('spec_versions').filter(v => v.item_id === itemId).sort((a, b) => a.version_no - b.version_no);
+export const latestVersion = itemId => versionsOf(itemId).pop() || null;
+export const approvalsOf = versionId => store.all('qc_approvals').filter(a => a.version_id === versionId).sort(byCreated);
+export const lastDecision = (versionId, party) => approvalsOf(versionId).filter(a => a.party === party).pop() || null;
+export const inspectionsOf = itemId => store.all('qc_inspections').filter(i => i.item_id === itemId).sort(byCreated);
 export const issuesOf = pid => store.all('qc_issues').filter(i => i.project_id === pid).sort((a, b) => a.number - b.number);
 const updatesOf = issueId => store.all('qc_issue_updates').filter(u => u.issue_id === issueId).sort(byCreated);
 export const issueStatus = issue => (updatesOf(issue.id).pop() || { status: 'open' }).status;
@@ -38,14 +53,25 @@ export const ISSUE_STATUSES = [
   { id: 'closed', label: 'Closed' },
 ];
 const SEVERITIES = [{ id: 'minor', label: 'Minor' }, { id: 'major', label: 'Major' }, { id: 'critical', label: 'Critical' }];
-const RESPONSIBLE = [{ id: 'supplier', label: 'Supplier' }, { id: 'us', label: 'Us' }, { id: 'client', label: 'Client' }, { id: 'carrier', label: 'Carrier / transport' }];
-const METHODS = ['Email', 'WhatsApp', 'Signed PDF', 'In person', 'Phone', 'Other'];
+export const RESPONSIBLE = [{ id: 'supplier', label: 'Supplier' }, { id: 'us', label: 'Us' }, { id: 'client', label: 'Client' }, { id: 'carrier', label: 'Carrier / transport' }];
+export const METHODS = ['Email', 'WhatsApp', 'Signed PDF', 'In person', 'Phone', 'Other'];
 
-const snapshot = it => ({ ...(it.spec || {}), _product: productFacts(it) });
+// What gets frozen in a version. Visibility (_show) is copied completely so a version is readable on its own,
+// but the current choice on the product wins when showing it (it's about presentation, not the product).
+export const snapshot = it => {
+  const t = templateOf(store.get('projects', it.project_id));
+  const spec = { ...(it.spec || {}) };
+  spec._show = Object.fromEntries(ALL_FIELDS.map(f => [f.key, showOf(spec, f.key, t)]));
+  return { ...spec, _product: productFacts(it) };
+};
+// A version's spec with today's visibility choices applied.
+export const viewSpec = (version, item) => (version
+  ? { ...version.spec, _show: { ...(version.spec._show || {}), ...((item && item.spec && item.spec._show) || {}) } }
+  : snapshot(item));
 const marketFor = p => ((store.get('companies', p.company_id) || {}).country === 'US' ? 'US' : 'EU');
-const when = iso => (iso ? new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
-const who = id => (personName(id) || 'Someone').split(' ')[0];
-const stamp = r => `${esc(when(r.created_at))} · ${esc(who(r.created_by))}`;
+export const when = iso => (iso ? new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
+export const who = id => (personName(id) || 'Someone').split(' ')[0];
+export const stamp = r => `${esc(when(r.created_at))} · ${esc(who(r.created_by))}`;
 
 export function specState(it) {
   const latest = latestVersion(it.id);
@@ -53,6 +79,7 @@ export function specState(it) {
     latest,
     client: latest && lastDecision(latest.id, 'client'),
     supplier: latest && lastDecision(latest.id, 'supplier'),
+    internal: latest && lastDecision(latest.id, 'internal'),
     changes: latest ? specDiff(latest.spec, snapshot(it)) : [],
   };
 }
@@ -67,14 +94,20 @@ export function gateProblems(p, gate) {
     const v = st.latest ? `v${st.latest.version_no}` : '';
     if (gate === 'production') {
       if (!st.latest) { out.push(`${it.name}: no spec issued yet`); continue; }
+      if (!st.internal || st.internal.decision !== 'approved') out.push(`${it.name}: spec ${v} not approved by us`);
       if (!st.client || st.client.decision !== 'approved') out.push(`${it.name}: spec ${v} not approved by the client`);
       if (!st.supplier || st.supplier.decision !== 'approved') out.push(`${it.name}: spec ${v} not confirmed by the supplier`);
       if (st.changes.length) out.push(`${it.name}: ${st.changes.length} change${st.changes.length === 1 ? '' : 's'} not issued as a new spec version yet`);
     } else {
-      const fin = inspectionsOf(it.id).filter(i => i.stage === 'final' && (!st.latest || i.version_id === st.latest.id)).pop();
+      const last = stg => inspectionsOf(it.id).filter(i => i.stage === stg && (!st.latest || i.version_id === st.latest.id)).pop();
+      const fin = last('final');
+      const pack = last('packing');
       if (!fin) out.push(`${it.name}: no final inspection${v ? ` of spec ${v}` : ''}`);
       else if (fin.outcome !== 'pass') out.push(`${it.name}: last final inspection failed`);
+      if (!pack) out.push(`${it.name}: packing not checked yet (packed & ready for collection)`);
+      else if (pack.outcome !== 'pass') out.push(`${it.name}: last packing check failed`);
     }
+    openRequests(p.id).filter(r => r.item_id === it.id).forEach(r => out.push(`${it.name}: change request from the ${r.party === 'us' ? 'team' : r.party} is still open`));
   }
   if (gate === 'shipping') issuesOf(p.id).filter(isOpenIssue).forEach(i => out.push(`Issue #${i.number} “${i.title}” is not resolved`));
   return out;
@@ -134,12 +167,14 @@ export function qcLine(p) {
 
 // ---------- QC tab ----------
 
-const chip = (text, cls = '') => `<span class="chip qc-chip ${cls}">${text}</span>`;
+export const chip = (text, cls = '') => `<span class="chip qc-chip ${cls}">${text}</span>`;
 
-function decisionText(a, party) {
-  if (!a) return party === 'client' ? '⏳ Waiting for client approval' : '⏳ Waiting for supplier confirmation';
+export function decisionText(a, party) {
+  if (!a) return party === 'client' ? '⏳ Waiting for client approval' : party === 'internal' ? '⏳ Waiting for our approval' : '⏳ Waiting for supplier confirmation';
   const ok = a.decision === 'approved';
-  const verb = party === 'client' ? (ok ? 'Approved by client' : 'Rejected by client') : (ok ? 'Confirmed by supplier' : 'Supplier can’t make it as specified');
+  const verb = party === 'client' ? (ok ? 'Approved by client' : 'Rejected by client')
+    : party === 'internal' ? (ok ? 'Approved by us' : 'Not approved by us')
+    : (ok ? 'Confirmed by supplier' : 'Supplier can’t make it as specified');
   return `${ok ? '✅' : '❌'} ${verb}${a.person ? ` (${esc(a.person)}${a.method ? `, ${esc(a.method.toLowerCase())}` : ''})` : ''} · ${esc(when(a.created_at))}`;
 }
 
@@ -162,18 +197,23 @@ function lightCard(p, it) {
   const insps = inspectionsOf(it.id);
   const issues = issuesOf(p.id).filter(i => i.item_id === it.id);
   const open = issues.filter(isOpenIssue);
-  const lastFinal = insps.filter(i => i.stage === 'final').pop();
+  const lastOf = stg => insps.filter(i => i.stage === stg).pop();
+  const lastFinal = lastOf('final');
+  const lastPack = lastOf('packing');
   const tag = (it.spec || {}).location_tag;
+  const allApproved = v && ['internal', 'supplier', 'client'].every(k => st[k] && st[k].decision === 'approved');
   return `
     <article class="card-surface qc-card" data-item="${it.id}">
       <header class="qc-card-head">
         <div>
+          <div class="muted small">Item ${esc(itemNo(it))}${p.order_no ? ` · ${esc(p.order_no)}` : ''}</div>
           <h3>${esc(it.name)}${Number(it.quantity) !== 1 ? ` <span class="muted">× ${esc(String(Number(it.quantity) || 1))}</span>` : ''}</h3>
           <div class="muted small">${esc([tag, it.supplier].filter(Boolean).join(' · ') || 'No location tag or supplier yet')}</div>
         </div>
         <div class="qc-chips">
-          ${v ? chip(`Spec v${v.version_no}`) : chip('No spec yet', 'warn')}
+          ${v ? chip(`Spec v${v.version_no}${allApproved ? ' ✓ approved' : ''}`, allApproved ? 'good' : '') : chip('No spec yet', 'warn')}
           ${lastFinal ? chip(lastFinal.outcome === 'pass' ? 'Final QC passed' : 'Final QC failed', lastFinal.outcome === 'pass' ? 'good' : 'bad') : ''}
+          ${lastPack ? chip(lastPack.outcome === 'pass' ? 'Packed ✓' : 'Packing failed', lastPack.outcome === 'pass' ? 'good' : 'bad') : ''}
           ${open.length ? chip(`${open.length} open issue${open.length === 1 ? '' : 's'}`, 'bad') : ''}
         </div>
       </header>
@@ -182,21 +222,26 @@ function lightCard(p, it) {
         <h4>Specification</h4>
         ${v ? `
           <p class="small">Spec <b>v${v.version_no}</b> issued ${stamp(v)}${v.change_reason ? ` — “${esc(v.change_reason)}”` : ''}</p>
-          <p class="small">${decisionText(st.client, 'client')}</p>
+          <p class="small">${decisionText(st.internal, 'internal')}</p>
           <p class="small">${decisionText(st.supplier, 'supplier')}</p>
-          ${st.changes.length ? `<p class="notice warn small">${st.changes.length} change${st.changes.length === 1 ? '' : 's'} since v${v.version_no} (${esc(st.changes.slice(0, 3).map(c => c.label).join(', '))}${st.changes.length > 3 ? '…' : ''}) — issue them as v${v.version_no + 1} so the client and supplier approve them.</p>` : ''}`
-          : `<p class="small muted">Fill in the spec, then issue v1 and get it approved by the client and confirmed by the supplier.</p>`}
+          <p class="small">${decisionText(st.client, 'client')}</p>
+          ${st.changes.length ? `<p class="notice warn small">${st.changes.length} change${st.changes.length === 1 ? '' : 's'} since v${v.version_no} (${esc(st.changes.slice(0, 3).map(c => c.label).join(', '))}${st.changes.length > 3 ? '…' : ''}) — issue them as v${v.version_no + 1}; it then needs approval from us, the supplier and the client again.</p>` : ''}`
+          : `<p class="small muted">Fill in the spec, then issue v1. Production needs the same version approved by us, the supplier and the client.</p>`}
         <div class="qc-actions">
           <button class="btn small" data-action="qc-spec" data-id="${it.id}">${icon.edit} ${Object.keys(it.spec || {}).length ? 'Edit spec' : 'Fill in spec'}</button>
           ${!v || st.changes.length ? `<button class="btn small primary" data-action="qc-issue-version" data-id="${it.id}">Issue v${v ? v.version_no + 1 : 1}${v ? ' (change)' : ''}</button>` : ''}
           ${v ? `
-            <button class="btn small" data-action="qc-approval" data-party="client" data-id="${it.id}">Client approval</button>
+            <button class="btn small" data-action="qc-approval" data-party="internal" data-id="${it.id}">Our approval</button>
             <button class="btn small" data-action="qc-approval" data-party="supplier" data-id="${it.id}">Supplier confirmation</button>
-            <button class="btn small" data-action="qc-versions" data-id="${it.id}">Versions (${versionsOf(it.id).length})</button>
-            <button class="btn small" data-action="qc-pdf-spec" data-id="${v.id}">Spec sheet PDF</button>
-            <button class="btn small" data-action="qc-pdf-order" data-id="${v.id}">Production order PDF</button>` : ''}
+            <button class="btn small" data-action="qc-approval" data-party="client" data-id="${it.id}">Client approval</button>
+            <button class="btn small" data-action="qc-versions" data-id="${it.id}">Versions (${versionsOf(it.id).length})</button>` : ''}
+          <button class="btn small" data-action="qc-card-pdf" data-party="client" data-id="${it.id}">Client line card PDF</button>
+          <button class="btn small" data-action="qc-card-pdf" data-party="supplier" data-id="${it.id}">Supplier line card PDF</button>
         </div>
       </section>
+
+      ${samplesBlock(it)}
+      ${requestsBlock(it)}
 
       <section class="qc-block">
         <h4>Inspections</h4>
@@ -206,6 +251,7 @@ function lightCard(p, it) {
             <span class="muted small">${esc(fmtDate(i.inspected_on || i.created_at.slice(0, 10)))}</span>
             ${chip(i.outcome === 'pass' ? 'Pass' : 'Fail', i.outcome === 'pass' ? 'good' : 'bad')}
           </button>`).join('')}</div>` : `<p class="small muted">No inspections yet.</p>`}
+        ${submissionsBlock(it)}
         <div class="qc-actions">
           <button class="btn small" data-action="qc-inspect" data-id="${it.id}">${icon.check} New inspection</button>
           <button class="btn small" data-action="qc-new-issue" data-id="${it.id}">Report issue</button>
@@ -232,18 +278,19 @@ function historyEntries(pid) {
   store.all('qc_approvals').filter(a => a.project_id === pid).forEach(a => {
     const ver = store.get('spec_versions', a.version_id);
     const what = ver ? `<b>${esc(ver.item_name)}</b> v${ver.version_no}` : 'a spec';
-    add(a, `recorded: ${a.party === 'client' ? 'client' : 'supplier'} ${a.decision === 'approved' ? (a.party === 'client' ? 'approved' : 'confirmed') : 'rejected'} ${what}${a.person ? ` (${esc(a.person)}, ${esc(a.method || '')})` : ''}${a.note ? ` — “${esc(a.note)}”` : ''}`);
+    add(a, `recorded: ${a.party === 'internal' ? 'we' : a.party} ${a.decision === 'approved' ? (a.party === 'supplier' ? 'confirmed' : 'approved') : 'rejected'} ${what}${a.person ? ` (${esc(a.person)}, ${esc(a.method || '')})` : ''}${a.note ? ` — “${esc(a.note)}”` : ''}`);
   });
   store.all('qc_inspections').filter(i => i.project_id === pid).forEach(i => add(i, `saved a ${esc(label(QC_STAGES, i.stage).toLowerCase())} inspection of <b>${esc(i.item_name)}</b>: ${i.outcome === 'pass' ? '<span class="good-text">pass</span>' : '<span class="bad-text">fail</span>'}`));
   store.all('qc_issues').filter(i => i.project_id === pid).forEach(i => add(i, `reported issue <b>#${i.number} ${esc(i.title)}</b>`));
   store.all('qc_issue_updates').filter(u => u.project_id === pid).forEach(u => add(u, `updated ${esc(u.title)}: ${esc(label(ISSUE_STATUSES, u.status))}${u.note ? ` — “${esc(u.note)}”` : ''}`));
   store.all('qc_overrides').filter(o => o.project_id === pid).forEach(o => add(o, `<b class="warn-text">overrode the ${o.gate} check</b> — “${esc(o.reason)}”`));
+  moreHistory(pid).forEach(r => rows.push(r));
   return rows.sort((a, b) => (a.at < b.at ? 1 : -1));
 }
 
 export function qcTab(p) {
   if (!qcReady()) {
-    return `<div class="notice warn">The database needs an update before quality control can be used: run <code>supabase/migrations/008_quality_control.sql</code> in the Supabase SQL Editor.</div>`;
+    return `<div class="notice warn">The database needs an update before quality control can be used: run <code>supabase/migrations/008_quality_control.sql</code> and then <code>009_qc_line_cards.sql</code> in the Supabase SQL Editor.</div>`;
   }
   const lights = lightingOf(p.id);
   const others = productsOf(p.id).filter(i => i.category !== 'lighting');
@@ -251,9 +298,21 @@ export function qcTab(p) {
   const itemIds = new Set(productsOf(p.id).map(i => i.id));
   const removed = [...new Map(store.all('spec_versions').filter(v => v.project_id === p.id && !itemIds.has(v.item_id)).map(v => [v.item_id, v])).values()];
   const history = historyEntries(p.id);
+  const client = store.get('clients', p.client_id);
+  const newRequests = openRequests(p.id).filter(r => requestStatus(r) === 'open');
 
   return `
-    <div class="toolbar"><span class="muted small">🔒 Spec versions, approvals, inspections, issue updates and overrides are permanent — saved with the date and who did it, and can't be edited or deleted.</span></div>
+    <div class="card-surface pad qc-order-head">
+      <a class="qc-order-link" href="#/project/${p.id}/linecards">
+        <span class="muted small">Order</span>
+        <b>${p.order_no ? esc(p.order_no) : 'No order no. yet'}</b>
+        <span>${esc(p.name)}${client ? ` · ${esc(client.name)}` : ''}</span>
+        <span class="small">${lights.length} line card${lights.length === 1 ? '' : 's'} →</span>
+      </a>
+      ${p.order_no ? '' : `<button class="btn small" data-action="qc-order-no" data-id="${p.id}">Give it an order no.</button>`}
+    </div>
+    ${newRequests.length ? `<div class="notice warn">📨 ${newRequests.length} new change request${newRequests.length === 1 ? '' : 's'} — see below.</div>` : ''}
+    <div class="toolbar"><span class="muted small">🔒 Spec versions, approvals, samples, inspections, issues, requests and overrides are permanent — saved with the date and who did it, and can't be edited or deleted.</span></div>
     ${lights.length ? `<div class="card-surface pad qc-gates">${gateCard(p, 'production')}${gateCard(p, 'shipping')}</div>` : ''}
     ${lights.length ? lights.map(it => lightCard(p, it)).join('') : emptyState('No lighting products in this order', 'Quality control works per lighting product. Mark a product as Lighting below or in its product settings.')}
     ${others.length ? `
@@ -264,19 +323,21 @@ export function qcTab(p) {
       <p class="muted small">A furniture checklist can be added later.</p>` : ''}
     ${removed.length ? `<p class="muted small">History kept for removed products: ${removed.map(v => esc(v.item_name)).join(', ')}.</p>` : ''}
 
+    ${linksBlock(p)}
+
     <h2 class="section section-with-action">Issues <button class="btn small" data-action="qc-new-issue" data-project="${p.id}">${icon.plus} Report issue</button></h2>
     ${issues.length ? `<div class="card-surface qc-rows">${issues.map(issueRow).join('')}</div>` : `<div class="empty small-empty">No issues reported.</div>`}
 
     <h2 class="section">History</h2>
-    ${history.length ? `<div class="card-surface qc-history">${history.slice(0, 60).map(h => `
-      <div class="qc-hist"><span class="muted small">${esc(when(h.at))}</span><span><b>${esc(who(h.by))}</b> ${h.text}</span></div>`).join('')}
-      ${history.length > 60 ? `<p class="muted small">Showing the latest 60 of ${history.length} records.</p>` : ''}</div>`
+    ${history.length ? `<div class="card-surface qc-history">${history.slice(0, 80).map(h => `
+      <div class="qc-hist"><span class="muted small">${esc(when(h.at))}</span><span><b>${esc(h.by ? who(h.by) : h.person || 'Via link')}</b> ${h.text}</span></div>`).join('')}
+      ${history.length > 80 ? `<p class="muted small">Showing the latest 80 of ${history.length} records.</p>` : ''}</div>`
       : `<div class="empty small-empty">Nothing recorded yet.</div>`}`;
 }
 
 // ---------- Spec editor (the working draft; issuing a version makes it permanent) ----------
 
-function fieldHtml(f, s) {
+function fieldHtml(f, s, template) {
   const v = s[f.key] ?? '';
   const id = `spec-${f.key}`;
   let input;
@@ -288,14 +349,23 @@ function fieldHtml(f, s) {
     input = `<input name="${f.key}" id="${id}" value="${esc(v)}" list="dl-${f.key}" autocomplete="off" placeholder="Choose or type">
       <datalist id="dl-${f.key}">${list.map(o => `<option value="${esc(o)}">`).join('')}</datalist>`;
   } else input = `<input name="${f.key}" id="${id}" value="${esc(v)}" ${f.type === 'number' ? 'inputmode="decimal"' : ''} placeholder="${esc(f.placeholder || '')}" autocomplete="off">`;
-  return `<label class="field ${f.type === 'lines' || f.type === 'textarea' ? 'wide' : ''}" data-field="${f.key}" ${visible(f, s) ? '' : 'hidden'}><span>${esc(f.label)}</span>${input}</label>`;
+  // Who sees this detail on their sheet (only filled-in details are ever printed).
+  const show = showOf(s, f.key, template);
+  const toggles = `<span class="vis-toggles" title="Show on the client / supplier sheet">
+    <label class="vis"><input type="checkbox" name="vis_c_${f.key}" ${show === 'cs' || show === 'c' ? 'checked' : ''}><span>Client</span></label>
+    <label class="vis"><input type="checkbox" name="vis_s_${f.key}" ${show === 'cs' || show === 's' ? 'checked' : ''}><span>Supplier</span></label></span>`;
+  const unused = templateShow(template, f.key) === 'off' && String(v).trim() === '';
+  return `<div class="field ${f.type === 'lines' || f.type === 'textarea' ? 'wide' : ''}" data-field="${f.key}" ${visible(f, s) && !unused ? '' : 'hidden'}>
+    <div class="field-head"><label for="${id}">${esc(f.label)}</label>${toggles}</div>${input}</div>`;
 }
 
 function readSpec(form, base) {
-  const out = { ...base };
+  const out = { ...base, _show: { ...(base._show || {}) } };
   SPEC_SECTIONS.forEach(sec => sec.fields.forEach(f => {
     const el = form.elements[f.key];
     if (el) out[f.key] = String(el.value || '').trim();
+    const c = form.elements[`vis_c_${f.key}`], sp = form.elements[`vis_s_${f.key}`];
+    if (c && sp) out._show[f.key] = c.checked && sp.checked ? 'cs' : c.checked ? 'c' : sp.checked ? 's' : 'none';
   }));
   return out;
 }
@@ -303,18 +373,32 @@ function readSpec(form, base) {
 export function openSpecSheet(it) {
   const p = store.get('projects', it.project_id);
   if (!p) return;
-  const spec = Object.keys(it.spec || {}).length ? { ...it.spec } : defaultSpec(marketFor(p));
+  const template = templateOf(p);
+  // A new spec starts from the US/EU defaults, minus the details this company doesn't use.
+  const spec = Object.keys(it.spec || {}).length ? { ...it.spec }
+    : Object.fromEntries(Object.entries(defaultSpec(marketFor(p))).filter(([k]) => k === 'market' || templateShow(template, k) !== 'off'));
   const latest = latestVersion(it.id);
+  const bag = {};
+  IMAGE_GROUPS.forEach(g => { bag[`img_${g.id}`] = [...((spec._images || {})[g.id] || [])]; });
   openSheet(`
     <form class="spec-form">
       ${sheetHeader(`Spec — ${it.name}`)}
       <div class="fields">
-        <p class="muted small">${esc(it.name)} × ${esc(String(Number(it.quantity) || 1))}${it.supplier ? ` · ${esc(it.supplier)}` : ''} — name, quantity and supplier are set on the product.
+        <p class="muted small">${p.order_no ? `Order ${esc(p.order_no)} · ` : ''}Item ${esc(itemNo(it))} · ${esc(it.name)} × ${esc(String(Number(it.quantity) || 1))}${it.supplier ? ` · ${esc(it.supplier)}` : ''} — name, item no., quantity and supplier are set on the product.
           ${latest ? `Last issued: <b>v${latest.version_no}</b>. Changes you save here stay a draft until you issue v${latest.version_no + 1}.` : 'This is a draft until you issue v1.'}</p>
+        <p class="muted small">Tick <b>Client</b> / <b>Supplier</b> to choose what appears on each party's line card. Empty details never appear.</p>
+        <details class="spec-sec" open>
+          <summary>Pictures</summary>
+          <div class="spec-images">${IMAGE_GROUPS.map(g => `
+            <div class="spec-img-group"><b>${esc(g.label)}</b> <span class="muted small">${esc(g.hint)}</span>
+              ${photoPicker(`img_${g.id}`, 'Add images', true)}</div>`).join('')}
+            <p class="muted small">The outcome pictures come from the final and packing inspections.</p>
+          </div>
+        </details>
         ${SPEC_SECTIONS.map((sec, i) => `
-          <details class="spec-sec" ${i < 2 ? 'open' : ''}>
+          <details class="spec-sec" ${i < 1 ? 'open' : ''}>
             <summary>${esc(sec.title)}</summary>
-            <div class="spec-grid">${sec.fields.map(f => fieldHtml(f, spec)).join('')}</div>
+            <div class="spec-grid">${sec.fields.map(f => fieldHtml(f, spec, template)).join('')}</div>
           </details>`).join('')}
       </div>
       <footer>
@@ -327,12 +411,14 @@ export function openSpecSheet(it) {
     wide: true,
     onOpen(sheet) {
       const form = $('form', sheet);
+      wirePhotos(sheet, { project_id: it.project_id, item_id: it.id }, bag, { removable: true, images: true });
       let market = spec.market;
       const refresh = () => {
         const cur = readSpec(form, spec);
         SPEC_SECTIONS.forEach(sec => sec.fields.forEach(f => {
           const wrap = $(`[data-field="${f.key}"]`, form);
-          if (wrap) wrap.hidden = !visible(f, cur);
+          const unused = templateShow(template, f.key) === 'off' && !cur[f.key];
+          if (wrap) wrap.hidden = !visible(f, cur) || unused;
           if (typeof f.list === 'function') {
             const dl = $(`#dl-${f.key}`, form);
             if (dl) dl.innerHTML = f.list(cur).map(o => `<option value="${esc(o)}">`).join('');
@@ -352,6 +438,7 @@ export function openSpecSheet(it) {
     },
     async onSubmit(fd, form, submitter) {
       const next = readSpec(form, spec);
+      next._images = Object.fromEntries(IMAGE_GROUPS.map(g => [g.id, bag[`img_${g.id}`] || []]));
       try { await store.update('items', it.id, { spec: next }); } catch (err) { return false; }
       if (submitter && submitter.hasAttribute('data-issue')) setTimeout(() => openIssueVersionSheet(store.get('items', it.id)), 50);
       else toast('Spec draft saved');
@@ -373,13 +460,15 @@ export function openIssueVersionSheet(it) {
   const changes = latest ? specDiff(latest.spec, snap) : [];
   const n = latest ? latest.version_no + 1 : 1;
   if (latest && !changes.length) { toast(`Nothing changed since v${latest.version_no}`); return; }
+  const reqs = openRequests(it.project_id).filter(r => r.item_id === it.id);
   openSheet(`
     <form>
       ${sheetHeader(`Issue spec v${n} — ${it.name}`)}
       <div class="fields">
         ${latest ? `<p><b>Change request</b>: ${changes.length} change${changes.length === 1 ? '' : 's'} compared with v${latest.version_no}.</p>${diffHtml(changes)}
-          <p class="muted small">Approvals of v${latest.version_no} don't carry over: the client and the supplier need to approve v${n}.</p>`
-          : `<p>v1 becomes the reference: the client approves it, the supplier confirms it, and every inspection checks against it.</p>`}
+          <p class="muted small">Approvals of v${latest.version_no} don't carry over: v${n} needs approval from us, the supplier and the client again.</p>`
+          : `<p>v1 becomes the reference: we approve it, the supplier confirms it, the client approves it, and every inspection checks against it.</p>`}
+        ${reqs.length ? `<label class="field"><span>Answers change request</span><select name="request_id"><option value="">—</option>${reqs.map(r => `<option value="${r.id}" selected>${esc(r.party === 'us' ? 'Us' : r.party === 'client' ? 'Client' : 'Supplier')}: ${esc(r.description.slice(0, 80))}</option>`).join('')}</select></label>` : ''}
         ${latest ? `
           <div class="field-row">
             <label class="field"><span>Requested by</span><select name="requested_by">${options(RESPONSIBLE.slice(0, 3), 'client')}</select></label>
@@ -393,13 +482,15 @@ export function openIssueVersionSheet(it) {
       const reason = String(fd.get('change_reason') || '').trim();
       if (latest && !reason) { toast('Write the reason for the change'); return false; }
       let v;
+      const requestId = fd.get('request_id') || null;
       try {
         v = await store.insert('spec_versions', {
           project_id: it.project_id, item_id: it.id, item_name: it.name, spec: snap,
-          change_reason: reason, requested_by: latest ? fd.get('requested_by') : '',
+          change_reason: reason, requested_by: latest ? fd.get('requested_by') : '', request_id: requestId,
         });
       } catch (err) { return false; }
-      toast(`Spec v${v.version_no || n} issued — send it for approval`, { label: 'Spec sheet PDF', run: () => makeQcPdf('spec', v.id) });
+      if (requestId) store.insert('qc_request_updates', { project_id: it.project_id, request_id: requestId, status: 'done', note: `Issued as spec v${v.version_no || n}` }).catch(() => {});
+      toast(`Spec v${v.version_no || n} issued — get it approved`, { label: 'Line card PDF', run: () => makeQcPdf('card', it.id, 'client') });
     },
   });
 }
@@ -433,8 +524,8 @@ function openVersionsSheet(it) {
         <div id="qc-version-body">${versionHtml(vs[cur], vs[cur - 1])}</div>
       </div>
       <footer>
-        <button type="button" class="btn" data-pdf="spec">Spec sheet PDF</button>
-        <button type="button" class="btn" data-pdf="order">Production order PDF</button>
+        <button type="button" class="btn" data-pdf="client">Client line card PDF</button>
+        <button type="button" class="btn" data-pdf="supplier">Supplier line card PDF</button>
         <span class="spacer"></span><button type="button" class="btn primary" data-close>Close</button>
       </footer>
     </div>`, {
@@ -445,19 +536,20 @@ function openVersionsSheet(it) {
         $$('[data-v]', sheet).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
         $('#qc-version-body', sheet).innerHTML = versionHtml(vs[cur], vs[cur - 1]);
       }));
-      $$('[data-pdf]', sheet).forEach(b => b.addEventListener('click', () => makeQcPdf(b.dataset.pdf, vs[cur].id)));
+      $$('[data-pdf]', sheet).forEach(b => b.addEventListener('click', () => makeQcPdf('version', vs[cur].id, b.dataset.pdf)));
     },
   });
 }
 
 // ---------- Photos / proof inside QC sheets (uploaded at once, permanent) ----------
 
-function photoPicker(name, labelText = 'Add photos') {
+export function photoPicker(name, labelText = 'Add photos', imagesOnly = false) {
   return `<div class="qc-photos" data-photos="${name}"><div class="qc-thumbs"></div>
-    <label class="btn small upload-btn">${icon.upload}<span>${esc(labelText)}</span><input type="file" multiple hidden accept="image/*,application/pdf,video/*" data-qc-photos="${name}"></label></div>`;
+    <label class="btn small upload-btn">${icon.upload}<span>${esc(labelText)}</span><input type="file" multiple hidden accept="${imagesOnly ? 'image/*' : 'image/*,application/pdf,video/*'}" data-qc-photos="${name}"></label></div>`;
 }
 
-function wirePhotos(dialog, target, bag) {
+// Uploads go straight into permanent QC storage; `removable` only takes a picture off this list.
+export function wirePhotos(dialog, target, bag, { removable = false } = {}) {
   const sheet = dialog.firstElementChild; // the dialog itself is reused by every sheet
   const draw = name => {
     const box = $(`[data-photos="${name}"] .qc-thumbs`, sheet);
@@ -465,9 +557,16 @@ function wirePhotos(dialog, target, bag) {
     box.innerHTML = (bag[name] || []).map(id => {
       const a = store.get('attachments', id);
       if (!a) return '';
-      return /^image\//.test(a.mime) ? `<img class="qc-thumb" data-path="${esc(a.path)}" alt="">` : `<span class="qc-thumb file">${esc((a.name.split('.').pop() || 'file').toUpperCase())}</span>`;
+      const t = /^image\//.test(a.mime) ? `<img class="qc-thumb" data-path="${esc(a.path)}" alt="">` : `<span class="qc-thumb file">${esc((a.name.split('.').pop() || 'file').toUpperCase())}</span>`;
+      return removable ? `<span class="qc-thumb-wrap">${t}<button type="button" class="qc-thumb-x" data-remove="${esc(name)}" data-id="${a.id}" aria-label="Remove">×</button></span>` : t;
     }).join('');
   };
+  sheet.addEventListener('click', e => {
+    const x = e.target.closest('[data-remove]');
+    if (!x) return;
+    bag[x.dataset.remove] = (bag[x.dataset.remove] || []).filter(id => id !== x.dataset.id);
+    draw(x.dataset.remove);
+  });
   sheet.addEventListener('change', async e => {
     const input = e.target.closest('[data-qc-photos]');
     if (!input || !input.files.length) return;
@@ -488,7 +587,7 @@ function wirePhotos(dialog, target, bag) {
   return draw;
 }
 
-const thumbs = ids => (ids || []).map(id => store.get('attachments', id)).filter(Boolean).map(a => `
+export const thumbs = ids => (ids || []).map(id => store.get('attachments', id)).filter(Boolean).map(a => `
   <button type="button" class="qc-thumb-btn" data-action="open-file" data-id="${a.id}">${/^image\//.test(a.mime) ? `<img class="qc-thumb" data-path="${esc(a.path)}" alt="">` : `<span class="qc-thumb file">${esc((a.name.split('.').pop() || 'file').toUpperCase())}</span>`}</button>`).join('');
 
 // ---------- Client approval / supplier confirmation (permanent) ----------
@@ -497,20 +596,22 @@ function openApprovalSheet(it, party) {
   const v = latestVersion(it.id);
   if (!v) { toast('Issue the spec first'); return; }
   const client = party === 'client';
+  const internal = party === 'internal';
   const p = store.get('projects', it.project_id);
   const c = p && store.get('clients', p.client_id);
+  const myName = (me() || {}).full_name || '';
   const bag = { proof: [] };
   openSheet(`
     <form>
-      ${sheetHeader(`${client ? 'Client approval' : 'Supplier confirmation'} — ${it.name} v${v.version_no}`)}
+      ${sheetHeader(`${client ? 'Client approval' : internal ? 'Our approval' : 'Supplier confirmation'} — ${it.name} v${v.version_no}`)}
       <div class="fields">
         <div class="segmented qc-decision">
-          <label><input type="radio" name="decision" value="approved" checked> ${client ? 'Approved' : 'Confirmed — will make it exactly as specified'}</label>
-          <label><input type="radio" name="decision" value="rejected"> ${client ? 'Not approved / changes needed' : 'Can’t make it as specified'}</label>
+          <label><input type="radio" name="decision" value="approved" checked> ${client || internal ? 'Approved' : 'Confirmed — will make it exactly as specified'}</label>
+          <label><input type="radio" name="decision" value="rejected"> ${client || internal ? 'Not approved / changes needed' : 'Can’t make it as specified'}</label>
         </div>
         <div class="field-row">
-          <label class="field"><span>${client ? 'Approved by (name)' : 'Confirmed by (name at supplier)'}</span><input name="person" required value="${client && c ? esc((c.name || '')) : !client ? esc(it.supplier || '') : ''}"></label>
-          <label class="field"><span>How</span><select name="method">${METHODS.map(m => `<option>${esc(m)}</option>`).join('')}</select></label>
+          <label class="field"><span>${client ? 'Approved by (name)' : internal ? 'Approved by' : 'Confirmed by (name at supplier)'}</span><input name="person" required value="${client && c ? esc(c.name || '') : internal ? esc(myName) : esc(it.supplier || '')}"></label>
+          <label class="field"><span>How</span><select name="method">${(internal ? ['In the app', ...METHODS] : METHODS).map(m => `<option>${esc(m)}</option>`).join('')}</select></label>
         </div>
         <label class="field"><span>Note ${client ? '' : '(what they can’t do, if anything)'}</span><textarea name="note" rows="2" placeholder="${client ? 'e.g. Approved by email 13 Oct, see attachment' : 'e.g. Glass only available in 4 mm, not 5 mm'}"></textarea></label>
         <div class="field"><span>Proof (email screenshot, signed PDF…)</span>${photoPicker('proof', 'Add proof')}</div>
@@ -529,7 +630,7 @@ function openApprovalSheet(it, party) {
           person: String(fd.get('person') || '').trim(), method: fd.get('method'), note, files: bag.proof,
         });
       } catch (err) { return false; }
-      toast(decision === 'approved' ? (client ? 'Client approval recorded' : 'Supplier confirmation recorded') : 'Recorded — update the spec and issue a new version');
+      toast(decision === 'approved' ? (client ? 'Client approval recorded' : internal ? 'Our approval recorded' : 'Supplier confirmation recorded') : 'Recorded — update the spec and issue a new version');
     },
   });
 }
@@ -549,7 +650,13 @@ export function openInspectionSheet(it, stage = null) {
     openSpecSheet(it);
     return;
   }
-  if (!stage) stage = v ? (p && ['shipping', 'delivered'].includes(p.stage) ? 'delivery' : 'final') : 'sample';
+  if (!stage) {
+    const passed = stg => inspectionsOf(it.id).some(i => i.stage === stg && i.outcome === 'pass' && (!v || i.version_id === v.id));
+    stage = !v ? 'sample'
+      : p && ['shipping', 'delivered'].includes(p.stage) ? 'delivery'
+      : passed('final') ? 'packing'
+      : 'final';
+  }
   const spec = v ? v.spec : snapshot(it);
   const lines = checklist(spec, stage);
   const key = draftKey(it.id, stage);
@@ -581,7 +688,7 @@ export function openInspectionSheet(it, stage = null) {
             const r = res[l.key];
             return `
             <div class="qc-check" data-key="${esc(l.key)}">
-              <div class="qc-check-text"><b>${esc(l.label)}</b>${l.expected ? `<span class="muted small">Spec: ${esc(l.expected)}</span>` : ''}</div>
+              <div class="qc-check-text"><b>${esc(l.label)}</b>${l.expected ? `<span class="muted small">Spec: ${esc(l.expected)}</span>` : ''}${l.photo ? '<span class="small warn-text">📷 Photo required</span>' : ''}</div>
               <div class="segmented qc-result">
                 ${[['pass', 'Pass'], ['fail', 'Fail'], ['na', 'N/A']].map(([val, t]) => `<label class="r-${val}"><input type="radio" name="r_${esc(l.key)}" value="${val}" ${r.result === val ? 'checked' : ''}> ${t}</label>`).join('')}
               </div>
@@ -640,9 +747,16 @@ export function openInspectionSheet(it, stage = null) {
       const failed = lines.filter(l => res[l.key].result === 'fail');
       const unexplained = failed.filter(l => !res[l.key].note && !res[l.key].measured && !res[l.key].photos.length);
       if (unexplained.length) { toast('Add a note or photo to each failed check'); return false; }
+      const noPhoto = lines.filter(l => l.photo && res[l.key].result !== 'na' && !res[l.key].photos.length);
+      if (noPhoto.length) {
+        toast(`Add a photo to “${noPhoto[0].label}”`);
+        const el = $(`.qc-check[data-key="${CSS.escape(noPhoto[0].key)}"]`, form);
+        el && el.scrollIntoView({ block: 'center' });
+        return false;
+      }
       const allPhotos = [...bag.overall, ...lines.flatMap(l => res[l.key].photos)];
       const st = fd.get('stage');
-      if (['final', 'delivery'].includes(st) && !allPhotos.length) { toast('Add at least one photo — it is your proof'); return false; }
+      if (['final', 'packing', 'delivery'].includes(st) && !allPhotos.length) { toast('Add at least one photo — it is your proof'); return false; }
       let insp;
       try {
         insp = await store.insert('qc_inspections', {
@@ -667,6 +781,7 @@ export function openInspectionSheet(it, stage = null) {
       }
       toast(failed.length ? `Inspection saved — ${failed.length} failed check${failed.length === 1 ? '' : 's'}` : 'Inspection saved — all passed ✅',
         { label: 'QC report PDF', run: () => makeQcPdf('inspection', insp.id) });
+      if (st === 'packing' && !failed.length) toast('Packed & ready for collection ✅', { label: 'QC report PDF', run: () => makeQcPdf('inspection', insp.id) });
     },
   });
 }
@@ -806,7 +921,7 @@ function openIssueView(issue) {
 }
 
 // Taps inside QC sheets (issue rows) — the app-wide handler only covers the main screen.
-function wireSheetActions(dialog) {
+export function wireSheetActions(dialog) {
   dialog.firstElementChild.addEventListener('click', e => {
     const el = e.target.closest('[data-action^="qc-"]');
     if (el) qcAction(el.dataset.action, el);
@@ -815,8 +930,8 @@ function wireSheetActions(dialog) {
 
 // ---------- PDFs ----------
 
-export function makeQcPdf(kind, id) {
-  return import('../qc-pdf.js').then(m => m.createQcPdf(kind, id));
+export function makeQcPdf(kind, id, party) {
+  return import('../qc-pdf.js').then(m => m.createQcPdf(kind, id, party));
 }
 
 // ---------- Actions (from the screen) ----------
@@ -834,8 +949,14 @@ export function qcAction(action, el) {
     case 'qc-new-issue': { const it = item(); openNewIssueSheet(it ? it.project_id : el.dataset.project, it ? it.id : null); break; }
     case 'qc-view-issue': { const i = store.get('qc_issues', id); if (i) openIssueView(i); break; }
     case 'qc-make-lighting': store.update('items', id, { category: 'lighting' }).catch(() => {}); break;
-    case 'qc-pdf-spec': makeQcPdf('spec', id); break;
-    case 'qc-pdf-order': makeQcPdf('order', id); break;
+    case 'qc-card-pdf': makeQcPdf('card', id, el.dataset.party); break;
+    case 'qc-cards-pdf': makeQcPdf('cards', id, el.dataset.party); break;
+    case 'qc-order-no': {
+      const p = store.get('projects', id);
+      if (p) store.update('projects', id, { order_no: nextOrderNo(p.company_id) }).then(() => toast('Order number added')).catch(() => {});
+      break;
+    }
+    default: moreAction(action, el);
   }
 }
 

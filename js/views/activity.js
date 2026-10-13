@@ -94,6 +94,17 @@ function sentence(a) {
       return `reported QC issue ${r ? `#${r.number} ` : ''}${name}`;
     }
     case 'qc_issue_updates': return `updated QC issue ${name}`;
+    case 'qc_samples': return `sent sample ${name}`;
+    case 'qc_sample_updates': {
+      const r = store.get('qc_sample_updates', a.entity_id);
+      return r ? (r.status === 'approved' ? `recorded sample ${name} approved ✅` : r.status === 'rejected' ? `recorded sample ${name} rejected` : `updated sample ${name}`) : `updated sample ${name}`;
+    }
+    case 'qc_requests': {
+      const r = store.get('qc_requests', a.entity_id);
+      return r && r.link_id ? `received a change request from the ${esc(r.party)}${r.person ? ` (${esc(r.person)})` : ''}: ${name}` : `recorded a ${name}`;
+    }
+    case 'qc_request_updates': return `answered ${name}`;
+    case 'qc_submissions': return `received ${name}`;
     case 'qc_overrides': return `<b class="warn-text">overrode a quality-control check</b> on this order`;
     case 'costs':
       return a.action === 'created' ? `added cost ${name}` : a.action === 'deleted' ? `deleted cost ${name}` : `updated cost ${name}`;
