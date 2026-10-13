@@ -170,3 +170,6 @@ end $$;
 
 drop trigger if exists touch_qc_links on public.qc_links;
 create trigger touch_qc_links before update on public.qc_links for each row execute function public.touch_updated_at();
+
+-- The stamp only runs from the database itself; nobody can call it directly.
+revoke execute on function public.qc_stamp() from public, anon, authenticated;
