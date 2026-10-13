@@ -6,7 +6,8 @@ import { uuid } from './lib.js';
 export const keyOf = table => (table === 'team_members' ? 'email' : 'id');
 
 // Quality-control records are permanent: the database refuses changes and deletes.
-export const QC_TABLES = ['spec_versions', 'qc_approvals', 'qc_inspections', 'qc_issues', 'qc_issue_updates', 'qc_overrides'];
+export const QC_TABLES = ['spec_versions', 'qc_approvals', 'qc_inspections', 'qc_issues', 'qc_issue_updates', 'qc_overrides',
+  'qc_samples', 'qc_sample_updates', 'qc_requests', 'qc_request_updates', 'qc_submissions'];
 
 // Foreign keys, mirroring supabase/schema.sql: when a parent row is deleted,
 // children are deleted ('cascade') or have the link cleared ('null').
@@ -15,10 +16,12 @@ export const RELATIONS = {
     ['deliverables', 'project_id', 'cascade'], ['attachments', 'project_id', 'cascade'],
     ['quotes', 'project_id', 'cascade'], ['costs', 'project_id', 'cascade'], ['invoices', 'project_id', 'cascade'],
     ['items', 'project_id', 'cascade'], ['shipments', 'project_id', 'cascade'], ['social_posts', 'project_id', 'null'],
-    ...QC_TABLES.map(t => [t, 'project_id', 'cascade'])],
+    ...QC_TABLES.map(t => [t, 'project_id', 'cascade']), ['qc_links', 'project_id', 'cascade']],
   spec_versions: [['qc_approvals', 'version_id', 'cascade'], ['qc_inspections', 'version_id', 'cascade']],
   qc_inspections: [['qc_issues', 'inspection_id', 'cascade']],
   qc_issues: [['qc_issue_updates', 'issue_id', 'cascade']],
+  qc_samples: [['qc_sample_updates', 'sample_id', 'cascade']],
+  qc_requests: [['qc_request_updates', 'request_id', 'cascade']],
   items: [['deliverables', 'item_id', 'cascade'], ['attachments', 'item_id', 'null']],
   quotes: [['quote_items', 'quote_id', 'cascade']],
   tasks: [['comments', 'task_id', 'cascade'], ['attachments', 'task_id', 'cascade']],
@@ -195,7 +198,7 @@ const DEFAULTS = {
   companies: () => ({ color: '#64748b', sort_order: 0 }),
   clients: () => ({ email: '', phone: '', website: '', address: '', notes: '' }),
   contacts: () => ({ role: '', email: '', phone: '', notes: '' }),
-  projects: () => ({ description: '', stage: 'inquiry', delivery_address: '', deposit_pct: 50, status: 'active', currency: 'EUR', lead_id: null, client_id: null, start_date: null, due_date: null, sort_order: 0 }),
+  projects: () => ({ order_no: '', description: '', stage: 'inquiry', delivery_address: '', deposit_pct: 50, status: 'active', currency: 'EUR', lead_id: null, client_id: null, start_date: null, due_date: null, sort_order: 0 }),
   tasks: () => ({ notes: '', stage: 'inquiry', done: false, priority: 'medium', assignee_id: null, due_date: null, completed_at: null, sort_order: 0 }),
   comments: () => ({ task_id: null, mentions: [], author_id: DEMO_USER.id }),
   deliverables: () => ({ description: '', max_rounds: 3, status: 'in_progress', due_date: null, sort_order: 0 }),
@@ -205,13 +208,19 @@ const DEFAULTS = {
   quote_items: () => ({ quantity: 1, unit_price: 0, sort_order: 0 }),
   costs: () => ({ category: 'other', vendor: '', amount: 0, paid: false }),
   invoices: () => ({ number: '', title: '', issue_date: null, due_date: null, amount: 0, status: 'draft', paid_date: null, notes: '', kind: 'other' }),
-  items: () => ({ description: '', quantity: 1, dimensions: '', materials: '', weight_kg: null, supplier: '', supplier_ref: '', unit_cost: 0, unit_price: 0, production: 'not_started', sort_order: 0, category: 'furniture', spec: {} }),
+  items: () => ({ description: '', quantity: 1, dimensions: '', materials: '', weight_kg: null, supplier: '', supplier_ref: '', unit_cost: 0, unit_price: 0, production: 'not_started', sort_order: 0, category: 'furniture', spec: {}, item_no: '' }),
   spec_versions: () => ({ change_reason: '', requested_by: '', spec: {} }),
   qc_approvals: () => ({ person: '', method: '', note: '', files: [] }),
   qc_inspections: () => ({ inspector_name: '', inspected_on: null, units_checked: null, results: [], photos: [], notes: '', version_id: null }),
   qc_issues: () => ({ description: '', expected: '', found: '', severity: 'major', responsible: 'supplier', required_action: '', due_date: null, photos: [], inspection_id: null }),
   qc_issue_updates: () => ({ note: '', cost: null, paid_by: '', photos: [] }),
   qc_overrides: () => ({ item_id: null }),
+  qc_samples: () => ({ description: '', photos: [], carrier: '', tracking: '', sent_on: null }),
+  qc_sample_updates: () => ({ person: '', note: '', photos: [] }),
+  qc_requests: () => ({ item_id: null, version_id: null, person: '', photos: [], link_id: null }),
+  qc_request_updates: () => ({ note: '' }),
+  qc_submissions: () => ({ item_id: null, person: '', note: '', photos: [], link_id: null }),
+  qc_links: () => ({ item_ids: [], label: '', revoked_at: null }),
   shipments: () => ({ carrier: '', tracking: '', status: 'preparing', shipped_date: null, delivered_date: null, cost: 0, packages: '', notes: '' }),
   social_posts: () => ({ project_id: null, status: 'draft', title: '', idea: '', body: '', hashtags: '', photo_ids: [], language: 'en', scheduled_for: null, posted_at: null, posted_url: '', sort_order: 0 }),
   social_contacts: () => ({ role: '', organisation: '', category: 'other', platform: 'linkedin', profile_url: '', status: 'to_connect', message: '', next_follow_up: null, notes: '' }),
@@ -241,7 +250,7 @@ export class LocalBackend {
       team_members: [{ email: DEMO_USER.email, added_at: now }],
       clients: [], contacts: [], projects: [], tasks: [], comments: [], activity: [],
       deliverables: [], feedback_rounds: [], attachments: [], quotes: [], quote_items: [], costs: [], invoices: [],
-      items: [], shipments: [], social_posts: [], social_contacts: [], ...Object.fromEntries(QC_TABLES.map(t => [t, []])),
+      items: [], shipments: [], social_posts: [], social_contacts: [], ...Object.fromEntries(QC_TABLES.map(t => [t, []])), qc_links: [],
     };
   }
 
@@ -315,6 +324,14 @@ export class LocalBackend {
       r.title = i ? `#${i.number} ${i.title}` : '';
     } else if (table === 'qc_overrides') {
       r.title = `${r.gate[0].toUpperCase()}${r.gate.slice(1)} check overridden`;
+    } else if (table === 'qc_sample_updates') {
+      r.title = ((this.db.qc_samples || []).find(x => x.id === r.sample_id) || {}).title || '';
+    } else if (table === 'qc_requests') {
+      r.title = `Change request — ${r.item_name || 'order'}`;
+    } else if (table === 'qc_request_updates') {
+      r.title = ((this.db.qc_requests || []).find(x => x.id === r.request_id) || {}).title || '';
+    } else if (table === 'qc_submissions') {
+      r.title = `${r.purpose[0].toUpperCase()}${r.purpose.slice(1)} photos — ${r.item_name || 'order'}`;
     }
   }
 

@@ -5,6 +5,7 @@ import { orderTab } from './order.js';
 import { shippingTab } from './shipping.js';
 import { moneyTab } from './money.js';
 import { qcTab, qcReady, issuesOf, isOpenIssue } from './qc.js';
+import { lineCardsView, openRequests, requestStatus } from './qc-more.js';
 import { activityEntries, activityItem } from './activity.js';
 import { fileTile, uploadButton, isImage, docCard } from '../files.js';
 import { ui } from '../ui-state.js';
@@ -38,7 +39,10 @@ export function viewProject(id, tab = 'order') {
   const tabs = [
     { id: 'order', label: `Order${nProducts ? ` <span class="tab-count">${nProducts}</span>` : ''}` },
     { id: 'drawings', label: 'Drawings' },
-    { id: 'qc', label: (() => { const n = qcReady() ? issuesOf(p.id).filter(isOpenIssue).length : 0; return `QC${n ? ` <span class="tab-count bad">${n}</span>` : ''}`; })() },
+    { id: 'qc', label: (() => {
+      const n = qcReady() ? issuesOf(p.id).filter(isOpenIssue).length + openRequests(p.id).filter(r => requestStatus(r) === 'open').length : 0;
+      return `QC${n ? ` <span class="tab-count bad" title="Open issues and new change requests">${n}</span>` : ''}`;
+    })() },
     { id: 'money', label: 'Money' },
     { id: 'shipping', label: 'Shipping' },
     { id: 'tasks', label: `Tasks${pr.total ? ` <span class="tab-count">${pr.total}</span>` : ''}` },
@@ -50,6 +54,7 @@ export function viewProject(id, tab = 'order') {
     : tab === 'files' ? filesTab(p)
     : tab === 'money' ? moneyTab(p)
     : tab === 'qc' ? qcTab(p)
+    : tab === 'linecards' ? (qcReady() ? lineCardsView(p) : qcTab(p))
     : tab === 'shipping' ? shippingTab(p)
     : tab === 'tasks' ? tasksTab(p)
     : orderTab(p);
@@ -61,6 +66,7 @@ export function viewProject(id, tab = 'order') {
         <h1>${esc(p.name)}</h1>
         <div class="chips-line">
           ${companyChip(p.company_id)}
+          ${qcReady() ? `<a class="chip link-chip" href="#/project/${p.id}/linecards" title="All specification cards">${p.order_no ? esc(p.order_no) : 'Specification cards'}</a>` : ''}
           ${client ? `<a class="chip link-chip" href="#/client/${client.id}">${esc(client.name)}</a>` : ''}
           ${statusChip(p.status)}
           ${p.due_date ? `<span class="chip-label">Deadline</span>${dueChip(p.due_date, p.status === 'completed')}` : ''}

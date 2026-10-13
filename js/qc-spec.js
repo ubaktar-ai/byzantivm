@@ -21,6 +21,7 @@ const led = s => s.source_type === 'led';
 const dimmable = s => s.dimming && s.dimming !== 'onoff';
 
 // type: text | number | list (dropdown + own value) | select (fixed) | yesno | textarea | lines (one check per line)
+//       | files (uploaded documents, e.g. datasheets — stored as [{ id, name, path, mime }])
 // check: becomes a line on the inspection checklist · measure: the inspector writes down the measured value
 export const SPEC_SECTIONS = [
   { id: 'general', title: 'General', fields: [
@@ -28,21 +29,19 @@ export const SPEC_SECTIONS = [
     { key: 'location_tag', label: 'Room / location tag', type: 'text', placeholder: 'e.g. Dining 01, Lobby P1–P6', check: true },
     { key: 'fixture_type', label: 'Fixture type', type: 'list', list: ['Pendant', 'Chandelier', 'Wall light', 'Ceiling / flush mount', 'Floor lamp', 'Table lamp', 'Recessed downlight', 'Linear', 'Track light', 'Outdoor light'], check: true },
     { key: 'product_code', label: 'Product / model code', type: 'text', check: true },
-    { key: 'drawing_rev', label: 'Approved drawing revision', type: 'text', placeholder: 'e.g. Rev C, 12 Oct', check: true },
   ] },
   { id: 'dimensions', title: 'Dimensions & weight', fields: [
     { key: 'overall_size', label: 'Overall size (W × D × H)', type: 'text', placeholder: 'e.g. 900 × 900 × 650 mm', check: true, measure: true },
     { key: 'diameter', label: 'Diameter', type: 'text', placeholder: 'e.g. 450 mm', check: true, measure: true },
     { key: 'overall_drop', label: 'Overall drop (ceiling to bottom)', type: 'text', placeholder: 'e.g. 1500 mm', check: true, measure: true },
-    { key: 'shade_size', label: 'Glass / shade size', type: 'text', check: true, measure: true },
     { key: 'weight', label: 'Weight per piece', type: 'text', placeholder: 'e.g. 8.5 kg', check: true, measure: true },
     { key: 'tolerance', label: 'Allowed tolerance', type: 'list', list: ['±1 mm', '±2 mm', '±3 mm', '±5 mm', '±10 mm'] },
   ] },
   { id: 'materials', title: 'Materials', fields: [
-    { key: 'body_material', label: 'Body material', type: 'list', list: ['Solid brass', 'Brass-plated steel', 'Aluminium', 'Steel', 'Stainless steel', 'Bronze', 'Copper', 'Wood', 'Ceramic'], check: true },
-    { key: 'material_detail', label: 'Grade / thickness / detail', type: 'text', placeholder: 'e.g. C260 brass, 1.5 mm wall', check: true },
-    { key: 'glass', label: 'Glass / diffuser', type: 'list', list: ['None', 'Hand-blown clear', 'Hand-blown opal', 'Frosted / acid-etched', 'Ribbed / fluted', 'Coloured glass', 'Alabaster', 'Acrylic diffuser'], check: true },
-    { key: 'glass_detail', label: 'Glass detail', type: 'text', placeholder: 'colour, thickness, finish inside/outside', check: true },
+    { key: 'body_material', label: 'Body material', type: 'list', list: ['Solid brass', 'Brass-plated steel', 'Aluminium', 'Steel', 'Stainless steel', 'Bronze', 'Copper', 'Wood', 'Ceramic', 'Silicone / rubber'], check: true },
+    { key: 'material_detail', label: 'Additional details', type: 'text', placeholder: 'e.g. C260 brass, 1.5 mm wall', check: true },
+    { key: 'glass', label: 'Diffuser', type: 'list', list: ['None', 'Hand-blown clear glass', 'Hand-blown opal glass', 'Frosted / acid-etched glass', 'Ribbed / fluted glass', 'Coloured glass', 'Alabaster', 'Acrylic', 'Polycarbonate', 'Silicone / rubber', 'Fabric'], check: true },
+    { key: 'glass_detail', label: 'Additional details', type: 'text', placeholder: 'colour, thickness, finish inside/outside', check: true },
     { key: 'shade', label: 'Shade (fabric, paper, metal…)', type: 'text', check: true },
     { key: 'other_materials', label: 'Other materials', type: 'text', check: true },
   ] },
@@ -62,25 +61,31 @@ export const SPEC_SECTIONS = [
     { key: 'max_wattage', label: 'Max. wattage per socket', type: 'text', placeholder: 'e.g. 40 W', show: bulb, check: true },
     { key: 'bulbs_included', label: 'Bulbs included', type: 'yesno', show: bulb, check: true },
     { key: 'bulb_spec', label: 'Bulb spec', type: 'text', placeholder: 'e.g. LED filament G95, 4 W, 2700K, dimmable', show: bulb, check: true },
+    { key: 'led_brand', label: 'LED brand & model', type: 'text', placeholder: 'e.g. Cree XLamp CXA1304, Bridgelux Vero', show: led, check: true },
     { key: 'led_power', label: 'LED power', type: 'text', placeholder: 'e.g. 24 W', show: led, check: true },
     { key: 'cct', label: 'Colour temperature', type: 'list', list: ['2200K', '2400K', '2700K', '3000K', '3500K', '4000K', 'Dim-to-warm 3000–1800K', 'Tunable white'], check: true },
     { key: 'cri', label: 'CRI', type: 'list', list: ['≥80', '≥90', '≥95', '≥97'], check: true },
     { key: 'r9', label: 'R9', type: 'text', placeholder: 'e.g. >50', show: led, check: true },
     { key: 'lumens', label: 'Light output', type: 'text', placeholder: 'e.g. 1800 lm', check: true },
-    { key: 'beam_angle', label: 'Beam angle', type: 'text', placeholder: 'e.g. 36°', show: led, check: true },
+    { key: 'light_direction', label: 'Light direction / effect', type: 'list', list: ['Downlight', 'Uplight', 'Up & down', 'Diffuse — all around', 'Wall wash', 'Grazing', 'Accent / spot', 'Step light — angled down'], check: true },
+    { key: 'beam_angle', label: 'Beam angle', type: 'list', list: ['10°', '15°', '24°', '30°', '36°', '40°', '60°', '90°', '120°'], placeholder: 'e.g. 36°', check: true },
+    { key: 'aiming', label: 'Aiming / tilt', type: 'text', placeholder: 'e.g. 30° facing down, toward the step', check: true, measure: true },
     { key: 'binning', label: 'Colour consistency (binning)', type: 'list', list: ['≤2 SDCM', '≤3 SDCM', '≤5 SDCM'], show: led, check: true },
     { key: 'lifetime', label: 'Lifetime', type: 'text', placeholder: 'e.g. L70 50,000 h', show: led },
+    { key: 'led_datasheet', label: 'LED datasheet', type: 'files', show: led },
   ] },
   { id: 'electrical', title: 'Electrical & driver', fields: [
-    { key: 'voltage', label: 'Voltage', type: 'list', list: ['120V', '277V', '120–277V', '230V', '220–240V', '100–277V', '24V DC', '48V DC'], check: true },
+    { key: 'voltage', label: 'Voltage', type: 'list', list: ['120V', '277V', '120–277V', '230V', '220–240V', '100–277V', '10V DC', '12V DC', '12V AC', '24V DC', '24V AC', '36V DC', '48V DC'], check: true },
     { key: 'frequency', label: 'Frequency', type: 'list', list: ['60 Hz', '50 Hz', '50/60 Hz'], check: true },
-    { key: 'driver', label: 'Driver / transformer brand & model', type: 'text', placeholder: 'e.g. eldoLED SOLOdrive 360/A', check: true },
+    { key: 'driver_brand', label: 'Driver / transformer brand', type: 'list', list: ['eldoLED', 'Lutron', 'Mean Well', 'Tridonic', 'Philips', 'OSRAM', 'Helvar', 'Inventronics', 'Lifud', 'Moons'], check: true },
+    { key: 'driver', label: 'Driver / transformer model', type: 'text', placeholder: 'e.g. SOLOdrive 360/A', check: true },
     { key: 'driver_type', label: 'Driver type', type: 'list', list: ['Constant current', 'Constant voltage', 'Electronic transformer', 'Magnetic transformer', 'None (mains)'], check: true },
     { key: 'driver_output', label: 'Driver output', type: 'text', placeholder: 'e.g. 700 mA / 24 V, 25 W', check: true },
     { key: 'driver_location', label: 'Driver location', type: 'list', list: ['In canopy', 'In fixture body', 'Remote — supplied loose', 'Remote — by others'], check: true },
     { key: 'driver_distance', label: 'Max. distance to remote driver', type: 'text', check: true },
     { key: 'driver_access', label: 'Driver replaceable without removing fixture', type: 'yesno', check: true },
     { key: 'flicker_free', label: 'Flicker-free', type: 'yesno', check: true },
+    { key: 'driver_datasheet', label: 'Driver datasheet', type: 'files' },
   ] },
   { id: 'dimming', title: 'Dimming', fields: [
     { key: 'dimming', label: 'Dimming', type: 'select', options: DIMMING },
@@ -96,6 +101,8 @@ export const SPEC_SECTIONS = [
     { key: 'location_rating', label: 'Location rating', type: 'list', list: ['Dry', 'Damp', 'Wet'], check: true },
     { key: 'ip_rating', label: 'IP rating', type: 'list', list: ['IP20', 'IP44', 'IP54', 'IP65', 'IP67'], check: true },
     { key: 'labels', label: 'Certification & rating label on every unit', type: 'yesno', check: true },
+    { key: 'cert_stickers', label: 'Certification stickers required', type: 'list', list: ['UL label', 'ETL label', 'CE label', 'UL + CE labels', 'ETL + CE labels', 'UKCA label', 'UL + CE + UKCA labels'], check: true, photo: true },
+    { key: 'sticker_position', label: 'Sticker position', type: 'text', placeholder: 'e.g. inside canopy + on driver, visible after install', check: true, photo: true },
     { key: 'wiring', label: 'Wiring / earthing', type: 'text', placeholder: 'e.g. 3-wire: black, white, green ground', check: true },
   ] },
   { id: 'mounting', title: 'Cable & mounting', fields: [
@@ -128,26 +135,37 @@ export const SPEC_SECTIONS = [
 
 export const ALL_FIELDS = SPEC_SECTIONS.flatMap(s => s.fields);
 
-export function defaultSpec(market = 'EU') {
-  const us = market === 'US';
-  return {
-    market,
-    source_type: 'bulb',
-    socket: us ? 'E26 (medium)' : 'E27',
-    voltage: us ? '120V' : '230V',
-    frequency: us ? '60 Hz' : '50 Hz',
-    certification: us ? 'UL listed' : 'CE',
-    junction_box: us ? 'US 4" octagon / round box' : 'EU round box (Ø60 mm)',
-    location_rating: 'Dry',
-    dimming: 'phase',
-    finish_match: 'yes',
-    labels: 'yes',
-    label_tag: 'yes',
-    install_manual: 'yes',
-    tolerance: '±3 mm',
-    cri: '≥90',
-    cct: '2700K',
-  };
+// Pictures on the spec (part of each version). The outcome comes from the final & packing inspections.
+export const IMAGE_GROUPS = [
+  { id: 'vision', label: 'Received from client', hint: 'references, mood images, sketches the client sent us' },
+  { id: 'offer', label: 'Proposed', hint: 'our drawing, render or proposal image' },
+];
+
+// ---------- What each party sees on its sheet ----------
+// Visibility per field: 'cs' client & supplier · 'c' client only · 's' supplier only · 'none' neither.
+// Each company has a template (defaults, and 'off' = not used by that company); each spec can change it per field.
+const SUPPLIER_ONLY = ['tolerance', 'material_detail', 'driver_type', 'driver_output', 'driver_distance', 'driver_access', 'wiring',
+  'mounting_hardware', 'packaging', 'label_tag', 'install_manual', 'wiring_diagram', 'test_report', 'sticker_position'];
+export const SHOW_OPTIONS = [
+  { id: 'cs', label: 'Client & supplier' }, { id: 'c', label: 'Client only' }, { id: 's', label: 'Supplier only' },
+  { id: 'none', label: 'Neither (internal)' }, { id: 'off', label: 'Not used' },
+];
+export const templateShow = (template, key) => ((template || {}).fields || {})[key] || (SUPPLIER_ONLY.includes(key) ? 's' : 'cs');
+export function showOf(spec, key, template) {
+  const own = ((spec || {})._show || {})[key];
+  if (own) return own;
+  const t = templateShow(template, key);
+  return t === 'off' ? 'none' : t;
+}
+export const showsFor = (spec, key, party, template) => {
+  if (!party) return true;
+  const v = showOf(spec, key, template);
+  return party === 'client' ? v === 'cs' || v === 'c' : v === 'cs' || v === 's';
+};
+
+// A new spec starts empty: only what you choose gets filled in.
+export function defaultSpec() {
+  return {};
 }
 
 const isEmpty = v => v == null || String(v).trim() === '';
@@ -155,6 +173,7 @@ export const visible = (f, s) => !f.show || f.show(s);
 
 export function fieldValue(f, s) {
   const v = s[f.key];
+  if (f.type === 'files') return Array.isArray(v) ? v.map(a => a.name).join(', ') : '';
   if (isEmpty(v)) return '';
   if (f.type === 'yesno') return yes(v) ? 'Yes' : v === 'no' ? 'No' : String(v);
   if (f.type === 'select') {
@@ -165,15 +184,17 @@ export function fieldValue(f, s) {
 }
 
 // The product facts that belong to a spec version (copied in when the version is issued).
-export const productFacts = it => ({ name: it.name, quantity: Number(it.quantity) || 1, supplier: it.supplier || '', supplier_ref: it.supplier_ref || '' });
+export const productFacts = it => ({ name: it.name, item_no: it.item_no || '', quantity: Number(it.quantity) || 1, supplier: it.supplier || '', supplier_ref: it.supplier_ref || '' });
 
 // Readable list of what's in a spec: [{ section, rows: [[label, value]] }]
-export function specRows(spec) {
+// party: 'client' | 'supplier' | undefined (everything) — only filled-in fields chosen for that party.
+export function specRows(spec, party, template) {
   const s = spec || {};
+  const ok = f => showsFor(s, f.key, party, template);
   return SPEC_SECTIONS.map(sec => ({
     title: sec.title,
-    rows: sec.fields.filter(f => visible(f, s) && f.type !== 'lines').map(f => [f.label, fieldValue(f, s)]).filter(([, v]) => v),
-    lines: sec.fields.filter(f => f.type === 'lines').flatMap(f => String(s[f.key] || '').split('\n').map(x => x.trim()).filter(Boolean)),
+    rows: sec.fields.filter(f => visible(f, s) && f.type !== 'lines' && ok(f)).map(f => [f.label, fieldValue(f, s)]).filter(([, v]) => v),
+    lines: sec.fields.filter(f => f.type === 'lines' && ok(f)).flatMap(f => String(s[f.key] || '').split('\n').map(x => x.trim()).filter(Boolean)),
   })).filter(sec => sec.rows.length || sec.lines.length);
 }
 
@@ -182,13 +203,17 @@ export function specDiff(a, b) {
   const sa = a || {}, sb = b || {};
   const out = [];
   const pa = sa._product || {}, pb = sb._product || {};
-  [['name', 'Product'], ['quantity', 'Quantity'], ['supplier', 'Supplier'], ['supplier_ref', 'Supplier ref.']].forEach(([k, l]) => {
-    if (String(pa[k] ?? '') !== String(pb[k] ?? '')) out.push({ label: l, from: String(pa[k] ?? ''), to: String(pb[k] ?? '') });
+  [['name', 'Product'], ['item_no', 'Item no.'], ['quantity', 'Quantity'], ['supplier', 'Supplier'], ['supplier_ref', 'Supplier ref.']].forEach(([k, l]) => {
+    if (String(pa[k] ?? '') !== String(pb[k] ?? '')) out.push({ key: `_${k}`, label: l, from: String(pa[k] ?? ''), to: String(pb[k] ?? '') });
+  });
+  IMAGE_GROUPS.forEach(g => {
+    const ia = ((sa._images || {})[g.id] || []).join(), ib = ((sb._images || {})[g.id] || []).join();
+    if (ia !== ib) out.push({ key: `_img_${g.id}`, label: `Images: ${g.label}`, from: `${((sa._images || {})[g.id] || []).length} image(s)`, to: `${((sb._images || {})[g.id] || []).length} image(s)` });
   });
   ALL_FIELDS.forEach(f => {
     const va = visible(f, sa) ? fieldValue(f, sa) : '';
     const vb = visible(f, sb) ? fieldValue(f, sb) : '';
-    if (va !== vb) out.push({ label: f.label, from: va, to: vb });
+    if (va !== vb) out.push({ key: f.key, label: f.label, from: va, to: vb });
   });
   return out;
 }
@@ -196,7 +221,8 @@ export function specDiff(a, b) {
 export const STAGES = [
   { id: 'sample', label: 'Samples' },
   { id: 'production', label: 'During production' },
-  { id: 'final', label: 'Final (before shipping)' },
+  { id: 'final', label: 'Final (production finished)' },
+  { id: 'packing', label: 'Packed & ready for collection' },
   { id: 'delivery', label: 'On delivery / site' },
 ];
 export const INSPECTORS = [
@@ -211,7 +237,21 @@ export function checklist(spec, stage) {
   const s = spec || {};
   const p = s._product || {};
   const lines = [];
-  const add = (key, label, expected = '', measure = false) => lines.push({ key, label, expected, measure });
+  const add = (key, label, expected = '', measure = false, photo = false) => lines.push({ key, label, expected, measure, photo });
+  const stickers = [fieldValue({ key: 'cert_stickers', type: 'list' }, s), s.sticker_position].filter(Boolean).join(' — ');
+  if (stage === 'packing') {
+    add('qty', 'All units packed', `${p.quantity || 1} pcs`, true);
+    add('packaging', 'Packaging as specified', fieldValue({ key: 'packaging', type: 'list' }, s) || 'Sturdy, protected for transport');
+    add('wrapped', 'Every unit wrapped and protected (corners, finish, no loose parts)');
+    add('glass', 'Diffusers / glass / shades packed separately and cushioned', fieldValue({ key: 'glass', type: 'list' }, s));
+    if (stickers) add('stickers', 'Certification stickers on every unit, placed correctly — photo', stickers, false, true);
+    add('box_labels', 'Boxes labelled: order no., item no., location tag, quantity, FRAGILE / THIS SIDE UP', [p.item_no, fieldValue({ key: 'location_tag', type: 'text' }, s)].filter(Boolean).join(' · '));
+    add('docs', 'Manual, wiring diagram, test report and spare parts inside');
+    add('box_count', 'Number of boxes / crates and their size & weight', '', true);
+    add('box_photos', 'Photo of every packed box, open and closed', '', false, true);
+    add('ready', 'Ready for collection (date)', '', true);
+    return lines;
+  }
   if (stage === 'delivery') {
     add('qty', 'All units delivered', `${p.quantity || 1} pcs`, true);
     add('packaging_ok', 'Packaging undamaged on arrival');
@@ -231,18 +271,15 @@ export function checklist(spec, stage) {
       return;
     }
     const v = fieldValue(f, s);
-    if (v && v !== 'No') add(f.key, f.label, v, !!f.measure);
+    if (v && v !== 'No') add(f.key, f.label, v, !!f.measure, !!f.photo && stage === 'final'); // photo proof once production is finished
   }));
   if (stage === 'final' || stage === 'production') {
     add('light_test', 'Every unit switched on and tested (burn-in)');
     if (dimmable(s)) add('dim_test', `Dimming tested on ${s.dimmer || 'the specified dimmer'} — full range, no flicker or buzz`, dimLabel(s.dimming));
     add('colour_match', 'All units side by side: finish and light colour match each other and the sample');
+    if (s.beam_angle || s.light_direction || s.aiming) add('light_effect', 'Light effect as specified: direction, beam and aiming', [fieldValue({ key: 'light_direction', type: 'list' }, s), s.beam_angle, s.aiming].filter(Boolean).join(' · '), false, true);
     add('workmanship', 'No scratches, dents, glue marks, loose parts or finish defects');
     add('electrical_safety', 'Wiring, strain relief and earth / ground connection correct');
-  }
-  if (stage === 'final') {
-    add('packed', 'Packed as specified, protected for transport');
-    add('docs', 'Manual, wiring diagram, test report and spare parts packed');
   }
   return lines;
 }

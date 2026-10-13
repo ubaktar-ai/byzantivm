@@ -196,7 +196,8 @@ drop trigger if exists qc_file_locked on public.attachments;
 create trigger qc_file_locked before update or delete on public.attachments
   for each row execute function public.qc_file_locked();
 
--- The stored files themselves (kept under <project>/qc/...) can't be removed from storage either.
-drop policy if exists files_team_delete on storage.objects;
-create policy files_team_delete on storage.objects for delete to authenticated
-  using (bucket_id = 'files' and public.is_team_member() and name not like '%/qc/%');
+-- The stored files themselves (kept under <project>/qc/...) can't be removed from storage either:
+-- an extra rule that blocks deleting QC files, next to the normal team rule.
+drop policy if exists qc_files_permanent on storage.objects;
+create policy qc_files_permanent on storage.objects as restrictive for delete to authenticated
+  using (not (bucket_id = 'files' and name like '%/qc/%'));

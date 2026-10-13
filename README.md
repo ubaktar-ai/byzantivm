@@ -31,17 +31,27 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
   inquiry and supplier quotes on *Order*, a supplier quote on each product, references on *Drawings*, receipts and
   supplier invoices on *Money*, bill of lading and customs papers on *Shipping*, contracts on *Details*.
   The *Files* tab shows them all, labelled with where they came from.
-- **Quality control for lighting** (*QC* tab): a full spec per light — dimensions, materials, finishes and sample
-  numbers, bulb/socket (US & EU types) or integrated LED (CCT, CRI, binning), voltage (120V, 277V, 230V…), driver,
-  dimming (on/off, phase, ELV reverse phase, 0–10V, DALI, Lutron), certification, cable & mounting, packaging,
-  and special requests. Issue it as **v1**, record the **client's approval** and the **supplier's confirmation**
-  (with proof), and every later change becomes a new version with a reason and a list of what changed.
-  **Inspections** (samples, production, final, delivery — by the supplier, you, a third party or on site) use a
-  checklist made from the spec with pass/fail, measured values and photos; failed checks become **issues** with
-  updates until resolved. Production can't start without approved & confirmed specs, and shipping waits for a
-  passed final inspection and resolved issues — unless someone overrides with a written reason.
-  PDFs: spec sheet (client), production order (supplier), QC report (client), issue report (supplier).
-  **All QC records are permanent**: the database refuses edits and deletes, and stamps who saved them and when.
+- **Quality control for lighting** (*QC* tab): a full spec per light — pictures (received from client, proposed;
+  the outcome comes from the inspections), dimensions, materials, finishes and sample numbers, bulb/socket (US & EU
+  types) or integrated LED, light direction, beam angle and aiming (e.g. step light 30° facing down), voltage
+  (120V, 277V, 230V…), driver, dimming (on/off, phase, ELV reverse phase, 0–10V, DALI, Lutron), certification and
+  UL/ETL/CE stickers, cable & mounting, packaging and special requests.
+  - **You choose what each party sees**: every detail has a *Client* and a *Supplier* switch, with a separate
+    default template for Byzantivm and Demya (*Team → QC report template*). Empty details never appear.
+  - **Specification cards**: order no., item no., project, client, pictures (or placeholders), the chosen details, samples and an
+    approval section. Tap the order number to see all specification cards of the order; share them all as one PDF or one by one,
+    in a client or a supplier version.
+  - **Versions & approval**: issue v1, v2… (with a reason and a before/after list). Production needs the same version
+    approved by **us, the supplier and the client**.
+  - **Samples** with photos, carrier & tracking, and the client's approval or rejection.
+  - **Inspections** (samples, production, final, **packed & ready for collection**, delivery) with checklists made from
+    the spec, measured values and photos — stickers, light effect and every packed box need a photo. Failed checks
+    become **issues**. Shipping waits for a passed final and packing check and resolved issues (override = written reason).
+  - **Links for the supplier and the client** (no account): they see only the details chosen for them, confirm/approve,
+    approve samples, send production/packing photos and ask for changes. After approval nothing changes without a
+    request → new version → approval from all three.
+  - PDFs: specification cards (client / supplier), QC report, issue report.
+  - **All QC records are permanent**: the database refuses edits and deletes, and stamps who saved them and when.
 - **✨ Read with AI** (optional): open an uploaded inquiry and the AI fills in the client, delivery address, deadline
   and products; open a supplier quote and it fills in the supplier, quote number and the cost per product.
   You always check and correct the result before anything is saved. Needs the one-time setup below.
@@ -118,6 +128,7 @@ The script is safe to run again later. It only creates things that are missing.
 - `006_file_sections.sql` lets files belong to a tab (inquiry, supplier quote, drawings, money, shipping, documents) and to a product.
 - `007_social.sql` adds the Social screen for Demya: posts, the network list, and Demya's voice.
 - `008_quality_control.sql` adds quality control: product type, spec versions, approvals, inspections, issues and overrides — all permanent.
+- `009_qc_line_cards.sql` adds order & item numbers, report templates per company, approval by us, packing checks, samples with tracking, change requests and the supplier/client links.
 
 ### 2. Connect the app
 
@@ -186,6 +197,19 @@ With the Supabase CLI: `supabase functions deploy social-writer --no-verify-jwt`
 The AI is told the order's name, brief, products and materials, but never the client's name. It only describes what's
 in the photos and the order, and every draft is shown for editing before anything is shared.
 
+### 8. Supplier & client links (for quality control)
+
+The private links use a third Supabase function, `qc-portal`. It needs no API key.
+
+1. Run [`008_quality_control.sql`](supabase/migrations/008_quality_control.sql) and then
+   [`009_qc_line_cards.sql`](supabase/migrations/009_qc_line_cards.sql) in the SQL Editor (new databases get them from `schema.sql`).
+2. *Edge Functions* → **Deploy a new function** → *Via Editor*. Name it exactly `qc-portal`, paste everything from
+   [`supabase/functions/qc-portal/index.ts`](supabase/functions/qc-portal/index.ts) → **Deploy**.
+3. In the function's settings, turn **off** *Verify JWT* — suppliers and clients have no account; the long random
+   code in each link is the key, it only opens that one order, and you can switch a link off at any time.
+
+With the Supabase CLI: `supabase functions deploy qc-portal --no-verify-jwt`.
+
 ## Demo mode
 
 Without a key, or by tapping **Try demo mode** on the sign-in screen, the app runs with data stored only on that device.
@@ -201,7 +225,8 @@ Use **Load sample data** to look around. (*Read with AI* only works with the tea
 | `js/store.js` | In-memory data with optimistic saves and live updates from teammates |
 | `js/forms.js` | Create/edit sheets: projects, tasks (with comments and files), clients, contacts |
 | `js/files.js` | File uploads (photo downscaling), document cards per tab, thumbnails, viewer, delete |
-| `js/views/qc.js`, `js/qc-spec.js`, `js/qc-pdf.js` | Quality control: QC tab and sheets, the lighting spec & checklists, QC PDFs |
+| `js/views/qc.js`, `js/views/qc-more.js`, `js/qc-spec.js`, `js/qc-pdf.js` | Quality control: QC tab, specification cards, samples, requests, links, templates, the lighting spec & checklists, QC PDFs |
+| `portal.html`, `js/portal.js` | The page behind a supplier / client link |
 | `js/social.js`, `js/views/social.js` | *Social* (Demya): post queue, AI drafts and ideas, sharing, the network list |
 | `js/ai.js` | *Read with AI*: calls the `read-document` function and shows the check-before-saving sheets |
 | `js/money.js` | Quote / cost / invoice sheets, totals, numbering, amount parsing |
@@ -210,6 +235,7 @@ Use **Load sample data** to look around. (*Read with AI* only works with the tea
 | `js/config.js` | Supabase URL and anon key |
 | `supabase/schema.sql` | Database tables, security rules, activity log, live updates, file storage |
 | `supabase/functions/social-writer/` | Edge Function that drafts posts, post ideas and networking messages with Claude |
+| `supabase/functions/qc-portal/` | Edge Function behind the supplier / client links |
 | `supabase/functions/read-document/` | Edge Function that reads an inquiry / supplier quote with Claude (key kept in Supabase secrets) |
 | `vendor/supabase.js` | Supabase JS client v2.117.2 (MIT), bundled so the app needs no CDN |
 | `vendor/jspdf.umd.min.js`, `vendor/fonts/` | jsPDF 4.2.1 (MIT) and the Inter font (SIL OFL), loaded only when a PDF is made |

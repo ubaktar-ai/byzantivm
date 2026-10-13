@@ -7,6 +7,7 @@ import {
   store, companies, profiles, me, tasksOf, commentsOf, projectsOfClient, nextSortOrder, attachmentsWhere,
 } from './store.js';
 import { fileStrip, removeProjectFiles } from './files.js';
+import { qcReady, nextOrderNo } from './views/qc.js';
 import { docsReady, companyCurrency, ordersReady } from './money.js';
 import { ui } from './ui-state.js';
 
@@ -32,7 +33,10 @@ export function openProjectSheet(existing, defaults = {}) {
     <form>
       ${sheetHeader(existing ? 'Edit project' : 'New project')}
       <div class="fields">
-        <label class="field"><span>Project name</span><input name="name" value="${esc(p.name)}" required autofocus placeholder="e.g. Brickell penthouse — dining room"></label>
+        ${qcReady() ? `<div class="field-row">
+          <label class="field grow"><span>Project name</span><input name="name" value="${esc(p.name)}" required autofocus placeholder="e.g. Brickell penthouse — dining room"></label>
+          <label class="field"><span>Order no.</span><input name="order_no" value="${esc(existing ? p.order_no || '' : nextOrderNo(p.company_id))}" autocapitalize="characters" autocomplete="off"></label>
+        </div>` : `<label class="field"><span>Project name</span><input name="name" value="${esc(p.name)}" required autofocus placeholder="e.g. Brickell penthouse — dining room"></label>`}
         <div class="field-row">
           <label class="field"><span>Company</span><select name="company_id">${options(companies().map(c => ({ id: c.id, label: c.name })), p.company_id)}</select></label>
           <label class="field"><span>Client</span>
@@ -73,6 +77,8 @@ export function openProjectSheet(existing, defaults = {}) {
       // New projects follow their company's currency (Byzantivm: USD, Demya: EUR).
       if (!existing) $('[name=company_id]', sheet).addEventListener('change', e => {
         $('[name=currency]', sheet).value = companyCurrency(store.get('companies', e.target.value));
+        const no = $('[name=order_no]', sheet);
+        if (no) no.value = nextOrderNo(e.target.value);
       });
       const sel = $('#client-select', sheet);
       sel.addEventListener('change', () => {
@@ -83,7 +89,8 @@ export function openProjectSheet(existing, defaults = {}) {
       const del = sheet.querySelector('[data-delete]');
       if (del) del.addEventListener('click', async () => {
         const n = tasksOf(existing.id).length;
-        if (!confirm(`Delete “${existing.name}”${n ? ` and its ${n} task${n === 1 ? '' : 's'}` : ''}? This can't be undone.`)) return;
+        const qc = store.all('spec_versions').some(v => v.project_id === existing.id) || store.all('qc_inspections').some(v => v.project_id === existing.id);
+        if (!confirm(`Delete “${existing.name}”${n ? ` and its ${n} task${n === 1 ? '' : 's'}` : ''}?${qc ? ' This also deletes its quality-control records (specs, approvals, inspections) — make PDFs first if you need them.' : ''} This can't be undone.`)) return;
         closeSheet();
         go('#/projects');
         await removeProjectFiles(existing.id);
@@ -111,6 +118,7 @@ export function openProjectSheet(existing, defaults = {}) {
         due_date: fd.get('due_date') || null,
         description: fd.get('description'),
       };
+      if (fd.has('order_no')) data.order_no = String(fd.get('order_no') || '').trim();
       if (ordersReady()) {
         data.deposit_pct = Math.min(100, Math.max(0, parseFloat(String(fd.get('deposit_pct') || '50').replace(',', '.')) || 0));
         data.delivery_address = String(fd.get('delivery_address') || '').trim();

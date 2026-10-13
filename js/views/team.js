@@ -1,4 +1,5 @@
 import { esc, icon, avatar, PERSON_COLORS, CURRENCIES, openSheet, sheetHeader, options, toast, uuid, $ } from '../lib.js';
+import { builtInLogo } from '../pdf.js';
 import { docsReady, countryReady, companyCountry, companyCurrency } from '../money.js';
 import { store, companies, me } from '../store.js';
 
@@ -55,6 +56,7 @@ export function viewTeam() {
               <input type="color" name="color-${esc(c.id)}" value="${esc(c.color)}" aria-label="${esc(c.name)} colour">
               <input name="name-${esc(c.id)}" value="${esc(c.name)}" required aria-label="Company name">
               ${docsReady() ? `<button type="button" class="btn" data-action="edit-company" data-id="${esc(c.id)}">Document details</button>` : ''}
+              ${!store.missing.has('qc_samples') ? `<button type="button" class="btn" data-action="qc-template" data-id="${esc(c.id)}">QC report template</button>` : ''}
             </div>`).join('')}
           <div class="head-actions"><button class="btn" type="submit">Save companies</button></div>
         </form>
@@ -88,7 +90,9 @@ export function openCompanySheet(company) {
   let unsubscribe = null;
   const logoBox = co => co.logo_path
     ? `<div class="logo-preview"><img data-path="${esc(co.logo_path)}" alt="Logo"></div><button type="button" class="btn small danger" data-remove-logo>Remove logo</button>`
-    : `<span class="muted small">No logo yet — PNG with a transparent background works best.</span>`;
+    : builtInLogo(co)
+      ? `<div class="logo-preview"><img src="${esc(builtInLogo(co))}" alt="Logo"></div><span class="muted small">Built-in ${esc(co.name)} logo — upload one to replace it.</span>`
+      : `<span class="muted small">No logo yet — PNG with a transparent background works best.</span>`;
   openSheet(`
     <form>
       ${sheetHeader(`${c.name} — document details`)}

@@ -308,7 +308,7 @@ select.filter { min-height: 44px; padding: 0 12px; border: 1px solid var(--borde
 .sheet footer { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border); }
 .sheet footer .spacer { flex: 1; }
 
-.field { display: grid; gap: 6px; }
+.field { display: grid; gap: 6px; align-content: start; }
 .field > span { font-size: 13px; font-weight: 650; color: var(--text-2); }
 .field input, .field select, .field textarea,
 .check-line input:not([type=checkbox]), .check-line textarea {
@@ -1044,3 +1044,69 @@ a.btn.primary { color: var(--accent-text); }
 .photo-add { aspect-ratio: 1; height: auto; flex-direction: column; gap: 4px; border-style: dashed; font-size: 13px; white-space: normal; }
 .idea-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 a.money-stat { text-decoration: none; color: inherit; }
+
+/* ---------- QC part 2: spec pictures, visibility, line cards, links ---------- */
+.field-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.field-head label { font-size: 13px; font-weight: 650; color: var(--text-2); }
+.vis-toggles { display: inline-flex; gap: 4px; }
+.vis { display: inline-flex; align-items: center; cursor: pointer; }
+.field .vis input { position: absolute; opacity: 0; width: 1px; height: 1px; min-height: 0; padding: 0; pointer-events: none; }
+.vis span { font-size: 11px; font-weight: 650; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-2); }
+.vis input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.vis input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.spec-images { display: grid; gap: 12px; padding-bottom: 14px; }
+.spec-img-group { display: grid; gap: 6px; }
+.qc-thumb-wrap { position: relative; display: inline-flex; }
+.qc-thumb-x { position: absolute; top: -6px; right: -6px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: var(--text); color: var(--bg); font-size: 15px; line-height: 1; cursor: pointer; }
+.qc-order-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.qc-order-link { display: flex; flex-direction: column; gap: 2px; color: var(--text); text-decoration: none; }
+.qc-order-link b { font-size: 20px; }
+a.qc-order-link:hover b { text-decoration: underline; }
+.line-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 14px; }
+.line-card { margin: 0; }
+.lc-images { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0; }
+.lc-img { display: grid; gap: 4px; align-content: start; min-width: 0; }
+.lc-placeholder { height: 72px; border: 1.5px dashed var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--text-2); }
+.lc-facts { font-size: 14px; }
+.lc-approvals { display: grid; gap: 2px; margin-top: 8px; }
+.tmpl-grid { display: grid; gap: 6px; padding-bottom: 12px; }
+.tmpl-row { display: grid; grid-template-columns: 1fr 190px; gap: 10px; align-items: center; font-size: 14px; }
+.tmpl-row select { min-height: 40px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); padding: 0 8px; font-size: 15px; }
+@media (max-width: 480px) { .tmpl-row { grid-template-columns: 1fr; gap: 4px; } }
+.link-box { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 11px; background: var(--bg); color: var(--text); font-size: 15px; }
+
+/* ---------- Supplier / client link page ---------- */
+.portal-body { background: var(--bg); }
+.portal { max-width: 860px; margin: 0 auto; padding: 20px 16px 60px; display: grid; gap: 14px; }
+.portal-loading { display: flex; justify-content: center; padding: 80px 0; }
+.portal-head { display: flex; gap: 16px; align-items: center; border-top: 4px solid var(--c); padding-top: 14px; }
+.portal-head h1 { margin: 2px 0; font-size: 24px; }
+.portal-logo { max-width: 120px; max-height: 56px; object-fit: contain; }
+.portal-company { font-size: 18px; }
+.portal-intro { display: grid; gap: 8px; }
+.portal-card { margin: 0; }
+.portal-sec { margin: 14px 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-2); }
+.portal-sample { display: grid; gap: 4px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.portal-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.portal-actions .notice { flex-basis: 100%; margin: 0; }
+.portal-error h1 { margin-top: 0; }
+.portal-foot { text-align: center; }
+a.qc-thumb.file { text-decoration: none; }
+/* Companies row: name + colour, buttons wrap underneath when there isn't room */
+.company-edit { flex-wrap: wrap; }
+.company-edit input:not([type=color]) { flex: 1 1 160px; min-width: 0; }
+.qc-thumb.more { font-size: 14px; }
+/* Sheets with several footer buttons: wrap on phones instead of running off the edge */
+@media (max-width: 480px) {
+  .sheet footer { flex-wrap: wrap; }
+  .sheet footer .btn { flex: 1 1 auto; }
+  .sheet footer .spacer { display: none; }
+}
+/* Specification card pictures: heading and pictures centred in each column */
+.lc-img { justify-items: center; text-align: center; }
+.lc-img .qc-thumbs { justify-content: center; }
+.lc-img .lc-placeholder { width: 100%; }
+/* Picker + "Other — type your own" box */
+.pick-other { display: grid; gap: 6px; }
+.lc-docs { display: grid; gap: 4px; }
+.lc-docs .link { background: none; border: 0; padding: 0; color: var(--accent, inherit); text-decoration: underline; font: inherit; cursor: pointer; }

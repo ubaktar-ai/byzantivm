@@ -80,10 +80,21 @@ export function preloadPdf() {
 
 const logoCache = new Map(); // logo_path -> { dataUrl, w, h }
 
+// Built-in logos, used until a logo is uploaded in Team → Document details.
+const BUILT_IN_LOGOS = [
+  [/byzant/i, 'icons/logo-byzantivm.svg'],
+  [/demya/i, 'icons/logo-demya.png'],
+];
+function builtInLogo(company) {
+  const hit = BUILT_IN_LOGOS.find(([re]) => re.test(`${company.id} ${company.name}`));
+  return hit ? new URL(hit[1], document.baseURI).href : '';
+}
+
 async function loadLogo(company) {
-  if (!company || !company.logo_path) return null;
-  if (logoCache.has(company.logo_path)) return logoCache.get(company.logo_path);
-  const url = (await fileUrls([company.logo_path]))[company.logo_path];
+  if (!company) return null;
+  const key = company.logo_path || `builtin:${company.id}`;
+  if (logoCache.has(key)) return logoCache.get(key);
+  const url = company.logo_path ? (await fileUrls([company.logo_path]))[company.logo_path] : builtInLogo(company);
   if (!url) return null;
   const img = await new Promise((resolve, reject) => {
     const i = new Image();
@@ -99,7 +110,7 @@ async function loadLogo(company) {
   c.height = Math.round(img.naturalHeight * scale);
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
   const logo = { dataUrl: c.toDataURL('image/png'), w: c.width, h: c.height };
-  logoCache.set(company.logo_path, logo);
+  logoCache.set(key, logo);
   return logo;
 }
 
@@ -531,4 +542,4 @@ export function presentPdf(out, { company, client, rec = {} } = {}) {
   return out;
 }
 
-export { buildPdf, startDocument, finishDocument, docLocale, loadLogo, safeFileName, hexToRgb };
+export { buildPdf, startDocument, finishDocument, docLocale, loadLogo, builtInLogo, safeFileName, hexToRgb };

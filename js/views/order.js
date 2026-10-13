@@ -324,6 +324,7 @@ export function openProductSheet(projectId, existing) {
           <label class="field grow"><span>Product</span><input name="name" value="${esc(it.name)}" required autofocus placeholder="e.g. Dining table, Pendant light"></label>
           <label class="field qty-field"><span>Quantity</span><input name="quantity" value="${esc(String(num(it.quantity) || 1))}" inputmode="decimal"></label>
         </div>
+        ${qcReady() ? `<label class="field"><span>Item no.</span><input name="item_no" value="${esc(it.item_no || '')}" placeholder="${existing ? 'automatic: position in the order' : 'e.g. L-01 (empty = automatic)'}" autocomplete="off"></label>` : ''}
         ${qcReady() ? `<label class="field"><span>Type</span><select name="category">${options([{ id: 'lighting', label: 'Lighting — uses quality control (spec, approvals, inspections)' }, { id: 'furniture', label: 'Furniture' }, { id: 'other', label: 'Other' }], it.category || 'furniture')}</select></label>` : ''}
         <div class="field-row">
           <label class="field"><span>Dimensions</span><input name="dimensions" value="${esc(it.dimensions)}" placeholder="280 × 110 × 75 cm"></label>
@@ -420,6 +421,7 @@ export function openProductSheet(projectId, existing) {
       };
       if (fd.has('production')) data.production = fd.get('production');
       if (fd.has('category')) data.category = fd.get('category');
+      if (fd.has('item_no')) data.item_no = String(fd.get('item_no') || '').trim();
       if (!data.name) return false;
       if (existing) {
         store.update('items', existing.id, data).catch(() => {});
