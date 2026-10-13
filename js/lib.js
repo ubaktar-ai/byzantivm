@@ -184,7 +184,9 @@ export function openSheet(html, { onSubmit, onOpen, onClose, wide = false } = {}
       }
     });
   }
-  sheet.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeSheet));
+  sheet.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => askClose(sheet)));
+  delete sheet.dataset.dirty;
+  if (form) ['input', 'change'].forEach(t => form.addEventListener(t, () => { sheet.dataset.dirty = '1'; }));
   sheetCleanup = onClose || null;
   sheet.showModal();
   const first = sheet.querySelector('[autofocus]');
@@ -197,12 +199,19 @@ export function openSheet(html, { onSubmit, onOpen, onClose, wide = false } = {}
 
 export function closeSheet() {
   const sheet = $('#sheet');
+  delete sheet.dataset.dirty;
   if (sheet.open) sheet.close();
+}
+
+// A form with unsaved typing never closes by accident (tap outside, Esc, the X button).
+function askClose(sheet) {
+  if (!sheet.dataset.dirty || confirm('Close without saving? Your changes will be lost.')) closeSheet();
 }
 
 export function initSheet() {
   const sheet = $('#sheet');
-  sheet.addEventListener('click', e => { if (e.target === sheet) closeSheet(); });
+  sheet.addEventListener('click', e => { if (e.target === sheet && !sheet.dataset.dirty) closeSheet(); });
+  sheet.addEventListener('cancel', e => { if (sheet.dataset.dirty) { e.preventDefault(); askClose(sheet); } });
   sheet.addEventListener('close', () => {
     if (replacedSheets) { replacedSheets--; return; }
     const fn = sheetCleanup;

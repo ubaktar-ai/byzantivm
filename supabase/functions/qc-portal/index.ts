@@ -78,7 +78,10 @@ async function load(link: Row) {
     if (v) {
       for (const [k, val] of Object.entries(v.spec)) {
         if (k.startsWith('_')) continue;
-        if (shows(show[k], link.party)) spec[k] = val;
+        if (!shows(show[k], link.party)) continue;
+        spec[k] = val;
+        // Uploaded documents (datasheets) need a download link too.
+        if (Array.isArray(val)) val.forEach((a: Row) => { if (a && /^[0-9a-f-]{36}$/i.test(String(a.id))) wanted.add(a.id); });
       }
     }
     // Which sections apply (bulb vs LED, dimmable…) — used for layout only, never shown unless ticked above.

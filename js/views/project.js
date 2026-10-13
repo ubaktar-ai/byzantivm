@@ -66,7 +66,7 @@ export function viewProject(id, tab = 'order') {
         <h1>${esc(p.name)}</h1>
         <div class="chips-line">
           ${companyChip(p.company_id)}
-          ${qcReady() ? `<a class="chip link-chip" href="#/project/${p.id}/linecards" title="All line cards">${p.order_no ? esc(p.order_no) : 'Line cards'}</a>` : ''}
+          ${qcReady() ? `<a class="chip link-chip" href="#/project/${p.id}/linecards" title="All specification cards">${p.order_no ? esc(p.order_no) : 'Specification cards'}</a>` : ''}
           ${client ? `<a class="chip link-chip" href="#/client/${client.id}">${esc(client.name)}</a>` : ''}
           ${statusChip(p.status)}
           ${p.due_date ? `<span class="chip-label">Deadline</span>${dueChip(p.due_date, p.status === 'completed')}` : ''}

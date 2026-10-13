@@ -68,7 +68,6 @@ export const snapshot = it => {
 export const viewSpec = (version, item) => (version
   ? { ...version.spec, _show: { ...(version.spec._show || {}), ...((item && item.spec && item.spec._show) || {}) } }
   : snapshot(item));
-const marketFor = p => ((store.get('companies', p.company_id) || {}).country === 'US' ? 'US' : 'EU');
 export const when = iso => (iso ? new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
 export const who = id => (personName(id) || 'Someone').split(' ')[0];
 export const stamp = r => `${esc(when(r.created_at))} · ${esc(who(r.created_by))}`;
@@ -235,8 +234,8 @@ function lightCard(p, it) {
             <button class="btn small" data-action="qc-approval" data-party="supplier" data-id="${it.id}">Supplier confirmation</button>
             <button class="btn small" data-action="qc-approval" data-party="client" data-id="${it.id}">Client approval</button>
             <button class="btn small" data-action="qc-versions" data-id="${it.id}">Versions (${versionsOf(it.id).length})</button>` : ''}
-          <button class="btn small" data-action="qc-card-pdf" data-party="client" data-id="${it.id}">Client line card PDF</button>
-          <button class="btn small" data-action="qc-card-pdf" data-party="supplier" data-id="${it.id}">Supplier line card PDF</button>
+          <button class="btn small" data-action="qc-card-pdf" data-party="client" data-id="${it.id}">Client spec card PDF</button>
+          <button class="btn small" data-action="qc-card-pdf" data-party="supplier" data-id="${it.id}">Supplier spec card PDF</button>
         </div>
       </section>
 
@@ -307,7 +306,7 @@ export function qcTab(p) {
         <span class="muted small">Order</span>
         <b>${p.order_no ? esc(p.order_no) : 'No order no. yet'}</b>
         <span>${esc(p.name)}${client ? ` · ${esc(client.name)}` : ''}</span>
-        <span class="small">${lights.length} line card${lights.length === 1 ? '' : 's'} →</span>
+        <span class="small">${lights.length} specification card${lights.length === 1 ? '' : 's'} →</span>
       </a>
       ${p.order_no ? '' : `<button class="btn small" data-action="qc-order-no" data-id="${p.id}">Give it an order no.</button>`}
     </div>
@@ -345,25 +344,62 @@ function fieldHtml(f, s, template) {
   else if (f.type === 'yesno') input = `<select name="${f.key}" id="${id}">${options([{ id: 'yes', label: 'Yes' }, { id: 'no', label: 'No' }], v, { empty: '—' })}</select>`;
   else if (f.type === 'textarea' || f.type === 'lines') input = `<textarea name="${f.key}" id="${id}" rows="${f.type === 'lines' ? 4 : 2}" placeholder="${f.type === 'lines' ? 'e.g. Engrave client logo on canopy\nGlass bubbles allowed, no scratches' : ''}">${esc(v)}</textarea>`;
   else if (f.type === 'list') {
+    // A picker with the usual choices plus "Other" to type your own (no floating suggestion boxes).
     const list = typeof f.list === 'function' ? f.list(s) : f.list;
-    input = `<input name="${f.key}" id="${id}" value="${esc(v)}" list="dl-${f.key}" autocomplete="off" placeholder="Choose or type">
-      <datalist id="dl-${f.key}">${list.map(o => `<option value="${esc(o)}">`).join('')}</datalist>`;
-  } else input = `<input name="${f.key}" id="${id}" value="${esc(v)}" ${f.type === 'number' ? 'inputmode="decimal"' : ''} placeholder="${esc(f.placeholder || '')}" autocomplete="off">`;
+    const custom = String(v).trim() !== '' && !list.includes(v);
+    input = `<div class="pick-other">
+      <select name="${f.key}__pick" id="${id}">${pickOptions(list, v)}</select>
+      <input name="${f.key}" value="${esc(v)}" placeholder="Type your own" autocomplete="off" ${custom ? '' : 'hidden'}>
+    </div>`;
+  } else if (f.type === 'files') input = photoPicker(`file_${f.key}`, 'Upload datasheet');
+  else input = `<input name="${f.key}" id="${id}" value="${esc(v)}" ${f.type === 'number' ? 'inputmode="decimal"' : ''} placeholder="${esc(f.placeholder || '')}" autocomplete="off">`;
   // Who sees this detail on their sheet (only filled-in details are ever printed).
   const show = showOf(s, f.key, template);
   const toggles = `<span class="vis-toggles" title="Show on the client / supplier sheet">
     <label class="vis"><input type="checkbox" name="vis_c_${f.key}" ${show === 'cs' || show === 'c' ? 'checked' : ''}><span>Client</span></label>
     <label class="vis"><input type="checkbox" name="vis_s_${f.key}" ${show === 'cs' || show === 's' ? 'checked' : ''}><span>Supplier</span></label></span>`;
-  const unused = templateShow(template, f.key) === 'off' && String(v).trim() === '';
+  const unused = templateShow(template, f.key) === 'off' && !fieldValue(f, s);
   return `<div class="field ${f.type === 'lines' || f.type === 'textarea' ? 'wide' : ''}" data-field="${f.key}" ${visible(f, s) && !unused ? '' : 'hidden'}>
     <div class="field-head"><label for="${id}">${esc(f.label)}</label>${toggles}</div>${input}</div>`;
 }
 
-function readSpec(form, base) {
+function pickOptions(list, v) {
+  const custom = String(v ?? '').trim() !== '' && !list.includes(v);
+  return `<option value="">—</option>${list.map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+    <option value="__other" ${custom ? 'selected' : ''}>Other — type your own…</option>`;
+}
+
+// Keep a picker and its "own value" box in step.
+function setPick(form, key, value) {
+  const sel = form.elements[`${key}__pick`];
+  const box = form.elements[key];
+  if (!sel || !box) return;
+  box.value = value;
+  const known = [...sel.options].some(o => o.value === value && value !== '__other');
+  sel.value = known ? value : value ? '__other' : '';
+  box.hidden = known || !value;
+}
+
+function readDraft(key) {
+  try {
+    const d = JSON.parse(localStorage.getItem(key) || 'null');
+    // Drafts older than two weeks are dropped.
+    if (d && d.spec && Date.now() - d.at < 14 * 864e5) return d.spec;
+    localStorage.removeItem(key);
+  } catch {}
+  return null;
+}
+
+const FILE_FIELDS = SPEC_SECTIONS.flatMap(sec => sec.fields).filter(f => f.type === 'files');
+
+function readSpec(form, base, bag) {
   const out = { ...base, _show: { ...(base._show || {}) } };
   SPEC_SECTIONS.forEach(sec => sec.fields.forEach(f => {
     const el = form.elements[f.key];
-    if (el) out[f.key] = String(el.value || '').trim();
+    if (f.type === 'files') {
+      if (bag) out[f.key] = (bag[`file_${f.key}`] || []).map(id => store.get('attachments', id)).filter(Boolean)
+        .map(a => ({ id: a.id, name: a.name, path: a.path, mime: a.mime }));
+    } else if (el) out[f.key] = String(el.value || '').trim();
     const c = form.elements[`vis_c_${f.key}`], sp = form.elements[`vis_s_${f.key}`];
     if (c && sp) out._show[f.key] = c.checked && sp.checked ? 'cs' : c.checked ? 'c' : sp.checked ? 's' : 'none';
   }));
@@ -374,19 +410,24 @@ export function openSpecSheet(it) {
   const p = store.get('projects', it.project_id);
   if (!p) return;
   const template = templateOf(p);
-  // A new spec starts from the US/EU defaults, minus the details this company doesn't use.
-  const spec = Object.keys(it.spec || {}).length ? { ...it.spec }
-    : Object.fromEntries(Object.entries(defaultSpec(marketFor(p))).filter(([k]) => k === 'market' || templateShow(template, k) !== 'off'));
+  // Unsaved typing survives the app being reloaded (e.g. iPad freeing memory after using the camera).
+  const draftKey = `spec-draft:${it.id}`;
+  const draft = readDraft(draftKey);
+  // A new spec starts empty — only what you choose gets filled in.
+  const spec = draft ? { ...draft } : { ...defaultSpec(), ...(it.spec || {}) };
   const latest = latestVersion(it.id);
   const bag = {};
   IMAGE_GROUPS.forEach(g => { bag[`img_${g.id}`] = [...((spec._images || {})[g.id] || [])]; });
+  FILE_FIELDS.forEach(f => { bag[`file_${f.key}`] = (Array.isArray(spec[f.key]) ? spec[f.key] : []).map(a => a.id); });
+  let stopDraft = () => {};
   openSheet(`
     <form class="spec-form">
       ${sheetHeader(`Spec — ${it.name}`)}
       <div class="fields">
         <p class="muted small">${p.order_no ? `Order ${esc(p.order_no)} · ` : ''}Item ${esc(itemNo(it))} · ${esc(it.name)} × ${esc(String(Number(it.quantity) || 1))}${it.supplier ? ` · ${esc(it.supplier)}` : ''} — name, item no., quantity and supplier are set on the product.
           ${latest ? `Last issued: <b>v${latest.version_no}</b>. Changes you save here stay a draft until you issue v${latest.version_no + 1}.` : 'This is a draft until you issue v1.'}</p>
-        <p class="muted small">Tick <b>Client</b> / <b>Supplier</b> to choose what appears on each party's line card. Empty details never appear.</p>
+        ${draft ? `<p class="notice warn">Your unsaved changes from before were restored. <button type="button" class="btn small" data-discard-draft>Discard them</button></p>` : ''}
+        <p class="muted small">Tick <b>Client</b> / <b>Supplier</b> to choose what appears on each party's specification card. Empty details never appear.</p>
         <details class="spec-sec" open>
           <summary>Pictures</summary>
           <div class="spec-images">${IMAGE_GROUPS.map(g => `
@@ -412,7 +453,6 @@ export function openSpecSheet(it) {
     onOpen(sheet) {
       const form = $('form', sheet);
       wirePhotos(sheet, { project_id: it.project_id, item_id: it.id }, bag, { removable: true, images: true });
-      let market = spec.market;
       const refresh = () => {
         const cur = readSpec(form, spec);
         SPEC_SECTIONS.forEach(sec => sec.fields.forEach(f => {
@@ -420,24 +460,55 @@ export function openSpecSheet(it) {
           const unused = templateShow(template, f.key) === 'off' && !cur[f.key];
           if (wrap) wrap.hidden = !visible(f, cur) || unused;
           if (typeof f.list === 'function') {
-            const dl = $(`#dl-${f.key}`, form);
-            if (dl) dl.innerHTML = f.list(cur).map(o => `<option value="${esc(o)}">`).join('');
+            const sel = form.elements[`${f.key}__pick`];
+            if (sel) {
+              const typing = sel.value === '__other';
+              sel.innerHTML = pickOptions(f.list(cur), cur[f.key]);
+              if (typing && !cur[f.key]) sel.value = '__other';
+              else setPick(form, f.key, cur[f.key] || '');
+            }
           }
         }));
-        // Switching US ⇄ EU swaps the values that were still the other market's defaults.
-        if (cur.market && cur.market !== market) {
-          const from = defaultSpec(market), to = defaultSpec(cur.market);
-          Object.keys(to).forEach(k => {
-            const el = form.elements[k];
-            if (el && k !== 'market' && (el.value === '' || el.value === from[k])) el.value = to[k];
-          });
-          market = cur.market;
-        }
       };
-      form.addEventListener('change', refresh);
+      const keepDraft = () => {
+        const cur = readSpec(form, spec, bag);
+        cur._images = Object.fromEntries(IMAGE_GROUPS.map(g => [g.id, bag[`img_${g.id}`] || []]));
+        try { localStorage.setItem(draftKey, JSON.stringify({ at: Date.now(), spec: cur })); } catch {}
+      };
+      if (draft) sheet.dataset.dirty = '1';
+      bag.onChange = () => { sheet.dataset.dirty = '1'; keepDraft(); };
+      form.addEventListener('input', keepDraft);
+      const timer = setInterval(() => { if (sheet.dataset.dirty) keepDraft(); }, 3000);
+      stopDraft = () => clearInterval(timer);
+      $('[data-discard-draft]', form)?.addEventListener('click', () => {
+        try { localStorage.removeItem(draftKey); } catch {}
+        delete sheet.dataset.dirty;
+        openSpecSheet(store.get('items', it.id));
+      });
+      form.addEventListener('change', e => {
+        const t = e.target;
+        if (t.name && t.name.endsWith('__pick')) {
+          const key = t.name.slice(0, -6);
+          const box = form.elements[key];
+          if (t.value === '__other') {
+            box.hidden = false;
+            if ([...t.options].some(o => o.value === box.value)) box.value = '';
+            box.focus();
+          } else {
+            box.hidden = true;
+            box.value = t.value;
+          }
+        }
+        refresh();
+        keepDraft();
+      });
+    },
+    onClose() {
+      stopDraft();
+      try { localStorage.removeItem(draftKey); } catch {}
     },
     async onSubmit(fd, form, submitter) {
-      const next = readSpec(form, spec);
+      const next = readSpec(form, spec, bag);
       next._images = Object.fromEntries(IMAGE_GROUPS.map(g => [g.id, bag[`img_${g.id}`] || []]));
       try { await store.update('items', it.id, { spec: next }); } catch (err) { return false; }
       if (submitter && submitter.hasAttribute('data-issue')) setTimeout(() => openIssueVersionSheet(store.get('items', it.id)), 50);
@@ -490,7 +561,7 @@ export function openIssueVersionSheet(it) {
         });
       } catch (err) { return false; }
       if (requestId) store.insert('qc_request_updates', { project_id: it.project_id, request_id: requestId, status: 'done', note: `Issued as spec v${v.version_no || n}` }).catch(() => {});
-      toast(`Spec v${v.version_no || n} issued — get it approved`, { label: 'Line card PDF', run: () => makeQcPdf('card', it.id, 'client') });
+      toast(`Spec v${v.version_no || n} issued — get it approved`, { label: 'Spec card PDF', run: () => makeQcPdf('card', it.id, 'client') });
     },
   });
 }
@@ -524,8 +595,8 @@ function openVersionsSheet(it) {
         <div id="qc-version-body">${versionHtml(vs[cur], vs[cur - 1])}</div>
       </div>
       <footer>
-        <button type="button" class="btn" data-pdf="client">Client line card PDF</button>
-        <button type="button" class="btn" data-pdf="supplier">Supplier line card PDF</button>
+        <button type="button" class="btn" data-pdf="client">Client spec card PDF</button>
+        <button type="button" class="btn" data-pdf="supplier">Supplier spec card PDF</button>
         <span class="spacer"></span><button type="button" class="btn primary" data-close>Close</button>
       </footer>
     </div>`, {

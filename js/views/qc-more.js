@@ -1,5 +1,5 @@
 // Quality control, part 2: samples (with tracking), change requests, photos sent in through links,
-// supplier/client links, the per-company report template, and the line cards screen.
+// supplier/client links, the per-company report template, and the specification cards screen.
 import { esc, icon, todayStr, fmtDate, toast, openSheet, sheetHeader, options, label, $ } from '../lib.js';
 import { store, productsOf } from '../store.js';
 import { SPEC_SECTIONS, SHOW_OPTIONS, templateShow, specRows, IMAGE_GROUPS } from '../qc-spec.js';
@@ -338,7 +338,7 @@ function openTemplateSheet(company) {
     <form>
       ${sheetHeader(`QC report template — ${company.name}`)}
       <div class="fields">
-        <p class="muted small">For new specs of ${esc(company.name)}: which details appear on the client and supplier line cards. Each spec can still change it per detail. “Not used” hides the detail in the spec form. Details that are left empty never appear.</p>
+        <p class="muted small">For new specs of ${esc(company.name)}: which details appear on the client and supplier specification cards. Each spec can still change it per detail. “Not used” hides the detail in the spec form. Details that are left empty never appear.</p>
         ${SPEC_SECTIONS.map(sec => `
           <details class="spec-sec" open><summary>${esc(sec.title)}</summary>
             <div class="tmpl-grid">${sec.fields.filter(f => f.key !== 'market').map(f => `
@@ -356,7 +356,7 @@ function openTemplateSheet(company) {
   });
 }
 
-// ---------- Line cards: every product of the order together ----------
+// ---------- Specification cards: every product of the order together ----------
 
 // Outcome pictures: photos of the newest final and packing inspections.
 export function outcomePhotos(itemId) {
@@ -371,6 +371,14 @@ export function outcomePhotos(itemId) {
 function imageCell(title, ids) {
   return `<div class="lc-img"><span class="muted small">${esc(title)}</span>
     ${ids.length ? `<div class="qc-thumbs">${thumbs(ids.slice(0, 4))}${ids.length > 4 ? `<span class="qc-thumb more">+${ids.length - 4}</span>` : ''}</div>` : '<div class="lc-placeholder">No image yet</div>'}</div>`;
+}
+
+// Uploaded datasheets (LED, driver…) as buttons that open the file.
+function datasheets(spec) {
+  const list = SPEC_SECTIONS.flatMap(sec => sec.fields).filter(f => f.type === 'files' && Array.isArray(spec[f.key]) && spec[f.key].length);
+  if (!list.length) return '';
+  return `<div class="lc-docs small">${list.map(f => `<span><b>${esc(f.label)}:</b> ${spec[f.key].map(a =>
+    `<button type="button" class="link" data-action="open-file" data-id="${esc(a.id)}">${esc(a.name)}</button>`).join(', ')}</span>`).join('')}</div>`;
 }
 
 function lineCard(p, it) {
@@ -396,6 +404,7 @@ function lineCard(p, it) {
         ${imageCell('Outcome', outcomePhotos(it.id))}
       </div>
       ${rows.length ? `<dl class="facts lc-facts">${rows.map(([k, val]) => `<dt>${esc(k)}</dt><dd>${esc(val)}</dd>`).join('')}</dl>` : '<p class="muted small">No details filled in yet.</p>'}
+      ${datasheets(spec)}
       ${samples.length ? `<p class="small"><b>Samples:</b> ${samples.map(smp => `${esc(smp.title)} — ${esc(label(SAMPLE_STATUSES, sampleStatus(smp)).toLowerCase())}`).join('; ')}</p>` : ''}
       <div class="lc-approvals small">
         <span>${decisionText(st.internal, 'internal')}</span>
@@ -422,7 +431,7 @@ export function lineCardsView(p) {
       </div>
       <div class="qc-actions" style="margin:0">
         ${p.order_no ? '' : `<button class="btn small" data-action="qc-order-no" data-id="${p.id}">Give it an order no.</button>`}
-        ${lights.length ? `<button class="btn small primary" data-action="qc-cards-pdf" data-party="client" data-id="${p.id}">All line cards — client PDF</button>
+        ${lights.length ? `<button class="btn small primary" data-action="qc-cards-pdf" data-party="client" data-id="${p.id}">All specification cards — client PDF</button>
         <button class="btn small" data-action="qc-cards-pdf" data-party="supplier" data-id="${p.id}">All — supplier PDF</button>` : ''}
         <a class="btn small" href="#/project/${p.id}/qc">Quality control</a>
       </div>

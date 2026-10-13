@@ -308,7 +308,7 @@ select.filter { min-height: 44px; padding: 0 12px; border: 1px solid var(--borde
 .sheet footer { display: flex; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border); }
 .sheet footer .spacer { flex: 1; }
 
-.field { display: grid; gap: 6px; }
+.field { display: grid; gap: 6px; align-content: start; }
 .field > span { font-size: 13px; font-weight: 650; color: var(--text-2); }
 .field input, .field select, .field textarea,
 .check-line input:not([type=checkbox]), .check-line textarea {
@@ -1102,3 +1102,11 @@ a.qc-thumb.file { text-decoration: none; }
   .sheet footer .btn { flex: 1 1 auto; }
   .sheet footer .spacer { display: none; }
 }
+/* Specification card pictures: heading and pictures centred in each column */
+.lc-img { justify-items: center; text-align: center; }
+.lc-img .qc-thumbs { justify-content: center; }
+.lc-img .lc-placeholder { width: 100%; }
+/* Picker + "Other — type your own" box */
+.pick-other { display: grid; gap: 6px; }
+.lc-docs { display: grid; gap: 4px; }
+.lc-docs .link { background: none; border: 0; padding: 0; color: var(--accent, inherit); text-decoration: underline; font: inherit; cursor: pointer; }

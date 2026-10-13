@@ -47,6 +47,17 @@ function approvalLine(a, party) {
   return `${ok ? '✅' : '❌'} ${PARTY[party]}: ${ok ? (party === 'supplier' ? 'confirmed' : 'approved') : 'not approved'}${a.person ? ` — ${esc(a.person)}` : ''} · ${esc(when(a.at))}`;
 }
 
+// Datasheets etc. as download links (html).
+function fileLinks(list) {
+  return (Array.isArray(list) ? list : []).map(a => {
+    const f = data.files[a.id];
+    return f && f.url ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(a.name)}</a>` : esc(a.name);
+  }).join(', ');
+}
+
+// Built-in logos, used until a logo is uploaded in the app.
+const builtInLogo = name => (/byzant/i.test(name) ? 'icons/logo-byzantivm.svg' : /demya/i.test(name) ? 'icons/logo-demya.png' : '');
+
 function itemCard(it) {
   const me = data.party;
   const v = it.version;
@@ -55,7 +66,8 @@ function itemCard(it) {
   const shape = { ...(it.layout || {}), ...s }; // layout facts decide which fields apply; only `s` is shown
   const sections = v ? SPEC_SECTIONS.map(sec => ({
     title: sec.title,
-    rows: sec.fields.filter(f => f.type !== 'lines' && s[f.key] !== undefined && visible(f, shape)).map(f => [f.label, fieldValue(f, s)]).filter(([, val]) => val),
+    rows: sec.fields.filter(f => f.type !== 'lines' && s[f.key] !== undefined && visible(f, shape))
+      .map(f => [f.label, f.type === 'files' ? fileLinks(s[f.key]) : esc(fieldValue(f, s))]).filter(([, val]) => val),
     lines: sec.fields.filter(f => f.type === 'lines' && s[f.key] !== undefined).flatMap(f => String(s[f.key] || '').split('\n').map(x => x.trim()).filter(Boolean)),
   })).filter(sec => sec.rows.length || sec.lines.length) : [];
   const group = (title, ids) => `<div class="lc-img"><span class="muted small">${esc(title)}</span>${ids.length ? `<div class="qc-thumbs">${pics(ids)}</div>` : '<div class="lc-placeholder">No image yet</div>'}</div>`;
@@ -70,10 +82,10 @@ function itemCard(it) {
         </div>
       </header>
       ${!v ? '<p class="muted">This item’s specification hasn’t been issued yet.</p>' : `
-        <div class="lc-images">${group('Client’s vision', it.pictures.vision)}${group('What we offer', it.pictures.offer)}${group('Outcome', it.pictures.outcome)}</div>
+        <div class="lc-images">${group('Received from client', it.pictures.vision)}${group('Proposed', it.pictures.offer)}${group('Outcome', it.pictures.outcome)}</div>
         ${sections.map(sec => `
           <h4 class="portal-sec">${esc(sec.title)}</h4>
-          ${sec.rows.length ? `<dl class="facts">${sec.rows.map(([k, val]) => `<dt>${esc(k)}</dt><dd>${esc(val)}</dd>`).join('')}</dl>` : ''}
+          ${sec.rows.length ? `<dl class="facts">${sec.rows.map(([k, val]) => `<dt>${esc(k)}</dt><dd>${val}</dd>`).join('')}</dl>` : ''}
           ${sec.lines.length ? `<ol class="small">${sec.lines.map(l => `<li>${esc(l)}</li>`).join('')}</ol>` : ''}`).join('')}
         ${it.samples.length ? `<h4 class="portal-sec">Samples</h4>${it.samples.map(smp => {
           const dec = smp.updates.filter(u => u.status === 'approved' || u.status === 'rejected').pop();
@@ -105,7 +117,7 @@ function render() {
   document.title = `${d.order.order_no ? `${d.order.order_no} · ` : ''}${d.order.name}`;
   root.innerHTML = `
     <header class="portal-head" style="--c:${esc(d.company.color || '#333')}">
-      ${d.company.logo ? `<img class="portal-logo" src="${esc(d.company.logo)}" alt="${esc(d.company.name)}">` : `<b class="portal-company">${esc(d.company.name)}</b>`}
+      ${d.company.logo || builtInLogo(d.company.name) ? `<img class="portal-logo" src="${esc(d.company.logo || builtInLogo(d.company.name))}" alt="${esc(d.company.name)}">` : `<b class="portal-company">${esc(d.company.name)}</b>`}
       <div>
         <div class="muted small">${d.party === 'supplier' ? 'Production specifications' : 'Specifications for approval'}</div>
         <h1>${esc(d.order.name)}</h1>

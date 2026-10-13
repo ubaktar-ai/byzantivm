@@ -1,8 +1,8 @@
-// Quality-control PDFs: line cards (client or supplier, one product or the whole order), QC report, issue report.
+// Quality-control PDFs: specification cards (client or supplier, one product or the whole order), QC report, issue report.
 import { store, personName, drawingOf, roundsOf, attachmentsWhere } from './store.js';
 import { toast, parseDate } from './lib.js';
 import { fileUrls } from './files.js';
-import { specRows, specDiff, showsFor, STAGES, INSPECTORS } from './qc-spec.js';
+import { specRows, specDiff, showsFor, STAGES, INSPECTORS, IMAGE_GROUPS } from './qc-spec.js';
 import { ISSUE_STATUSES, issueStatus, latestVersion, viewSpec, itemNo, lightingOf } from './views/qc.js';
 import { samplesOf, sampleStatus, sampleDecision, SAMPLE_STATUSES, outcomePhotos } from './views/qc-more.js';
 import { preloadPdf, startDocument, finishDocument, docLocale, loadLogo, safeFileName, presentPdf } from './pdf.js';
@@ -166,13 +166,13 @@ function context(projectId, title) {
   return { p, company, client, t, title };
 }
 
-// ---------- Line cards (client or supplier) — one product per page, or the whole order ----------
+// ---------- Specification cards (client or supplier) — one product per page, or the whole order ----------
 
 // Image box: the picture fitted inside, or an empty placeholder.
 function imageBox(ctx, im, x, y, w, h, caption) {
   const { doc, grey, line, font } = ctx;
   font('bold', 7.5, grey);
-  doc.text(caption.toUpperCase(), x, y - 1.5);
+  doc.text(caption.toUpperCase(), x + w / 2, y - 1.5, { align: 'center' });
   if (im) {
     const s = Math.min(w / im.w, h / im.h);
     const iw = im.w * s, ih = im.h * s;
@@ -189,6 +189,8 @@ function imageBox(ctx, im, x, y, w, h, caption) {
 }
 
 const APPROVER = { internal: 'Us', supplier: 'Supplier', client: 'Client' };
+// Specification cards are printed in dark moss green for both companies.
+const SPEC_CARD_COLOR = '#4a5d23';
 
 async function cardPage(ctx, k, entry, party, c) {
   const { doc, grey, font, M, R, accent } = ctx;
@@ -197,7 +199,7 @@ async function cardPage(ctx, k, entry, party, c) {
   const template = c.company.qc_template || {};
   const supplierCopy = party === 'supplier';
   const itemNoText = prod.item_no || (item ? itemNo(item) : '');
-  k.title(supplierCopy ? 'PRODUCTION LINE CARD' : 'LINE CARD', [
+  k.title(supplierCopy ? 'PRODUCTION SPECIFICATION CARD' : 'SPECIFICATION CARD', [
     ['Order no.', c.p.order_no || '—'],
     ['Item no.', itemNoText],
     ['Project', c.p.name],
@@ -212,10 +214,10 @@ async function cardPage(ctx, k, entry, party, c) {
   doc.text([`Quantity: ${prod.quantity || 1} pcs`, spec.location_tag ? `Location: ${spec.location_tag}` : '', supplierCopy && prod.supplier ? `Supplier: ${prod.supplier}${prod.supplier_ref ? ` · ref. ${prod.supplier_ref}` : ''}` : ''].filter(Boolean).join('   ·   '), M, k.y + 1);
   k.y += 7;
   if (supplierCopy) {
-    k.para('Make the products exactly as specified on this approved line card. Nothing may be changed after approval — any change must be requested through your link and approved by us and the client in a new version before you go ahead.', { size: 8.5, color: grey });
+    k.para('Make the products exactly as specified on this approved specification card. Nothing may be changed after approval — any change must be requested through your link and approved by us and the client in a new version before you go ahead.', { size: 8.5, color: grey });
   }
 
-  // Pictures: client's vision · what we offer · outcome (first of each here, the rest in the gallery)
+  // Pictures: received from client · proposed · outcome (first of each here, the rest in the gallery)
   const groups = spec._images || {};
   const visionImgs = await loadImages(groups.vision || []);
   let offerImgs = await loadImages(groups.offer || []);
@@ -224,8 +226,8 @@ async function cardPage(ctx, k, entry, party, c) {
   const w = (R - M - 8) / 3, h = 48;
   k.room(h + 8);
   k.y += 3;
-  imageBox(ctx, visionImgs[0], M, k.y, w, h, "Client's vision");
-  imageBox(ctx, offerImgs[0], M + w + 4, k.y, w, h, 'What we offer');
+  imageBox(ctx, visionImgs[0], M, k.y, w, h, IMAGE_GROUPS[0].label);
+  imageBox(ctx, offerImgs[0], M + w + 4, k.y, w, h, IMAGE_GROUPS[1].label);
   imageBox(ctx, outcomeImgs[0], M + 2 * (w + 4), k.y, w, h, 'Outcome');
   k.y += h + 6;
 
@@ -263,7 +265,7 @@ async function cardPage(ctx, k, entry, party, c) {
 
   // Every other picture (no limit)
   const more = [
-    ['Client’s vision', visionImgs.slice(1)], ['What we offer', offerImgs.slice(1)], ['Outcome', outcomeImgs.slice(1)],
+    [IMAGE_GROUPS[0].label, visionImgs.slice(1)], [IMAGE_GROUPS[1].label, offerImgs.slice(1)], ['Outcome', outcomeImgs.slice(1)],
   ].filter(([, list]) => list.length);
   for (const [title, list] of more) {
     k.heading(`More pictures — ${title}`, 62);
@@ -302,12 +304,12 @@ async function cardPage(ctx, k, entry, party, c) {
 async function buildCards(entries, party, fonts, logo) {
   const c = context(entries[0].projectId);
   const supplierCopy = party === 'supplier';
-  const ctx = startDocument({ fonts, logo, company: c.company, t: c.t, title: `${supplierCopy ? 'Production line cards' : 'Line cards'} ${c.p.name}` });
+  const ctx = startDocument({ fonts, logo, company: { ...c.company, color: SPEC_CARD_COLOR }, t: c.t, title: `${supplierCopy ? 'Production specification cards' : 'Specification cards'} ${c.p.name}` });
   const k = kit(ctx);
   const { doc, grey, font, M, R, accent } = ctx;
   if (entries.length > 1) {
     // Cover: the whole order at a glance
-    k.title(supplierCopy ? 'PRODUCTION LINE CARDS' : 'LINE CARDS', [
+    k.title(supplierCopy ? 'PRODUCTION SPECIFICATION CARDS' : 'SPECIFICATION CARDS', [
       ['Order no.', c.p.order_no || '—'], ['Project', c.p.name], ['Client', c.client ? c.client.name : ''], ['Items', String(entries.length)],
     ]);
     k.heading('Items');
@@ -328,8 +330,8 @@ async function buildCards(entries, party, fonts, logo) {
     await cardPage(ctx, k, entries[i], party, c);
   }
   finishDocument({ doc, company: c.company, t: c.t, font, M, R, line: ctx.line, grey });
-  const base = entries.length > 1 ? `${supplierCopy ? 'Production line cards' : 'Line cards'} ${c.p.order_no || c.p.name}`
-    : `${supplierCopy ? 'Production line card' : 'Line card'} ${c.p.order_no ? `${c.p.order_no} ` : ''}${(entries[0].spec._product || {}).item_no || ''} ${entries[0].name}`;
+  const base = entries.length > 1 ? `${supplierCopy ? 'Production specification cards' : 'Specification cards'} ${c.p.order_no || c.p.name}`
+    : `${supplierCopy ? 'Production specification card' : 'Specification card'} ${c.p.order_no ? `${c.p.order_no} ` : ''}${(entries[0].spec._product || {}).item_no || ''} ${entries[0].name}`;
   return { out: { blob: doc.output('blob'), fileName: `${safeFileName(base.replace(/\s+/g, ' ').trim())}.pdf` }, c };
 }
 

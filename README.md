@@ -31,15 +31,15 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
   inquiry and supplier quotes on *Order*, a supplier quote on each product, references on *Drawings*, receipts and
   supplier invoices on *Money*, bill of lading and customs papers on *Shipping*, contracts on *Details*.
   The *Files* tab shows them all, labelled with where they came from.
-- **Quality control for lighting** (*QC* tab): a full spec per light — pictures (client's vision, what we offer;
+- **Quality control for lighting** (*QC* tab): a full spec per light — pictures (received from client, proposed;
   the outcome comes from the inspections), dimensions, materials, finishes and sample numbers, bulb/socket (US & EU
   types) or integrated LED, light direction, beam angle and aiming (e.g. step light 30° facing down), voltage
   (120V, 277V, 230V…), driver, dimming (on/off, phase, ELV reverse phase, 0–10V, DALI, Lutron), certification and
   UL/ETL/CE stickers, cable & mounting, packaging and special requests.
   - **You choose what each party sees**: every detail has a *Client* and a *Supplier* switch, with a separate
     default template for Byzantivm and Demya (*Team → QC report template*). Empty details never appear.
-  - **Line cards**: order no., item no., project, client, pictures (or placeholders), the chosen details, samples and an
-    approval section. Tap the order number to see all line cards of the order; share them all as one PDF or one by one,
+  - **Specification cards**: order no., item no., project, client, pictures (or placeholders), the chosen details, samples and an
+    approval section. Tap the order number to see all specification cards of the order; share them all as one PDF or one by one,
     in a client or a supplier version.
   - **Versions & approval**: issue v1, v2… (with a reason and a before/after list). Production needs the same version
     approved by **us, the supplier and the client**.
@@ -50,7 +50,7 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
   - **Links for the supplier and the client** (no account): they see only the details chosen for them, confirm/approve,
     approve samples, send production/packing photos and ask for changes. After approval nothing changes without a
     request → new version → approval from all three.
-  - PDFs: line cards (client / supplier), QC report, issue report.
+  - PDFs: specification cards (client / supplier), QC report, issue report.
   - **All QC records are permanent**: the database refuses edits and deletes, and stamps who saved them and when.
 - **✨ Read with AI** (optional): open an uploaded inquiry and the AI fills in the client, delivery address, deadline
   and products; open a supplier quote and it fills in the supplier, quote number and the cost per product.
@@ -225,7 +225,7 @@ Use **Load sample data** to look around. (*Read with AI* only works with the tea
 | `js/store.js` | In-memory data with optimistic saves and live updates from teammates |
 | `js/forms.js` | Create/edit sheets: projects, tasks (with comments and files), clients, contacts |
 | `js/files.js` | File uploads (photo downscaling), document cards per tab, thumbnails, viewer, delete |
-| `js/views/qc.js`, `js/views/qc-more.js`, `js/qc-spec.js`, `js/qc-pdf.js` | Quality control: QC tab, line cards, samples, requests, links, templates, the lighting spec & checklists, QC PDFs |
+| `js/views/qc.js`, `js/views/qc-more.js`, `js/qc-spec.js`, `js/qc-pdf.js` | Quality control: QC tab, specification cards, samples, requests, links, templates, the lighting spec & checklists, QC PDFs |
 | `portal.html`, `js/portal.js` | The page behind a supplier / client link |
 | `js/social.js`, `js/views/social.js` | *Social* (Demya): post queue, AI drafts and ideas, sharing, the network list |
 | `js/ai.js` | *Read with AI*: calls the `read-document` function and shows the check-before-saving sheets |
