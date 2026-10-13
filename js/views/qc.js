@@ -243,7 +243,7 @@ function historyEntries(pid) {
 
 export function qcTab(p) {
   if (!qcReady()) {
-    return `<div class="notice warn">The database needs an update before quality control can be used: run <code>supabase/migrations/007_quality_control.sql</code> in the Supabase SQL Editor.</div>`;
+    return `<div class="notice warn">The database needs an update before quality control can be used: run <code>supabase/migrations/008_quality_control.sql</code> in the Supabase SQL Editor.</div>`;
   }
   const lights = lightingOf(p.id);
   const others = productsOf(p.id).filter(i => i.category !== 'lighting');
