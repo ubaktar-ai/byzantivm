@@ -13,6 +13,7 @@ import { initFiles, openFileSheet } from './files.js';
 import { openDeliverableSheet, openSendRoundSheet, openRoundSheet, sendDrawing } from './views/deliverables.js';
 import { runStep, openProductSheet, cycleProduction } from './views/order.js';
 import { openShipmentSheet, openDeliverySheet } from './views/shipping.js';
+import { qcAction } from './views/qc.js';
 import { viewMoney } from './views/money.js';
 import { viewCalendar } from './views/calendar.js';
 import { viewActivity } from './views/activity.js';
@@ -369,6 +370,10 @@ document.addEventListener('click', e => {
     }
     case 'edit-delivery': { const p = store.get('projects', id); if (p) openDeliverySheet(p); break; }
     case 'pdf-quote': makePdf('quote', id); break;
+    case 'qc-spec': case 'qc-issue-version': case 'qc-approval': case 'qc-versions': case 'qc-inspect':
+    case 'qc-view-inspection': case 'qc-new-issue': case 'qc-view-issue': case 'qc-make-lighting':
+    case 'qc-pdf-spec': case 'qc-pdf-order':
+      qcAction(action, el); break;
     case 'pdf-invoice': makePdf('invoice', id); break;
     case 'edit-company': { const c = store.get('companies', id); if (c) openCompanySheet(c); break; }
     case 'load-sample': loadSample(); break;

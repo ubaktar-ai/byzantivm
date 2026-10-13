@@ -9,6 +9,7 @@ import {
 } from '../money.js';
 import { emptyState } from './common.js';
 import { docCard, liveFileStrip, attachmentsOfItem } from '../files.js';
+import { passGate, qcLine, qcReady, guessCategory } from './qc.js';
 
 const num = v => Number(v) || 0;
 const round2 = n => Math.round(n * 100) / 100;
@@ -131,6 +132,7 @@ async function markPaid(p, inv, nextStage, message) {
 }
 
 async function startProduction(p) {
+  if (!(await passGate(p, 'production'))) return;
   await moveStage(p, 'production');
   for (const it of productsOf(p.id)) if (it.production === 'not_started') await store.update('items', it.id, { production: 'in_production' });
   toast('Production started');
@@ -154,6 +156,7 @@ async function createBalance(p) {
 }
 
 async function markShipped(p) {
+  if (!(await passGate(p, 'shipping'))) return;
   const sh = shipmentsOf(p.id).filter(s => s.status === 'preparing').pop();
   if (!sh) {
     const { openShipmentSheet } = await import('./shipping.js');
@@ -191,6 +194,7 @@ function nextStep(p) {
   const count = s => ds.filter(x => x === s).length;
   const ready = products.filter(i => i.production === 'ready').length;
   const warn = text => `<p class="notice warn small">${text}</p>`;
+  const qc = qcLine(p);
 
   switch (p.stage) {
     case 'inquiry':
@@ -212,11 +216,11 @@ function nextStep(p) {
     case 'approval': {
       const all = n > 0 && count('approved') === n;
       const text = n ? `Drawings: <b>${count('approved')}/${n}</b> approved · ${count('sent')} waiting for the client · ${count('changes')} need changes · ${count('none')} not sent yet.` : 'Add products to make drawings for.';
-      return { title: p.stage === 'drawings' ? 'Drawings' : 'Client approval', text: text + (!isPaid(dep) ? warn('The deposit hasn’t been marked as paid yet.') : ''),
+      return { title: p.stage === 'drawings' ? 'Drawings' : 'Client approval', text: text + qc + (!isPaid(dep) ? warn('The deposit hasn’t been marked as paid yet.') : ''),
         actions: `${tabBtn(p, 'drawings', 'Open drawings')}${all ? btn('production', 'All approved → start production', { primary: true, p }) : ''}` };
     }
     case 'production':
-      return { title: 'Production', text: `<b>${ready}/${n}</b> products ready.`,
+      return { title: 'Production', text: `<b>${ready}/${n}</b> products ready.${qc}`,
         actions: ready === n && n ? btn('balance', 'Production finished → balance invoice', { primary: true, p }) : `${btn('all-ready', 'Mark all products ready', { p })}` };
     case 'balance':
       return { title: 'Waiting for the balance payment', text: bal ? `Balance invoice ${invLine(bal)}. Ship when it's paid.` : 'No balance invoice yet.',
@@ -225,7 +229,7 @@ function nextStep(p) {
       const sh = shipmentsOf(p.id);
       const shipped = sh.some(s => s.status !== 'preparing');
       const text = sh.length ? sh.map(s => `${esc(s.carrier || 'Shipment')}${s.tracking ? ` ${esc(s.tracking)}` : ''} — ${esc(s.status)}`).join('<br>') : 'Add the shipment details and print the packing list.';
-      return { title: 'Shipping', text: text + (!isPaid(bal) ? warn('The balance hasn’t been marked as paid yet.') : ''),
+      return { title: 'Shipping', text: text + qc + (!isPaid(bal) ? warn('The balance hasn’t been marked as paid yet.') : ''),
         actions: `${tabBtn(p, 'shipping', 'Shipping details')}${btn('packing', 'Packing list PDF', { p })}${shipped ? btn('delivered', `${icon.check} Delivered`, { primary: true, p }) : btn('shipped', 'Mark shipped', { primary: true, p })}` };
     }
     case 'delivered': {
@@ -320,6 +324,7 @@ export function openProductSheet(projectId, existing) {
           <label class="field grow"><span>Product</span><input name="name" value="${esc(it.name)}" required autofocus placeholder="e.g. Dining table, Pendant light"></label>
           <label class="field qty-field"><span>Quantity</span><input name="quantity" value="${esc(String(num(it.quantity) || 1))}" inputmode="decimal"></label>
         </div>
+        ${qcReady() ? `<label class="field"><span>Type</span><select name="category">${options([{ id: 'lighting', label: 'Lighting — uses quality control (spec, approvals, inspections)' }, { id: 'furniture', label: 'Furniture' }, { id: 'other', label: 'Other' }], it.category || 'furniture')}</select></label>` : ''}
         <div class="field-row">
           <label class="field"><span>Dimensions</span><input name="dimensions" value="${esc(it.dimensions)}" placeholder="280 × 110 × 75 cm"></label>
           <label class="field"><span>Weight per piece (kg)</span><input name="weight_kg" value="${esc(val(it.weight_kg))}" inputmode="decimal"></label>
@@ -381,6 +386,13 @@ export function openProductSheet(projectId, existing) {
       });
       f('quantity').addEventListener('input', calc);
       calc();
+      // New products: guess lighting vs furniture from the name until the type is chosen by hand.
+      const cat = f('category');
+      if (cat && !existing) {
+        let touched = false;
+        cat.addEventListener('change', () => { touched = true; });
+        f('name').addEventListener('input', () => { if (!touched) cat.value = guessCategory(f('name').value); });
+      }
       if (existing && store.fileSections) {
         stopFiles = liveFileStrip(sheet, '#product-files', () => attachmentsOfItem(existing.id),
           { project_id: projectId, kind: 'supplier_quote', item_id: existing.id }, { label: 'Add PDF or photo', docs: true });
@@ -407,6 +419,7 @@ export function openProductSheet(projectId, existing) {
         unit_price: parseAmount(fd.get('unit_price')),
       };
       if (fd.has('production')) data.production = fd.get('production');
+      if (fd.has('category')) data.category = fd.get('category');
       if (!data.name) return false;
       if (existing) {
         store.update('items', existing.id, data).catch(() => {});
@@ -419,8 +432,10 @@ export function openProductSheet(projectId, existing) {
   });
 }
 
-export function cycleProduction(item) {
+export async function cycleProduction(item) {
   const order = PRODUCTION.map(x => x.id);
   const next = order[(order.indexOf(item.production) + 1) % order.length];
+  const p = store.get('projects', item.project_id);
+  if (next === 'in_production' && item.category === 'lighting' && p && !(await passGate(p, 'production'))) return;
   store.update('items', item.id, { production: next }).catch(() => {});
 }

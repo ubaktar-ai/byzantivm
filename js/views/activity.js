@@ -76,6 +76,25 @@ function sentence(a) {
       if (changed.includes('status') && d.status === 'delivered') return `delivered ${name} ✅`;
       return a.action === 'deleted' ? `deleted shipment ${name}` : `updated shipment ${name}`;
     }
+    case 'spec_versions':
+      return `issued spec ${name}`;
+    case 'qc_approvals': {
+      const r = store.get('qc_approvals', a.entity_id);
+      if (!r) return `recorded an approval for ${name}`;
+      const ok = r.decision === 'approved';
+      return r.party === 'client' ? (ok ? `recorded client approval of ${name} ✅` : `recorded that the client rejected ${name}`)
+        : (ok ? `recorded supplier confirmation of ${name} ✅` : `recorded that the supplier can't make ${name} as specified`);
+    }
+    case 'qc_inspections': {
+      const r = store.get('qc_inspections', a.entity_id);
+      return `saved ${name}${r ? (r.outcome === 'pass' ? ': passed ✅' : ': failed ❌') : ''}`;
+    }
+    case 'qc_issues': {
+      const r = store.get('qc_issues', a.entity_id);
+      return `reported QC issue ${r ? `#${r.number} ` : ''}${name}`;
+    }
+    case 'qc_issue_updates': return `updated QC issue ${name}`;
+    case 'qc_overrides': return `<b class="warn-text">overrode a quality-control check</b> on this order`;
     case 'costs':
       return a.action === 'created' ? `added cost ${name}` : a.action === 'deleted' ? `deleted cost ${name}` : `updated cost ${name}`;
     default:

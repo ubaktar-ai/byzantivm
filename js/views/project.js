@@ -4,6 +4,7 @@ import { drawingsTab } from './deliverables.js';
 import { orderTab } from './order.js';
 import { shippingTab } from './shipping.js';
 import { moneyTab } from './money.js';
+import { qcTab, qcReady, issuesOf, isOpenIssue } from './qc.js';
 import { activityEntries, activityItem } from './activity.js';
 import { fileTile, uploadButton, isImage, docCard } from '../files.js';
 import { ui } from '../ui-state.js';
@@ -37,6 +38,7 @@ export function viewProject(id, tab = 'order') {
   const tabs = [
     { id: 'order', label: `Order${nProducts ? ` <span class="tab-count">${nProducts}</span>` : ''}` },
     { id: 'drawings', label: 'Drawings' },
+    { id: 'qc', label: (() => { const n = qcReady() ? issuesOf(p.id).filter(isOpenIssue).length : 0; return `QC${n ? ` <span class="tab-count bad">${n}</span>` : ''}`; })() },
     { id: 'money', label: 'Money' },
     { id: 'shipping', label: 'Shipping' },
     { id: 'tasks', label: `Tasks${pr.total ? ` <span class="tab-count">${pr.total}</span>` : ''}` },
@@ -47,6 +49,7 @@ export function viewProject(id, tab = 'order') {
     : tab === 'drawings' ? drawingsTab(p)
     : tab === 'files' ? filesTab(p)
     : tab === 'money' ? moneyTab(p)
+    : tab === 'qc' ? qcTab(p)
     : tab === 'shipping' ? shippingTab(p)
     : tab === 'tasks' ? tasksTab(p)
     : orderTab(p);

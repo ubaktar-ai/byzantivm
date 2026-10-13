@@ -15,6 +15,7 @@ export const FILE_KINDS = {
   money: { label: 'Money', tab: 'money' },
   shipping: { label: 'Shipping', tab: 'shipping' },
   general: { label: 'Documents', tab: 'details' },
+  qc: { label: 'Quality control', tab: 'qc' },
 };
 
 // PDFs and ordinary photos can be read by AI; what it looks for depends on the file's place.
@@ -119,7 +120,8 @@ export async function uploadFiles(fileList, target) {
   const saved = [];
   for (const file of todo) {
     const prepared = await prepareFile(file);
-    const path = `${target.project_id}/${uuid()}-${safe(prepared.name)}`;
+    // QC evidence lives under <project>/qc/, where files can't be deleted.
+    const path = `${target.project_id}/${target.kind === 'qc' ? 'qc/' : ''}${uuid()}-${safe(prepared.name)}`;
     try {
       await store.backend.uploadFile(path, prepared.blob, prepared.mime);
     } catch (err) {
@@ -146,6 +148,7 @@ export async function uploadFiles(fileList, target) {
 }
 
 export async function deleteAttachment(att) {
+  if (att.kind === 'qc') { toast('Quality-control photos are permanent'); return false; }
   if (!confirm(`Delete “${att.name}”? This can't be undone.`)) return false;
   try {
     await store.remove('attachments', att.id);
@@ -276,7 +279,7 @@ export async function openFileSheet(att) {
         <span class="muted">${target ? `<a href="${target}" data-close>${esc(fileContext(att))}</a>` : esc(fileContext(att))}</span>
       </div>
       <footer>
-        <button type="button" class="btn danger" data-delete-file>Delete</button>
+        ${att.kind === 'qc' ? '<span class="muted small">🔒 QC record — permanent</span>' : '<button type="button" class="btn danger" data-delete-file>Delete</button>'}
         <span class="spacer"></span>
         ${aiMode ? `<button type="button" class="btn" data-ai-read>✨ ${aiMode === 'inquiry' ? 'Read inquiry with AI' : 'Read quote with AI'}</button>` : ''}
         ${url ? `<a class="btn primary" href="${esc(url)}" target="_blank" rel="noopener">${icon.external} Open</a>` : ''}
@@ -284,7 +287,7 @@ export async function openFileSheet(att) {
     </div>`, {
     wide: isImage(att),
     onOpen(sheet) {
-      $('[data-delete-file]', sheet).addEventListener('click', async () => {
+      $('[data-delete-file]', sheet)?.addEventListener('click', async () => {
         closeSheet();
         await deleteAttachment(att);
       });

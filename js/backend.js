@@ -5,13 +5,20 @@ import { uuid } from './lib.js';
 
 export const keyOf = table => (table === 'team_members' ? 'email' : 'id');
 
+// Quality-control records are permanent: the database refuses changes and deletes.
+export const QC_TABLES = ['spec_versions', 'qc_approvals', 'qc_inspections', 'qc_issues', 'qc_issue_updates', 'qc_overrides'];
+
 // Foreign keys, mirroring supabase/schema.sql: when a parent row is deleted,
 // children are deleted ('cascade') or have the link cleared ('null').
 export const RELATIONS = {
   projects: [['tasks', 'project_id', 'cascade'], ['comments', 'project_id', 'cascade'],
     ['deliverables', 'project_id', 'cascade'], ['attachments', 'project_id', 'cascade'],
     ['quotes', 'project_id', 'cascade'], ['costs', 'project_id', 'cascade'], ['invoices', 'project_id', 'cascade'],
-    ['items', 'project_id', 'cascade'], ['shipments', 'project_id', 'cascade']],
+    ['items', 'project_id', 'cascade'], ['shipments', 'project_id', 'cascade'],
+    ...QC_TABLES.map(t => [t, 'project_id', 'cascade'])],
+  spec_versions: [['qc_approvals', 'version_id', 'cascade'], ['qc_inspections', 'version_id', 'cascade']],
+  qc_inspections: [['qc_issues', 'inspection_id', 'cascade']],
+  qc_issues: [['qc_issue_updates', 'issue_id', 'cascade']],
   items: [['deliverables', 'item_id', 'cascade'], ['attachments', 'item_id', 'null']],
   quotes: [['quote_items', 'quote_id', 'cascade']],
   tasks: [['comments', 'task_id', 'cascade'], ['attachments', 'task_id', 'cascade']],
@@ -189,7 +196,13 @@ const DEFAULTS = {
   quote_items: () => ({ quantity: 1, unit_price: 0, sort_order: 0 }),
   costs: () => ({ category: 'other', vendor: '', amount: 0, paid: false }),
   invoices: () => ({ number: '', title: '', issue_date: null, due_date: null, amount: 0, status: 'draft', paid_date: null, notes: '', kind: 'other' }),
-  items: () => ({ description: '', quantity: 1, dimensions: '', materials: '', weight_kg: null, supplier: '', supplier_ref: '', unit_cost: 0, unit_price: 0, production: 'not_started', sort_order: 0 }),
+  items: () => ({ description: '', quantity: 1, dimensions: '', materials: '', weight_kg: null, supplier: '', supplier_ref: '', unit_cost: 0, unit_price: 0, production: 'not_started', sort_order: 0, category: 'furniture', spec: {} }),
+  spec_versions: () => ({ change_reason: '', requested_by: '', spec: {} }),
+  qc_approvals: () => ({ person: '', method: '', note: '', files: [] }),
+  qc_inspections: () => ({ inspector_name: '', inspected_on: null, units_checked: null, results: [], photos: [], notes: '', version_id: null }),
+  qc_issues: () => ({ description: '', expected: '', found: '', severity: 'major', responsible: 'supplier', required_action: '', due_date: null, photos: [], inspection_id: null }),
+  qc_issue_updates: () => ({ note: '', cost: null, paid_by: '', photos: [] }),
+  qc_overrides: () => ({ item_id: null }),
   shipments: () => ({ carrier: '', tracking: '', status: 'preparing', shipped_date: null, delivered_date: null, cost: 0, packages: '', notes: '' }),
   team_members: () => ({}),
   profiles: () => ({ full_name: '', color: '#64748b' }),
@@ -217,7 +230,7 @@ export class LocalBackend {
       team_members: [{ email: DEMO_USER.email, added_at: now }],
       clients: [], contacts: [], projects: [], tasks: [], comments: [], activity: [],
       deliverables: [], feedback_rounds: [], attachments: [], quotes: [], quote_items: [], costs: [], invoices: [],
-      items: [], shipments: [],
+      items: [], shipments: [], ...Object.fromEntries(QC_TABLES.map(t => [t, []])),
     };
   }
 
@@ -257,13 +270,40 @@ export class LocalBackend {
       ...row,
       updated_at: now,
     };
+    if (QC_TABLES.includes(table)) this.stamp(table, full);
     (this.db[table] ||= []).push(full);
     this.log(table, 'created', full);
     this.persist();
     return { ...full };
   }
 
+  // Same rules as the database (qc_stamp): server time, numbering and a readable title.
+  stamp(table, r) {
+    const rows = this.db[table] || [];
+    r.created_at = new Date().toISOString();
+    r.created_by = DEMO_USER.id;
+    delete r.updated_at;
+    const v = id => (this.db.spec_versions || []).find(x => x.id === id);
+    if (table === 'spec_versions') {
+      r.version_no = Math.max(0, ...rows.filter(x => x.item_id === r.item_id).map(x => x.version_no)) + 1;
+      r.title = `${r.item_name} — spec v${r.version_no}`;
+    } else if (table === 'qc_approvals') {
+      const ver = v(r.version_id);
+      r.title = ver ? `${ver.item_name} v${ver.version_no}` : '';
+    } else if (table === 'qc_inspections') {
+      r.title = `${r.stage[0].toUpperCase()}${r.stage.slice(1)} inspection — ${r.item_name}`;
+    } else if (table === 'qc_issues') {
+      r.number = Math.max(0, ...rows.filter(x => x.project_id === r.project_id).map(x => x.number)) + 1;
+    } else if (table === 'qc_issue_updates') {
+      const i = (this.db.qc_issues || []).find(x => x.id === r.issue_id);
+      r.title = i ? `#${i.number} ${i.title}` : '';
+    } else if (table === 'qc_overrides') {
+      r.title = `${r.gate[0].toUpperCase()}${r.gate.slice(1)} check overridden`;
+    }
+  }
+
   async update(table, id, patch) {
+    if (QC_TABLES.includes(table)) throw new Error('Quality-control records are permanent and cannot be changed');
     const key = keyOf(table);
     const row = (this.db[table] || []).find(r => r[key] === id);
     if (!row) throw new Error('Not found');
@@ -283,6 +323,9 @@ export class LocalBackend {
   async remove(table, id) {
     const key = keyOf(table);
     const row = (this.db[table] || []).find(r => r[key] === id);
+    if (QC_TABLES.includes(table) || (table === 'attachments' && row && row.kind === 'qc')) {
+      throw new Error('Quality-control records are permanent and cannot be deleted');
+    }
     const drop = (t, rowId) => {
       this.db[t] = (this.db[t] || []).filter(r => r.id !== rowId);
       // Mirror the database's ON DELETE CASCADE / SET NULL rules.
@@ -337,7 +380,7 @@ export class LocalBackend {
   deleteBlob(path) { return this.idbRun('readwrite', s => s.delete(path)).catch(() => {}); }
 
   log(table, action, row, details = {}) {
-    if (!['clients', 'projects', 'tasks', 'comments', 'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'costs', 'invoices', 'items', 'shipments'].includes(table)) return;
+    if (!['clients', 'projects', 'tasks', 'comments', 'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'costs', 'invoices', 'items', 'shipments', ...QC_TABLES].includes(table)) return;
     const entry = {
       id: this.db.activity.length + 1,
       at: new Date().toISOString(),

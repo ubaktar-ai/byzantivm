@@ -31,6 +31,17 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
   inquiry and supplier quotes on *Order*, a supplier quote on each product, references on *Drawings*, receipts and
   supplier invoices on *Money*, bill of lading and customs papers on *Shipping*, contracts on *Details*.
   The *Files* tab shows them all, labelled with where they came from.
+- **Quality control for lighting** (*QC* tab): a full spec per light — dimensions, materials, finishes and sample
+  numbers, bulb/socket (US & EU types) or integrated LED (CCT, CRI, binning), voltage (120V, 277V, 230V…), driver,
+  dimming (on/off, phase, ELV reverse phase, 0–10V, DALI, Lutron), certification, cable & mounting, packaging,
+  and special requests. Issue it as **v1**, record the **client's approval** and the **supplier's confirmation**
+  (with proof), and every later change becomes a new version with a reason and a list of what changed.
+  **Inspections** (samples, production, final, delivery — by the supplier, you, a third party or on site) use a
+  checklist made from the spec with pass/fail, measured values and photos; failed checks become **issues** with
+  updates until resolved. Production can't start without approved & confirmed specs, and shipping waits for a
+  passed final inspection and resolved issues — unless someone overrides with a written reason.
+  PDFs: spec sheet (client), production order (supplier), QC report (client), issue report (supplier).
+  **All QC records are permanent**: the database refuses edits and deletes, and stamps who saved them and when.
 - **✨ Read with AI** (optional): open an uploaded inquiry and the AI fills in the client, delivery address, deadline
   and products; open a supplier quote and it fills in the supplier, quote number and the cost per product.
   You always check and correct the result before anything is saved. Needs the one-time setup below.
@@ -94,6 +105,7 @@ The script is safe to run again later. It only creates things that are missing.
 - `004_company_country.sql` sets Byzantivm to US/USD and Demya to NL/EUR, allows only USD and EUR, and adds the VAT treatment per document.
 - `005_order_workflow.sql` adds the order workflow: the new stages, products, drawings per product, deposit/balance invoice types, delivery address and shipments.
 - `006_file_sections.sql` lets files belong to a tab (inquiry, supplier quote, drawings, money, shipping, documents) and to a product.
+- `007_quality_control.sql` adds quality control: product type, spec versions, approvals, inspections, issues and overrides — all permanent.
 
 ### 2. Connect the app
 
@@ -161,6 +173,7 @@ Use **Load sample data** to look around. (*Read with AI* only works with the tea
 | `js/store.js` | In-memory data with optimistic saves and live updates from teammates |
 | `js/forms.js` | Create/edit sheets: projects, tasks (with comments and files), clients, contacts |
 | `js/files.js` | File uploads (photo downscaling), document cards per tab, thumbnails, viewer, delete |
+| `js/views/qc.js`, `js/qc-spec.js`, `js/qc-pdf.js` | Quality control: QC tab and sheets, the lighting spec & checklists, QC PDFs |
 | `js/ai.js` | *Read with AI*: calls the `read-document` function and shows the check-before-saving sheets |
 | `js/money.js` | Quote / cost / invoice sheets, totals, numbering, amount parsing |
 | `js/pdf.js` | PDF quotes & invoices (jsPDF + Inter font), English / Dutch |

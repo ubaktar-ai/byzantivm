@@ -8,6 +8,6 @@ alter table public.attachments
 
 alter table public.attachments drop constraint if exists attachments_kind_check;
 alter table public.attachments add constraint attachments_kind_check check
-  (kind is null or kind in ('inquiry','supplier_quote','drawing','money','shipping','general'));
+  (kind is null or kind in ('inquiry','supplier_quote','drawing','money','shipping','general','qc'));
 
 create index if not exists attachments_item_idx on public.attachments (item_id);

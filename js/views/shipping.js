@@ -130,7 +130,7 @@ export function openShipmentSheet(projectId, existing, defaults = {}) {
         store.remove('shipments', existing.id).catch(() => {});
       });
     },
-    onSubmit(fd) {
+    async onSubmit(fd) {
       const data = {
         carrier: String(fd.get('carrier') || '').trim(),
         tracking: String(fd.get('tracking') || '').trim(),
@@ -141,6 +141,11 @@ export function openShipmentSheet(projectId, existing, defaults = {}) {
         cost: parseAmount(fd.get('cost')),
         notes: fd.get('notes') || '',
       };
+      // Shipping waits for quality control (final inspection passed, issues resolved) unless overridden.
+      if (data.status !== 'preparing' && (!existing || existing.status === 'preparing')) {
+        const { passGate } = await import('./qc.js');
+        if (!(await passGate(p, 'shipping'))) return false;
+      }
       if (existing) store.update('shipments', existing.id, data).catch(() => {});
       else store.insert('shipments', { ...data, project_id: projectId }).catch(() => {});
       if (data.status === 'delivered' && p.stage !== 'delivered') {

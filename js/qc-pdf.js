@@ -1,0 +1,357 @@
+// Quality-control PDFs: spec sheet (client), production order (supplier), QC report (client), issue report (supplier).
+import { store, personName, drawingOf, roundsOf, attachmentsWhere } from './store.js';
+import { toast, parseDate } from './lib.js';
+import { fileUrls } from './files.js';
+import { specRows, specDiff, STAGES, INSPECTORS } from './qc-spec.js';
+import { ISSUE_STATUSES, issueStatus } from './views/qc.js';
+import { preloadPdf, startDocument, finishDocument, docLocale, loadLogo, safeFileName, presentPdf } from './pdf.js';
+
+const lbl = (list, id) => (list.find(x => x.id === id) || {}).label || id || '';
+const when = iso => (iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
+// Documents need real dates, not "Today".
+const fmtDate = s => parseDate(String(s).slice(0, 10)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+const day = s => (s ? fmtDate(s) : '—');
+
+// Photos for the PDF (JPEG, max 1000 px).
+async function loadImage(att) {
+  if (!att || !/^image\//.test(att.mime || '')) return null;
+  const url = (await fileUrls([att.path]))[att.path];
+  if (!url) return null;
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image();
+    i.crossOrigin = 'anonymous';
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error('image'));
+    i.src = url;
+  });
+  const scale = Math.min(1, 1000 / Math.max(img.naturalWidth, img.naturalHeight));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.naturalWidth * scale);
+  c.height = Math.round(img.naturalHeight * scale);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  return { dataUrl: c.toDataURL('image/jpeg', 0.82), w: c.width, h: c.height, name: att.name };
+}
+const loadImages = async ids => (await Promise.all((ids || []).map(id => loadImage(store.get('attachments', id)).catch(() => null)))).filter(Boolean);
+
+// The newest drawing image sent to the client for this product (approved round first).
+async function drawingImage(itemId) {
+  const d = itemId && drawingOf(itemId);
+  if (!d) return null;
+  const rounds = roundsOf(d.id).slice().reverse();
+  const ordered = [...rounds.filter(r => r.status === 'approved'), ...rounds];
+  for (const r of ordered) {
+    const att = attachmentsWhere('round_id', r.id).find(a => /^image\//.test(a.mime || ''));
+    if (att) return loadImage(att).catch(() => null);
+  }
+  return null;
+}
+
+// ---------- Small layout kit on top of the shared letterhead ----------
+
+function kit(ctx) {
+  const { doc, M, R, accent, grey, line, font } = ctx;
+  let y = ctx.top;
+  const k = {
+    get y() { return y; },
+    set y(v) { y = v; },
+    room(h) {
+      if (y + h <= 272) return;
+      doc.addPage();
+      doc.setFillColor(...accent);
+      doc.rect(0, 0, 210, 4, 'F');
+      y = 18;
+    },
+    title(text, meta) {
+      // Shrink long titles so they never run into the details on the right.
+      let size = 22;
+      font('bold', size, accent);
+      while (size > 14 && doc.getTextWidth(text) > R - 72 - M) { size -= 1; font('bold', size, accent); }
+      doc.text(text, M, y + 8);
+      let my = y + 2;
+      meta.filter(([, v]) => v).forEach(([key, v]) => {
+        font('normal', 8.5, grey);
+        doc.text(key, R - 70, my);
+        font('bold', 9);
+        const lines = doc.splitTextToSize(String(v), 46).slice(0, 2);
+        doc.text(lines, R, my, { align: 'right' });
+        my += 5 + (lines.length - 1) * 4.2;
+      });
+      y = Math.max(y + 18, my + 4);
+    },
+    heading(text) {
+      k.room(22); // keep the heading together with its first lines
+      y += 3;
+      font('bold', 8.5, accent);
+      doc.text(text.toUpperCase(), M, y);
+      doc.setDrawColor(...line);
+      doc.setLineWidth(0.2);
+      doc.line(M, y + 1.8, R, y + 1.8);
+      y += 7;
+    },
+    para(text, { size = 9.5, color, bold = false } = {}) {
+      if (!text) return;
+      font(bold ? 'bold' : 'normal', size, color);
+      const lines = doc.splitTextToSize(String(text), R - M);
+      lines.forEach(l => { k.room(5); doc.text(l, M, y); y += size * 0.47; });
+      y += 1.5;
+    },
+    // Label / value rows; `box` draws a tick box for the supplier.
+    rows(rows, { box = false } = {}) {
+      const x0 = box ? M + 7 : M;
+      rows.forEach(([key, val]) => {
+        font('normal', 9, grey);
+        const kl = doc.splitTextToSize(key, 58);
+        font('bold', 9.5);
+        const vl = doc.splitTextToSize(String(val), R - x0 - 64);
+        const h = Math.max(kl.length, vl.length) * 4.4 + 2;
+        k.room(h);
+        if (box) { doc.setDrawColor(...grey); doc.setLineWidth(0.3); doc.rect(M, y - 3.2, 3.6, 3.6); }
+        font('normal', 9, grey);
+        doc.text(kl, x0, y);
+        font('bold', 9.5);
+        doc.text(vl, x0 + 62, y);
+        y += h;
+      });
+    },
+    photos: async imgs => {
+      const w = (R - M - 8) / 3;
+      let col = 0;
+      let rowH = 0;
+      for (const im of imgs) {
+        const h = Math.min(w * (im.h / im.w), 70);
+        const ww = h * (im.w / im.h);
+        if (col === 0) k.room(h + 4);
+        doc.addImage(im.dataUrl, 'JPEG', M + col * (w + 4), y, ww, h);
+        rowH = Math.max(rowH, h);
+        col++;
+        if (col === 3) { col = 0; y += rowH + 4; rowH = 0; }
+      }
+      if (col) y += rowH + 4;
+    },
+    image(im, maxH = 110) {
+      if (!im) return;
+      const maxW = R - M;
+      const s = Math.min(maxW / im.w, maxH / im.h);
+      k.room(im.h * s + 4);
+      doc.addImage(im.dataUrl, 'JPEG', M, y, im.w * s, im.h * s);
+      y += im.h * s + 4;
+    },
+    signature(labels) {
+      k.room(34);
+      y += 6;
+      const w = (R - M - 10) / labels.length;
+      labels.forEach((l, i) => {
+        const x = M + i * (w + 5);
+        doc.setDrawColor(...ctx.ink);
+        doc.setLineWidth(0.3);
+        doc.line(x, y + 14, x + w, y + 14);
+        font('normal', 8, grey);
+        doc.text(l, x, y + 18);
+      });
+      y += 26;
+    },
+  };
+  return k;
+}
+
+function context(projectId, title) {
+  const p = store.get('projects', projectId);
+  const company = (p && store.get('companies', p.company_id)) || {};
+  const client = p && store.get('clients', p.client_id);
+  const { t } = docLocale(company, 'en');
+  return { p, company, client, t, title };
+}
+
+// ---------- Spec sheet (client) / production order (supplier) ----------
+
+async function buildSpec(v, forSupplier, fonts, logo) {
+  const c = context(v.project_id);
+  const item = store.get('items', v.item_id);
+  const prod = v.spec._product || {};
+  const ctx = startDocument({ fonts, logo, company: c.company, t: c.t, title: `${forSupplier ? 'Production order' : 'Specification'} ${v.item_name} v${v.version_no}` });
+  const k = kit(ctx);
+  const { doc, grey, font, accent } = ctx;
+  const prev = store.all('spec_versions').filter(x => x.item_id === v.item_id && x.version_no === v.version_no - 1)[0];
+  const approvals = store.all('qc_approvals').filter(a => a.version_id === v.id).sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
+
+  k.title(forSupplier ? 'PRODUCTION ORDER' : 'SPECIFICATION', [
+    ['Order', c.p ? c.p.name : ''],
+    [forSupplier ? 'Supplier' : 'Client', forSupplier ? prod.supplier : c.client && c.client.name],
+    [forSupplier ? 'Supplier ref.' : '', forSupplier ? prod.supplier_ref : ''],
+    ['Version', `v${v.version_no} · ${fmtDate(v.created_at.slice(0, 10))}`],
+  ]);
+  font('bold', 15);
+  doc.text(`${prod.name || v.item_name}`, ctx.M, k.y);
+  font('normal', 10, grey);
+  doc.text(`Quantity: ${prod.quantity || 1} pcs`, ctx.M, k.y + 6);
+  k.y += 13;
+
+  if (forSupplier) {
+    k.para('Please check every line and confirm before production starts. Make the products exactly as specified. Any deviation — material, finish, size, electrical, dimming or packaging — must be agreed in writing before production; nothing may change without a new spec version from us.', { size: 9, color: grey });
+  }
+
+  if (v.version_no > 1) {
+    const changes = prev ? specDiff(prev.spec, v.spec) : [];
+    k.heading(`Changes from v${v.version_no - 1}`);
+    if (v.change_reason) k.para(`Reason: ${v.change_reason}`, { size: 9 });
+    k.rows(changes.map(ch => [ch.label, `${ch.from || '—'}  →  ${ch.to || '—'}`]));
+  }
+
+  const drawing = await drawingImage(item ? item.id : v.item_id);
+  specRows(v.spec).forEach(sec => {
+    k.heading(sec.title);
+    k.rows(sec.rows, { box: forSupplier });
+    if (sec.lines.length) k.rows(sec.lines.map((l, i) => [`Request ${i + 1}`, l]), { box: forSupplier });
+  });
+  if (drawing) {
+    k.heading('Drawing');
+    k.image(drawing, 120);
+  }
+
+  if (approvals.length) {
+    k.heading('Approvals recorded');
+    approvals.forEach(a => k.para(`${a.party === 'client' ? 'Client' : 'Supplier'}: ${a.decision === 'approved' ? (a.party === 'client' ? 'approved' : 'confirmed') : 'not approved'}${a.person ? ` by ${a.person}` : ''}${a.method ? ` (${a.method})` : ''} — ${when(a.created_at)}${a.note ? ` — “${a.note}”` : ''}`, { size: 9 }));
+  }
+  k.heading(forSupplier ? 'Supplier confirmation' : 'Client approval');
+  k.para(forSupplier ? 'We confirm we will make the products exactly as specified above.' : 'I approve this specification. Changes after approval need a new version.', { size: 9, color: grey });
+  k.signature(['Name', 'Signature', 'Date']);
+  font('normal', 7.5, accent);
+  k.para(`Spec v${v.version_no} issued ${when(v.created_at)} by ${personName(v.created_by) || '—'} · this version can't be changed.`, { size: 7.5, color: grey });
+
+  finishDocument({ doc, company: c.company, t: c.t, font, M: ctx.M, R: ctx.R, line: ctx.line, grey });
+  const name = `${forSupplier ? 'Production order' : 'Spec'} ${v.item_name} v${v.version_no}`;
+  return { out: { blob: doc.output('blob'), fileName: `${safeFileName(name)}.pdf` }, c };
+}
+
+// ---------- QC report (client) ----------
+
+async function buildInspection(insp, fonts, logo) {
+  const c = context(insp.project_id);
+  const ver = store.get('spec_versions', insp.version_id);
+  const ctx = startDocument({ fonts, logo, company: c.company, t: c.t, title: `QC report ${insp.item_name}` });
+  const k = kit(ctx);
+  const { doc, grey, font, M, R } = ctx;
+  const pass = insp.outcome === 'pass';
+  k.title('QUALITY CONTROL REPORT', [
+    ['Order', c.p ? c.p.name : ''],
+    ['Client', c.client && c.client.name],
+    ['Stage', lbl(STAGES, insp.stage)],
+    ['Inspected', day(insp.inspected_on)],
+    ['By', `${lbl(INSPECTORS, insp.inspector)}${insp.inspector_name ? ` — ${insp.inspector_name}` : ''}`],
+  ]);
+  font('bold', 15);
+  doc.text(insp.item_name, M, k.y);
+  font('normal', 9.5, grey);
+  doc.text(`Checked against ${ver ? `spec v${ver.version_no}` : 'the draft spec'}${insp.units_checked ? ` · ${insp.units_checked} units checked` : ''}`, M, k.y + 6);
+  doc.setFillColor(...(pass ? [22, 130, 70] : [200, 40, 40]));
+  doc.roundedRect(R - 30, k.y - 6, 30, 10, 2, 2, 'F');
+  font('bold', 11, [255, 255, 255]);
+  doc.text(pass ? 'PASS' : 'FAIL', R - 15, k.y + 0.8, { align: 'center' });
+  k.y += 14;
+
+  const results = insp.results || [];
+  const counts = ['pass', 'fail', 'na'].map(r => results.filter(x => x.result === r).length);
+  k.para(`${counts[0]} passed · ${counts[1]} failed · ${counts[2]} not applicable`, { size: 9, color: grey });
+  k.heading('Checklist');
+  for (const x of results) {
+    font('bold', 9.5);
+    const labelLines = doc.splitTextToSize(x.label, R - M - 24);
+    font('normal', 8.5);
+    const detail = [x.expected && `Spec: ${x.expected}`, x.measured && `Measured: ${x.measured}`, x.note].filter(Boolean).join('  ·  ');
+    const dl = detail ? doc.splitTextToSize(detail, R - M - 24) : [];
+    k.room(labelLines.length * 4.4 + dl.length * 4 + 3);
+    const color = x.result === 'pass' ? [22, 130, 70] : x.result === 'fail' ? [200, 40, 40] : grey;
+    font('bold', 8.5, color);
+    doc.text(x.result === 'pass' ? 'PASS' : x.result === 'fail' ? 'FAIL' : 'N/A', M, k.y);
+    font('bold', 9.5);
+    doc.text(labelLines, M + 22, k.y);
+    let yy = k.y + labelLines.length * 4.4;
+    if (dl.length) { font('normal', 8.5, grey); doc.text(dl, M + 22, yy); yy += dl.length * 4; }
+    k.y = yy + 2.5;
+    if (x.photos && x.photos.length && x.result === 'fail') await k.photos(await loadImages(x.photos));
+  }
+  const overall = await loadImages([...(insp.photos || []), ...results.filter(x => x.result !== 'fail').flatMap(x => x.photos || [])]);
+  if (overall.length) { k.heading('Photos'); await k.photos(overall); }
+  if (insp.notes) { k.heading('Notes'); k.para(insp.notes); }
+  const issues = store.all('qc_issues').filter(i => i.inspection_id === insp.id);
+  if (issues.length) {
+    k.heading('Issues to resolve');
+    issues.forEach(i => k.para(`#${i.number} ${i.title} — ${lbl(ISSUE_STATUSES, issueStatus(i))}`, { size: 9 }));
+  }
+  k.heading('Client sign-off');
+  k.signature(['Name', 'Signature', 'Date']);
+  k.para(`Report recorded ${when(insp.created_at)} by ${personName(insp.created_by) || '—'} · this report can't be changed.`, { size: 7.5, color: grey });
+  finishDocument({ doc, company: c.company, t: c.t, font, M, R, line: ctx.line, grey });
+  return { out: { blob: doc.output('blob'), fileName: `${safeFileName(`QC report ${insp.item_name} ${insp.inspected_on || ''}`)}.pdf` }, c };
+}
+
+// ---------- Issue report (supplier) ----------
+
+async function buildIssue(issue, fonts, logo) {
+  const c = context(issue.project_id);
+  const ctx = startDocument({ fonts, logo, company: c.company, t: c.t, title: `Issue report #${issue.number}` });
+  const k = kit(ctx);
+  const { doc, grey, font, M, R } = ctx;
+  const item = store.get('items', issue.item_id);
+  k.title(`ISSUE REPORT #${issue.number}`, [
+    ['Order', c.p ? c.p.name : ''],
+    ['Product', issue.item_name || 'Whole order'],
+    ['Supplier', item ? item.supplier : ''],
+    ['Reported', fmtDate(issue.created_at.slice(0, 10))],
+    ['Fix by', issue.due_date ? day(issue.due_date) : ''],
+  ]);
+  font('bold', 14);
+  const tl = doc.splitTextToSize(issue.title, R - M);
+  doc.text(tl, M, k.y);
+  k.y += tl.length * 6 + 2;
+  k.rows([
+    ['Severity', lbl([{ id: 'minor', label: 'Minor' }, { id: 'major', label: 'Major' }, { id: 'critical', label: 'Critical' }], issue.severity)],
+    ['Status', lbl(ISSUE_STATUSES, issueStatus(issue))],
+    ['Should be (spec)', issue.expected || '—'],
+    ['Found', issue.found || '—'],
+    ...(issue.required_action ? [['Required action', issue.required_action]] : []),
+  ]);
+  if (issue.description) { k.heading('Details'); k.para(issue.description); }
+  const imgs = await loadImages(issue.photos);
+  if (imgs.length) { k.heading('Photos'); await k.photos(imgs); }
+  const ups = store.all('qc_issue_updates').filter(u => u.issue_id === issue.id).sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
+  if (ups.length) {
+    k.heading('History');
+    for (const u of ups) {
+      k.para(`${when(u.created_at)} — ${lbl(ISSUE_STATUSES, u.status)}${u.note ? `: ${u.note}` : ''}${u.cost ? ` (cost ${u.cost}${u.paid_by ? `, paid by ${u.paid_by}` : ''})` : ''}`, { size: 9 });
+      const ui = await loadImages(u.photos);
+      if (ui.length) await k.photos(ui);
+    }
+  }
+  k.heading('Supplier acknowledgement');
+  k.para('We acknowledge this issue and will carry out the required action by the date above.', { size: 9, color: grey });
+  k.signature(['Name', 'Signature', 'Date']);
+  k.para(`Issue recorded ${when(issue.created_at)} by ${personName(issue.created_by) || '—'}.`, { size: 7.5, color: grey });
+  finishDocument({ doc, company: c.company, t: c.t, font, M, R, line: ctx.line, grey });
+  return { out: { blob: doc.output('blob'), fileName: `${safeFileName(`Issue ${issue.number} ${issue.title}`).slice(0, 80)}.pdf` }, c };
+}
+
+// ---------- Public ----------
+
+export async function createQcPdf(kind, id) {
+  const rec = kind === 'inspection' ? store.get('qc_inspections', id) : kind === 'issue' ? store.get('qc_issues', id) : store.get('spec_versions', id);
+  if (!rec) return;
+  const p = store.get('projects', rec.project_id);
+  const company = p && store.get('companies', p.company_id);
+  toast('Creating PDF…');
+  let res;
+  try {
+    const [fonts, logo] = await Promise.all([preloadPdf(), loadLogo(company).catch(() => null)]);
+    res = kind === 'inspection' ? await buildInspection(rec, fonts, logo)
+      : kind === 'issue' ? await buildIssue(rec, fonts, logo)
+      : await buildSpec(rec, kind === 'order', fonts, logo);
+  } catch (err) {
+    console.error(err);
+    toast(`Couldn't create the PDF: ${err.message || err}`);
+    return;
+  }
+  return presentPdf(res.out, { company: res.c.company, client: res.c.client });
+}

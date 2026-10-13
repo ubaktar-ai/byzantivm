@@ -494,6 +494,11 @@ export async function createPdf(kind, id) {
     toast(`Couldn't create the PDF: ${err.message || err}`);
     return;
   }
+  return presentPdf(out, { company, client, rec });
+}
+
+// The "PDF ready" sheet: share (Mail, WhatsApp, AirDrop, Files) or open.
+export function presentPdf(out, { company, client, rec = {} } = {}) {
   const file = new File([out.blob], out.fileName, { type: 'application/pdf' });
   const url = URL.createObjectURL(out.blob);
   const canShare = !!(navigator.canShare && navigator.canShare({ files: [file] }));
@@ -526,4 +531,4 @@ export async function createPdf(kind, id) {
   return out;
 }
 
-export { buildPdf };
+export { buildPdf, startDocument, finishDocument, docLocale, loadLogo, safeFileName, hexToRgb };

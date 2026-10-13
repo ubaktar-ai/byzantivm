@@ -1,7 +1,7 @@
 // In-memory copy of the team's data. Changes are applied optimistically
 // (the screen updates at once), then saved; on failure they are rolled back.
 // Live updates from teammates arrive through applyRemote().
-import { keyOf, RELATIONS } from './backend.js';
+import { keyOf, RELATIONS, QC_TABLES } from './backend.js';
 import { uuid, toast, daysUntil, priorityRank } from './lib.js';
 
 // Projects/tasks saved before the order workflow (migration 005) used design stages; show them on the new ones.
@@ -11,7 +11,7 @@ const normalize = (table, row) =>
 
 const CORE = ['companies', 'profiles', 'team_members', 'clients', 'contacts', 'projects', 'tasks', 'comments'];
 const TABLES = ['companies', 'profiles', 'team_members', 'clients', 'contacts', 'projects', 'tasks', 'comments',
-  'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'quote_items', 'costs', 'invoices', 'items', 'shipments'];
+  'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'quote_items', 'costs', 'invoices', 'items', 'shipments', ...QC_TABLES];
 
 export const store = {
   backend: null,

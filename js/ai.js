@@ -4,6 +4,7 @@
 import { esc, toast, openSheet, sheetHeader, money, $ } from './lib.js';
 import { store, productsOf, nextSortOrder } from './store.js';
 import { parseAmount } from './money.js';
+import { guessCategory } from './views/qc.js';
 
 const num = v => Number(v) || 0;
 const clean = v => String(v == null ? '' : v).trim();
@@ -178,6 +179,7 @@ function reviewInquiry(p, att, r) {
         store.insert('items', {
           project_id: p.id,
           name,
+          ...(store.missing.has('spec_versions') ? {} : { category: guessCategory(name) }),
           quantity: parseAmount(fd.get(`p_qty_${i}`)) || 1,
           dimensions: clean(fd.get(`p_dim_${i}`)),
           materials: clean(fd.get(`p_mat_${i}`)),
