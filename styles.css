@@ -1110,3 +1110,4 @@ a.qc-thumb.file { text-decoration: none; }
 .pick-other { display: grid; gap: 6px; }
 .lc-docs { display: grid; gap: 4px; }
 .lc-docs .link { background: none; border: 0; padding: 0; color: var(--accent, inherit); text-decoration: underline; font: inherit; cursor: pointer; }
+.section-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }

@@ -74,6 +74,7 @@ export async function runStep(step, p) {
       case 'shipped': await markShipped(p); break;
       case 'delivered': await markDelivered(p); break;
       case 'packing': await import('../pdf.js').then(m => m.createPdf('packing', p.id)); break;
+      case 'cost-report': await import('../pdf.js').then(m => m.createPdf('costs', p.id)); break;
     }
   } catch (err) {
     console.error(err); // store already showed a message
@@ -267,7 +268,7 @@ export function orderTab(p) {
       ${docCard(p, 'supplier_quote', { title: 'Supplier quotes', label: 'Add supplier quote', hint: `Prices from workshops and suppliers.${store.backend.mode === 'cloud' ? ' Tap a file and choose <b>✨ Read with AI</b> to fill in the costs.' : ''}` })}
     </div>
 
-    <h2 class="section section-with-action">Products <button class="btn small" data-action="add-product" data-project="${p.id}">${icon.plus} Product</button></h2>
+    <h2 class="section section-with-action">Products <span class="section-actions">${products.length ? `<button class="btn small" data-action="wf" data-step="cost-report" data-id="${p.id}" title="Internal: cost next to price, with totals">Cost report PDF</button>` : ''}<button class="btn small" data-action="add-product" data-project="${p.id}">${icon.plus} Product</button></span></h2>
     ${products.length ? `
       <div class="card-surface product-list">
         ${products.map(i => {

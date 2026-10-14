@@ -2,7 +2,7 @@
 // so accented characters print correctly). Everything is loaded on first use.
 import { esc, icon, openSheet, sheetHeader, toast, parseDate, $ } from './lib.js';
 import { store, contactsOf, productsOf, shipmentsOf } from './store.js';
-import { itemsOf } from './money.js';
+import { itemsOf, costsOf, quotesOf, quoteTotal } from './money.js';
 import { fileUrls } from './files.js';
 
 export const DOC_LANGUAGES = [
@@ -487,19 +487,174 @@ function buildPackingList(p, fonts, logo) {
   return { blob: doc.output('blob'), fileName: `${safeFileName(`${t.packing} ${p.name}`)}.pdf` };
 }
 
+// ---------- Cost report (internal): what each product costs us next to what we charge ----------
+
+function buildCostReport(p, fonts, logo) {
+  const company = store.get('companies', p.company_id) || {};
+  const client = store.get('clients', p.client_id);
+  const { locale } = docLocale(company, 'en');
+  const t = T.en;
+  const fmtMoney = v => new Intl.NumberFormat(locale, { style: 'currency', currency: p.currency || 'EUR' }).format(v);
+  const fmtNum = v => new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(v);
+  const pct = (profit, price) => (price ? `${Math.round((profit / price) * 100)}%` : '—');
+  const products = productsOf(p.id);
+  const title = 'Cost report';
+
+  const { doc, M, R, accent, ink, grey, line, font, top } = startDocument({ fonts, logo, company, t, title: `${title} ${p.name}` });
+  let y = top;
+  font('bold', 24, accent);
+  doc.text(title.toUpperCase(), M, y + 8);
+  font('bold', 8, [176, 58, 46]);
+  doc.text('INTERNAL — NOT FOR THE CLIENT', M, y + 14);
+  let my = y + 2;
+  [['Order no.', p.order_no || '—'], ['Project', p.name], ['Client', client ? client.name : '—'],
+    ['Date', new Date().toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' })]].forEach(([k, v]) => {
+    font('normal', 9, grey);
+    doc.text(k, R - 66, my);
+    font('bold', 9.5);
+    const lines = doc.splitTextToSize(String(v), 44).slice(0, 2);
+    doc.text(lines, R, my, { align: 'right' });
+    my += 5.5 + (lines.length - 1) * 4.4;
+  });
+  y = Math.max(y + 24, my + 4);
+
+  // Products: cost and price side by side
+  const col = { desc: M + 2, qty: 86, uCost: 107, cost: 129, uPrice: 150, price: 172, mg: R - 1 };
+  const newPage = () => {
+    doc.addPage();
+    doc.setFillColor(...accent);
+    doc.rect(0, 0, 210, 4, 'F');
+    y = 20;
+  };
+  const header = () => {
+    doc.setFillColor(244, 243, 239);
+    doc.rect(M, y - 5, R - M, 8, 'F');
+    font('bold', 7.5, grey);
+    doc.text('PRODUCT', col.desc, y);
+    [['QTY', col.qty], ['COST / PC', col.uCost], ['COST', col.cost], ['PRICE / PC', col.uPrice], ['PRICE', col.price], ['MARGIN', col.mg]]
+      .forEach(([h, x]) => doc.text(h, x, y, { align: 'right' }));
+    y += 8;
+  };
+  font('bold', 8, grey);
+  doc.text('PRODUCTS', M, y);
+  y += 7;
+  header();
+  let cost = 0, price = 0;
+  products.forEach((it, i) => {
+    const qty = num(it.quantity) || 0;
+    const c = round2(num(it.unit_cost) * qty), pr = round2(num(it.unit_price) * qty);
+    cost += c; price += pr;
+    font('bold', 9);
+    const name = doc.splitTextToSize(`${it.item_no || String(i + 1).padStart(2, '0')}  ${it.name}`, col.qty - col.desc - 12);
+    font('normal', 7.5);
+    const detail = doc.splitTextToSize([it.supplier, it.supplier_ref].filter(Boolean).join(' · '), col.qty - col.desc - 12);
+    const h = name.length * 4.4 + (detail[0] ? detail.length * 3.6 : 0) + 4;
+    if (y + h > 262) { newPage(); header(); }
+    font('bold', 9);
+    doc.text(name, col.desc, y);
+    font('normal', 8.5);
+    doc.text(fmtNum(qty), col.qty, y, { align: 'right' });
+    doc.text(num(it.unit_cost) ? fmtMoney(num(it.unit_cost)) : '—', col.uCost, y, { align: 'right' });
+    doc.text(num(it.unit_price) ? fmtMoney(num(it.unit_price)) : '—', col.uPrice, y, { align: 'right' });
+    font('bold', 8.5);
+    doc.text(c ? fmtMoney(c) : '—', col.cost, y, { align: 'right' });
+    doc.text(pr ? fmtMoney(pr) : '—', col.price, y, { align: 'right' });
+    const m = pr && c ? (pr - c) / pr : null;
+    font('bold', 8.5, m == null ? grey : m < 0.2 ? [176, 58, 46] : [46, 125, 70]);
+    doc.text(m == null ? '—' : `${Math.round(m * 100)}%`, col.mg, y, { align: 'right' });
+    if (detail[0]) { font('normal', 7.5, grey); doc.text(detail, col.desc, y + name.length * 4.4); }
+    y += h;
+    doc.setDrawColor(...line);
+    doc.setLineWidth(0.2);
+    doc.line(M, y - 3.5, R, y - 3.5);
+  });
+  cost = round2(cost); price = round2(price);
+  font('bold', 9);
+  doc.text('Products total', col.desc, y + 1);
+  doc.text(fmtMoney(cost), col.cost, y + 1, { align: 'right' });
+  doc.text(fmtMoney(price), col.price, y + 1, { align: 'right' });
+  doc.text(pct(price - cost, price), col.mg, y + 1, { align: 'right' });
+  y += 12;
+
+  // Other costs: shipping and project expenses
+  const extra = [
+    ...shipmentsOf(p.id).filter(x => num(x.cost)).map(x => [`Shipping${x.carrier ? ` — ${x.carrier}` : ''}`, num(x.cost)]),
+    ...costsOf(p.id).filter(c => num(c.amount)).map(c => [[c.description, c.vendor].filter(Boolean).join(' — '), num(c.amount)]),
+  ];
+  const extraTotal = round2(extra.reduce((s, [, v]) => s + v, 0));
+  if (extra.length) {
+    if (y + 14 + extra.length * 6 > 262) newPage();
+    font('bold', 8, grey);
+    doc.text('OTHER COSTS', M, y);
+    y += 6;
+    extra.forEach(([label, v]) => {
+      if (y > 262) newPage();
+      font('normal', 9);
+      doc.text(doc.splitTextToSize(label, col.uPrice - col.desc - 10)[0], col.desc, y);
+      doc.text(fmtMoney(v), col.cost, y, { align: 'right' });
+      y += 6;
+    });
+    font('bold', 9);
+    doc.text('Other costs total', col.desc, y);
+    doc.text(fmtMoney(extraTotal), col.cost, y, { align: 'right' });
+    y += 12;
+  }
+
+  // Totals side by side
+  if (y + 52 > 275) newPage();
+  const totalCost = round2(cost + extraTotal);
+  const profit = round2(price - totalCost);
+  const approved = quotesOf(p.id).filter(q => q.status === 'approved');
+  const approvedTotal = round2(approved.reduce((s, q) => s + quoteTotal(q), 0));
+  const boxW = (R - M - 6) / 2;
+  [[M, 'TOTAL COST', totalCost, extra.length ? `Products ${fmtMoney(cost)} + other ${fmtMoney(extraTotal)}` : 'Products'],
+    [M + boxW + 6, 'TOTAL PRICED', price, approved.length && approvedTotal !== price ? `Approved proposal: ${fmtMoney(approvedTotal)}` : 'Excl. tax']]
+    .forEach(([x, label, v, note]) => {
+      doc.setFillColor(244, 243, 239);
+      doc.roundedRect(x, y, boxW, 26, 2, 2, 'F');
+      font('bold', 8, grey);
+      doc.text(label, x + 5, y + 7);
+      font('bold', 17);
+      doc.text(fmtMoney(v), x + 5, y + 16);
+      font('normal', 7.5, grey);
+      doc.text(doc.splitTextToSize(note, boxW - 10)[0], x + 5, y + 22);
+    });
+  y += 33;
+  doc.setFillColor(...(profit < 0 ? [176, 58, 46] : accent));
+  doc.roundedRect(M, y, R - M, 16, 2, 2, 'F');
+  font('bold', 10, [255, 255, 255]);
+  doc.text(profit < 0 ? 'LOSS' : 'PROFIT', M + 5, y + 10);
+  doc.text(`${fmtMoney(profit)}   ·   margin ${pct(profit, price)}`, R - 5, y + 10, { align: 'right' });
+  y += 24;
+  const unpriced = products.filter(i => !num(i.unit_price)).length;
+  if (unpriced) {
+    font('bold', 8.5, [176, 58, 46]);
+    doc.text(`${unpriced} product${unpriced === 1 ? ' has' : 's have'} no price yet — ${unpriced === 1 ? 'its' : 'their'} cost is counted, but not ${unpriced === 1 ? 'its' : 'their'} price.`, M, y);
+    y += 5;
+  }
+  font('normal', 7.5, grey);
+  doc.text('Amounts exclude tax. Margin = (price − cost) ÷ price.', M, y);
+
+  finishDocument({ doc, company, t, font, M, R, line, grey });
+  return { blob: doc.output('blob'), fileName: `${safeFileName(`${title} ${p.order_no || ''} ${p.name}`.replace(/\s+/g, ' '))}.pdf` };
+}
+
 // ---------- Public: create, then share / open ----------
 
 export async function createPdf(kind, id) {
-  const rec = kind === 'packing' ? store.get('projects', id) : store.get(kind === 'quote' ? 'quotes' : 'invoices', id);
+  const byProject = kind === 'packing' || kind === 'costs';
+  const rec = byProject ? store.get('projects', id) : store.get(kind === 'quote' ? 'quotes' : 'invoices', id);
   if (!rec) return;
-  const p = kind === 'packing' ? rec : store.get('projects', rec.project_id);
+  const p = byProject ? rec : store.get('projects', rec.project_id);
   const company = p && store.get('companies', p.company_id);
   const client = p && store.get('clients', p.client_id);
   toast('Creating PDF…');
   let out;
   try {
     const [fonts, logo] = await Promise.all([preloadPdf(), loadLogo(company).catch(() => null)]);
-    out = kind === 'packing' ? buildPackingList(rec, fonts, logo) : buildPdf(kind, rec, fonts, logo);
+    out = kind === 'packing' ? buildPackingList(rec, fonts, logo)
+      : kind === 'costs' ? buildCostReport(rec, fonts, logo)
+      : buildPdf(kind, rec, fonts, logo);
   } catch (err) {
     console.error(err);
     toast(`Couldn't create the PDF: ${err.message || err}`);
