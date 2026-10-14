@@ -1056,7 +1056,7 @@ revoke execute on function public.qc_stamp() from public, anon, authenticated;
 -- ---------------------------------------------------------------------
 
 insert into public.companies (id, name, color, sort_order, country, default_currency, default_vat) values
-  ('byzantivm', 'Byzantivm', '#7c3aed', 0, 'US', 'USD', 0),
+  ('byzantivm', 'Byzantivm', '#4a5d23', 0, 'US', 'USD', 0),
   ('demya',     'Demya',     '#0d9488', 1, 'NL', 'EUR', 21)
 on conflict (id) do nothing;
 

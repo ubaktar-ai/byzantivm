@@ -243,7 +243,7 @@ export class LocalBackend {
     const now = new Date().toISOString();
     return {
       companies: [
-        { id: 'byzantivm', name: 'Byzantivm', color: '#7c3aed', sort_order: 0, updated_at: now },
+        { id: 'byzantivm', name: 'Byzantivm', color: '#4a5d23', sort_order: 0, updated_at: now },
         { id: 'demya', name: 'Demya', color: '#0d9488', sort_order: 1, updated_at: now },
       ],
       profiles: [{ ...DEMO_USER, full_name: 'You', color: '#2563eb', created_at: now, updated_at: now }],
