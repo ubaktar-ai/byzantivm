@@ -1049,7 +1049,7 @@ a.money-stat { text-decoration: none; color: inherit; }
 .field-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .field-head label { font-size: 13px; font-weight: 650; color: var(--text-2); }
 .vis-toggles { display: inline-flex; gap: 4px; }
-.vis { display: inline-flex; align-items: center; cursor: pointer; }
+.vis { display: inline-flex; align-items: center; cursor: pointer; position: relative; }
 .field .vis input { position: absolute; opacity: 0; width: 1px; height: 1px; min-height: 0; padding: 0; pointer-events: none; }
 .vis span { font-size: 11px; font-weight: 650; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-2); }
 .vis input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
@@ -1111,3 +1111,5 @@ a.qc-thumb.file { text-decoration: none; }
 .lc-docs { display: grid; gap: 4px; }
 .lc-docs .link { background: none; border: 0; padding: 0; color: var(--accent, inherit); text-decoration: underline; font: inherit; cursor: pointer; }
 .section-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.check-row { display: flex; align-items: center; gap: 10px; font-size: 15px; cursor: pointer; }
+.check-row input { width: 20px; height: 20px; accent-color: var(--accent); }

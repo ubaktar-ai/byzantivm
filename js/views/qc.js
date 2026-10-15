@@ -236,6 +236,7 @@ function lightCard(p, it) {
             <button class="btn small" data-action="qc-versions" data-id="${it.id}">Versions (${versionsOf(it.id).length})</button>` : ''}
           <button class="btn small" data-action="qc-card-pdf" data-party="client" data-id="${it.id}">Client spec card PDF</button>
           <button class="btn small" data-action="qc-card-pdf" data-party="supplier" data-id="${it.id}">Supplier spec card PDF</button>
+          <button class="btn small" data-action="tear-edit" data-id="${it.id}">Tear sheet</button>
         </div>
       </section>
 
@@ -336,7 +337,7 @@ export function qcTab(p) {
 
 // ---------- Spec editor (the working draft; issuing a version makes it permanent) ----------
 
-function fieldHtml(f, s, template) {
+export function fieldHtml(f, s, template, { toggles: customToggles } = {}) {
   const v = s[f.key] ?? '';
   const id = `spec-${f.key}`;
   let input;
@@ -355,7 +356,7 @@ function fieldHtml(f, s, template) {
   else input = `<input name="${f.key}" id="${id}" value="${esc(v)}" ${f.type === 'number' ? 'inputmode="decimal"' : ''} placeholder="${esc(f.placeholder || '')}" autocomplete="off">`;
   // Who sees this detail on their sheet (only filled-in details are ever printed).
   const show = showOf(s, f.key, template);
-  const toggles = `<span class="vis-toggles" title="Show on the client / supplier sheet">
+  const toggles = customToggles ? customToggles(f) : `<span class="vis-toggles" title="Show on the client / supplier sheet">
     <label class="vis"><input type="checkbox" name="vis_c_${f.key}" ${show === 'cs' || show === 'c' ? 'checked' : ''}><span>Client</span></label>
     <label class="vis"><input type="checkbox" name="vis_s_${f.key}" ${show === 'cs' || show === 's' ? 'checked' : ''}><span>Supplier</span></label></span>`;
   const unused = templateShow(template, f.key) === 'off' && !fieldValue(f, s);
@@ -392,7 +393,44 @@ function readDraft(key) {
 
 const FILE_FIELDS = SPEC_SECTIONS.flatMap(sec => sec.fields).filter(f => f.type === 'files');
 
-function readSpec(form, base, bag) {
+// Detail fields of a spec form: "Other" pickers and fields that only apply to some lights (bulb vs LED, dimming…).
+export function wireSpecFields(form, spec, template) {
+  const refresh = () => {
+    const cur = readSpec(form, spec);
+    SPEC_SECTIONS.forEach(sec => sec.fields.forEach(f => {
+      const wrap = $(`[data-field="${f.key}"]`, form);
+      const unused = templateShow(template, f.key) === 'off' && !cur[f.key];
+      if (wrap) wrap.hidden = !visible(f, cur) || unused;
+      if (typeof f.list === 'function') {
+        const sel = form.elements[`${f.key}__pick`];
+        if (sel) {
+          const typing = sel.value === '__other';
+          sel.innerHTML = pickOptions(f.list(cur), cur[f.key]);
+          if (typing && !cur[f.key]) sel.value = '__other';
+          else setPick(form, f.key, cur[f.key] || '');
+        }
+      }
+    }));
+  };
+  form.addEventListener('change', e => {
+    const t = e.target;
+    if (t.name && t.name.endsWith('__pick')) {
+      const key = t.name.slice(0, -6);
+      const box = form.elements[key];
+      if (t.value === '__other') {
+        box.hidden = false;
+        if ([...t.options].some(o => o.value === box.value)) box.value = '';
+        box.focus();
+      } else {
+        box.hidden = true;
+        box.value = t.value;
+      }
+    }
+    refresh();
+  });
+}
+
+export function readSpec(form, base, bag) {
   const out = { ...base, _show: { ...(base._show || {}) } };
   SPEC_SECTIONS.forEach(sec => sec.fields.forEach(f => {
     const el = form.elements[f.key];
@@ -453,23 +491,7 @@ export function openSpecSheet(it) {
     onOpen(sheet) {
       const form = $('form', sheet);
       wirePhotos(sheet, { project_id: it.project_id, item_id: it.id }, bag, { removable: true, images: true });
-      const refresh = () => {
-        const cur = readSpec(form, spec);
-        SPEC_SECTIONS.forEach(sec => sec.fields.forEach(f => {
-          const wrap = $(`[data-field="${f.key}"]`, form);
-          const unused = templateShow(template, f.key) === 'off' && !cur[f.key];
-          if (wrap) wrap.hidden = !visible(f, cur) || unused;
-          if (typeof f.list === 'function') {
-            const sel = form.elements[`${f.key}__pick`];
-            if (sel) {
-              const typing = sel.value === '__other';
-              sel.innerHTML = pickOptions(f.list(cur), cur[f.key]);
-              if (typing && !cur[f.key]) sel.value = '__other';
-              else setPick(form, f.key, cur[f.key] || '');
-            }
-          }
-        }));
-      };
+      wireSpecFields(form, spec, template);
       const keepDraft = () => {
         const cur = readSpec(form, spec, bag);
         cur._images = Object.fromEntries(IMAGE_GROUPS.map(g => [g.id, bag[`img_${g.id}`] || []]));
@@ -485,23 +507,7 @@ export function openSpecSheet(it) {
         delete sheet.dataset.dirty;
         openSpecSheet(store.get('items', it.id));
       });
-      form.addEventListener('change', e => {
-        const t = e.target;
-        if (t.name && t.name.endsWith('__pick')) {
-          const key = t.name.slice(0, -6);
-          const box = form.elements[key];
-          if (t.value === '__other') {
-            box.hidden = false;
-            if ([...t.options].some(o => o.value === box.value)) box.value = '';
-            box.focus();
-          } else {
-            box.hidden = true;
-            box.value = t.value;
-          }
-        }
-        refresh();
-        keepDraft();
-      });
+      form.addEventListener('change', keepDraft);
     },
     onClose() {
       stopDraft();

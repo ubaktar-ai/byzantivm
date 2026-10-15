@@ -6,6 +6,7 @@ import { specRows, specDiff, showsFor, STAGES, INSPECTORS, IMAGE_GROUPS } from '
 import { ISSUE_STATUSES, issueStatus, latestVersion, viewSpec, itemNo, lightingOf } from './views/qc.js';
 import { samplesOf, sampleStatus, sampleDecision, SAMPLE_STATUSES, outcomePhotos } from './views/qc-more.js';
 import { preloadPdf, startDocument, finishDocument, docLocale, loadLogo, safeFileName, presentPdf } from './pdf.js';
+import { tearOf, tearRows, tearImages } from './views/tear.js';
 
 const lbl = (list, id) => (list.find(x => x.id === id) || {}).label || id || '';
 const when = iso => (iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
@@ -477,6 +478,176 @@ export async function createQcPdf(kind, id, party = 'client') {
     res = entries ? await buildCards(entries, party, fonts, logo)
       : kind === 'inspection' ? await buildInspection(rec, fonts, logo)
       : await buildIssue(rec, fonts, logo);
+  } catch (err) {
+    console.error(err);
+    toast(`Couldn't create the PDF: ${err.message || err}`);
+    return;
+  }
+  return presentPdf(res.out, { company: res.c.company, client: res.c.client });
+}
+
+// ---------- Tear sheets (client-facing product sheet, 1–2 pages per light) ----------
+
+// Picture fitted and centred in a light box.
+function fitBox(ctx, im, x, y, w, h) {
+  const { doc } = ctx;
+  doc.setFillColor(247, 246, 242);
+  doc.rect(x, y, w, h, 'F');
+  if (!im) return;
+  const s = Math.min(w / im.w, h / im.h);
+  doc.addImage(im.dataUrl, 'JPEG', x + (w - im.w * s) / 2, y + (h - im.h * s) / 2, im.w * s, im.h * s);
+}
+
+async function tearPage(ctx, k, it, c, { price }) {
+  const { doc, grey, font, M, R, accent, line } = ctx;
+  const tear = tearOf(it);
+  const { locale } = docLocale(c.company, 'en');
+  const money = v => new Intl.NumberFormat(locale, { style: 'currency', currency: c.p.currency || 'EUR' }).format(v);
+  const qty = Number(it.quantity) || 1;
+
+  // Title
+  font('bold', 8.5, accent);
+  doc.text('TEAR SHEET', M, k.y + 1);
+  let size = 22;
+  font('bold', size);
+  while (size > 15 && doc.getTextWidth(it.name) > R - M) { size -= 1; font('bold', size); }
+  const name = doc.splitTextToSize(it.name, R - M).slice(0, 2);
+  doc.text(name, M, k.y + 10);
+  k.y += 10 + (name.length - 1) * size * 0.42 + 6;
+  font('normal', 9, grey);
+  doc.text([`Item ${itemNo(it)}`, c.p.order_no ? `Order ${c.p.order_no}` : '', c.p.name, `Quantity ${qty}`].filter(Boolean).join('   ·   '), M, k.y);
+  k.y += 6;
+
+  // Pictures: one large, up to four small
+  let imgs = await loadImages(tearImages(it).slice(0, 5));
+  if (!imgs.length) { const d = await drawingImage(it.id); if (d) imgs = [d]; }
+  if (imgs.length) {
+    const heroH = imgs.length > 1 ? 80 : 95;
+    fitBox(ctx, imgs[0], M, k.y, R - M, heroH);
+    k.y += heroH + 3;
+    const thumbs = imgs.slice(1, 5);
+    if (thumbs.length) {
+      const w = (R - M - 9) / 4;
+      thumbs.forEach((im, i) => fitBox(ctx, im, M + i * (w + 3), k.y, w, 26));
+      k.y += 29;
+    }
+  }
+  k.y += 2;
+  if (tear.description) k.para(tear.description, { size: 10 });
+
+  // Details in two balanced columns; long sections carry on in the next column or page.
+  const colW = (R - M - 8) / 2;
+  const labelW = 30;
+  const newPage = () => {
+    doc.addPage();
+    doc.setFillColor(...accent);
+    doc.rect(0, 0, 210, 4, 'F');
+    font('normal', 8, grey);
+    doc.text([c.company.legal_name || c.company.name, it.name].filter(Boolean).join('  ·  '), M, 12);
+  };
+  const sections = tearRows(it).map(sec => ({
+    title: sec.title,
+    rows: sec.rows.map(([key, val]) => {
+      font('normal', 8, grey);
+      const kl = doc.splitTextToSize(key, labelW - 2);
+      font('bold', 8.5);
+      const vl = doc.splitTextToSize(String(val), colW - labelW);
+      return { kl, vl, h: Math.max(kl.length * 3.6, vl.length * 3.9) + 2 };
+    }),
+  }));
+  sections.forEach(sec => { sec.h = 10.5 + sec.rows.reduce((t, r) => t + r.h, 0); });
+  let colTop = k.y + 2, y = colTop, ci = 0, bottom = colTop;
+  // Left column ends about halfway through what's left, so both columns come out even.
+  let left = sections.reduce((t, sec) => t + sec.h, 0);
+  let target = colTop + Math.min(272 - colTop, left / 2 + 6);
+  const advance = () => {
+    bottom = Math.max(bottom, y);
+    if (ci === 0) { ci = 1; y = colTop; return; }
+    newPage();
+    ci = 0; colTop = y = bottom = 22;
+    target = colTop + Math.min(272 - colTop, left / 2 + 6);
+  };
+  const heading = (title, x) => {
+    font('bold', 8, accent);
+    doc.text(title.toUpperCase(), x, y);
+    doc.setDrawColor(...line);
+    doc.setLineWidth(0.2);
+    doc.line(x, y + 1.6, x + colW, y + 1.6);
+    y += 6.5;
+  };
+  sections.forEach(sec => {
+    if (ci === 0 && y > colTop && y + sec.h / 2 > target) advance();
+    if (y + 6.5 + sec.rows[0].h > 272) advance();
+    heading(sec.title, M + ci * (colW + 8));
+    sec.rows.forEach(r => {
+      if (y + r.h > 272) { advance(); heading(`${sec.title} (cont.)`, M + ci * (colW + 8)); }
+      const x = M + ci * (colW + 8);
+      font('normal', 8, grey);
+      doc.text(r.kl, x, y);
+      font('bold', 8.5);
+      doc.text(r.vl, x + labelW, y);
+      y += r.h;
+      left -= r.h;
+    });
+    left -= 10.5;
+    y += 4;
+  });
+  k.y = Math.max(bottom, y);
+
+  // Lead time and (optional) price
+  const facts = [
+    tear.lead_time ? ['Lead time', tear.lead_time] : null,
+    price && Number(it.unit_price) ? ['Price per piece', `${money(Number(it.unit_price))} (excl. tax)`] : null,
+    price && Number(it.unit_price) && qty > 1 ? [`Total for ${qty}`, `${money(Number(it.unit_price) * qty)} (excl. tax)`] : null,
+  ].filter(Boolean);
+  if (facts.length) {
+    const h = 8 + facts.length * 6;
+    if (k.y + h > 272) { newPage(); k.y = 22; }
+    doc.setFillColor(244, 243, 239);
+    doc.roundedRect(M, k.y, R - M, h, 2, 2, 'F');
+    let y = k.y + 7;
+    facts.forEach(([key, val]) => {
+      font('normal', 9, grey);
+      doc.text(key, M + 5, y);
+      font('bold', 10);
+      doc.text(val, R - 5, y, { align: 'right' });
+      y += 6;
+    });
+    k.y += h + 4;
+  }
+}
+
+async function buildTearSheets(items, opts, fonts, logo) {
+  const c = context(items[0].project_id);
+  const ctx = startDocument({ fonts, logo, company: c.company, t: c.t, title: `Tear sheet ${items.length === 1 ? items[0].name : c.p.name}` });
+  const k = kit(ctx);
+  for (let i = 0; i < items.length; i++) {
+    if (i > 0) {
+      // Each light starts on a new page with the letterhead's accent bar.
+      ctx.doc.addPage();
+      ctx.doc.setFillColor(...ctx.accent);
+      ctx.doc.rect(0, 0, 210, 4, 'F');
+      ctx.font('normal', 8, ctx.grey);
+      ctx.doc.text([c.company.legal_name || c.company.name, c.p.order_no, c.p.name].filter(Boolean).join('  ·  '), ctx.M, 12);
+      k.y = 22;
+    }
+    await tearPage(ctx, k, items[i], c, opts);
+  }
+  finishDocument({ ...ctx, company: c.company, t: c.t });
+  const name = items.length === 1 ? `Tear sheet ${itemNo(items[0])} ${items[0].name}` : `Tear sheets ${c.p.order_no || ''} ${c.p.name}`;
+  return { out: { blob: ctx.doc.output('blob'), fileName: `${safeFileName(name.replace(/\s+/g, ' '))}.pdf` }, c };
+}
+
+export async function createTearPdf(kind, id, { price = false } = {}) {
+  const items = kind === 'order' ? lightingOf(id) : [store.get('items', id)].filter(Boolean);
+  if (!items.length) { toast('No lighting products in this order'); return; }
+  const p = store.get('projects', items[0].project_id);
+  const company = p && store.get('companies', p.company_id);
+  toast('Creating PDF…');
+  let res;
+  try {
+    const [fonts, logo] = await Promise.all([preloadPdf(), loadLogo(company).catch(() => null)]);
+    res = await buildTearSheets(items, { price }, fonts, logo);
   } catch (err) {
     console.error(err);
     toast(`Couldn't create the PDF: ${err.message || err}`);

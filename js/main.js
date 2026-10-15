@@ -14,6 +14,7 @@ import { openDeliverableSheet, openSendRoundSheet, openRoundSheet, sendDrawing }
 import { runStep, openProductSheet, cycleProduction } from './views/order.js';
 import { openShipmentSheet, openDeliverySheet } from './views/shipping.js';
 import { qcAction } from './views/qc.js';
+import { tearAction } from './views/tear.js';
 import { viewMoney } from './views/money.js';
 import { viewCalendar } from './views/calendar.js';
 import { viewActivity } from './views/activity.js';
@@ -302,6 +303,7 @@ document.addEventListener('click', e => {
   const { action, id } = el.dataset;
   const task = () => store.get('tasks', id);
   if (action && action.startsWith('qc-')) { qcAction(action, el); return; }
+  if (action && action.startsWith('tear-')) { tearAction(action, el); return; }
 
   switch (action) {
     case 'set-company': setUi({ company: id }); render(); break;

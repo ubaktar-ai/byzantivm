@@ -415,6 +415,7 @@ function lineCard(p, it) {
         <button class="btn small" data-action="qc-card-pdf" data-party="client" data-id="${it.id}">Client PDF</button>
         <button class="btn small" data-action="qc-card-pdf" data-party="supplier" data-id="${it.id}">Supplier PDF</button>
         <button class="btn small" data-action="qc-spec" data-id="${it.id}">${icon.edit} Spec</button>
+        <button class="btn small" data-action="tear-edit" data-id="${it.id}">Tear sheet</button>
       </div>
     </article>`;
 }
@@ -432,7 +433,8 @@ export function lineCardsView(p) {
       <div class="qc-actions" style="margin:0">
         ${p.order_no ? '' : `<button class="btn small" data-action="qc-order-no" data-id="${p.id}">Give it an order no.</button>`}
         ${lights.length ? `<button class="btn small primary" data-action="qc-cards-pdf" data-party="client" data-id="${p.id}">All specification cards — client PDF</button>
-        <button class="btn small" data-action="qc-cards-pdf" data-party="supplier" data-id="${p.id}">All — supplier PDF</button>` : ''}
+        <button class="btn small" data-action="qc-cards-pdf" data-party="supplier" data-id="${p.id}">All — supplier PDF</button>
+        <button class="btn small" data-action="tear-order" data-id="${p.id}">All tear sheets PDF</button>` : ''}
         <a class="btn small" href="#/project/${p.id}/qc">Quality control</a>
       </div>
     </div>
