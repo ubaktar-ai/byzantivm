@@ -10,6 +10,7 @@ import {
 import { emptyState } from './common.js';
 import { docCard, liveFileStrip, attachmentsOfItem } from '../files.js';
 import { passGate, qcLine, qcReady, guessCategory } from './qc.js';
+import { originalSummary } from '../finder.js';
 
 const num = v => Number(v) || 0;
 const round2 = n => Math.round(n * 100) / 100;
@@ -267,6 +268,11 @@ export function orderTab(p) {
       ${docCard(p, 'inquiry', { title: 'Client inquiry', label: 'Add inquiry', hint: `The client's request — PDF, email printout, sketch or photo.${store.backend.mode === 'cloud' ? ' Tap a file and choose <b>✨ Read with AI</b> to fill in the products.' : ''}` })}
       ${docCard(p, 'supplier_quote', { title: 'Supplier quotes', label: 'Add supplier quote', hint: `Prices from workshops and suppliers.${store.backend.mode === 'cloud' ? ' Tap a file and choose <b>✨ Read with AI</b> to fill in the costs.' : ''}` })}
     </div>
+    <div class="card-surface pad finder-cta">
+      <div><b>Client sent a picture, PDF or email of a product?</b>
+        <p class="muted small">Let the AI find the original online — brand, details, retail price and pictures — and add it with the client's changes as our version.</p></div>
+      <button class="btn primary" data-action="finder-open" data-id="${p.id}">✨ Find products online</button>
+    </div>
 
     <h2 class="section section-with-action">Products <span class="section-actions">${products.length ? `<button class="btn small" data-action="wf" data-step="cost-report" data-id="${p.id}" title="Internal: cost next to price, with totals">Cost report PDF</button>` : ''}<button class="btn small" data-action="add-product" data-project="${p.id}">${icon.plus} Product</button></span></h2>
     ${products.length ? `
@@ -282,6 +288,7 @@ export function orderTab(p) {
                 <b>${esc(i.name)}${num(i.quantity) !== 1 ? ` <span class="qty">× ${esc(String(num(i.quantity)))}</span>` : ''}</b>
                 <span class="muted small">${esc([i.dimensions, i.materials].filter(Boolean).join(' · ') || 'No dimensions yet')}</span>
                 <span class="muted small">${i.supplier ? `${esc(i.supplier)}${i.supplier_ref ? ` · ${esc(i.supplier_ref)}` : ''}` : '<i>No supplier yet</i>'}</span>
+                ${(i.spec || {})._original ? `<span class="muted small">Original: ${esc([i.spec._original.brand, i.spec._original.model].filter(Boolean).join(' '))}${i.spec._original.retail_price ? ` · retail ${esc(money(i.spec._original.retail_price, /^[A-Z]{3}$/.test(i.spec._original.currency || '') ? i.spec._original.currency : p.currency))}` : ''}</span>` : ''}
               </div>
               <div class="pr-chips">
                 ${stageIndex(p.stage) >= stageIndex('drawings') ? `<span class="chip draw-${ds}">${esc(drawLabel[ds])}</span>` : ''}
@@ -335,6 +342,8 @@ export function openProductSheet(projectId, existing) {
         <label class="field"><span>Notes</span><textarea name="description" rows="2" placeholder="Special requests, references…">${esc(it.description)}</textarea></label>
 
         <h3 class="sheet-sub">Costing</h3>
+        ${existing ? originalSummary(it, { full: true }) : ''}
+        ${existing ? `<button type="button" class="btn small" data-action="finder-item" data-id="${it.id}">✨ ${(it.spec || {})._original ? 'Look up the original again' : 'Find the original online'}</button>` : ''}
         <div class="field-row">
           <label class="field"><span>Supplier / workshop</span><input name="supplier" value="${esc(it.supplier)}" list="supplier-list" autocomplete="off"></label>
           <label class="field"><span>Supplier quote no.</span><input name="supplier_ref" value="${esc(it.supplier_ref)}"></label>

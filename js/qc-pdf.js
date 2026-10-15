@@ -2,11 +2,12 @@
 import { store, personName, drawingOf, roundsOf, attachmentsWhere } from './store.js';
 import { toast, parseDate } from './lib.js';
 import { fileUrls } from './files.js';
-import { specRows, specDiff, showsFor, STAGES, INSPECTORS, IMAGE_GROUPS } from './qc-spec.js';
+import { specRows, specDiff, showsFor, STAGES, INSPECTORS, IMAGE_GROUPS, SPEC_SECTIONS, fieldValue } from './qc-spec.js';
 import { ISSUE_STATUSES, issueStatus, latestVersion, viewSpec, itemNo, lightingOf } from './views/qc.js';
 import { samplesOf, sampleStatus, sampleDecision, SAMPLE_STATUSES, outcomePhotos } from './views/qc-more.js';
 import { preloadPdf, startDocument, finishDocument, docLocale, loadLogo, safeFileName, presentPdf } from './pdf.js';
 import { tearOf, tearRows, tearImages } from './views/tear.js';
+const SPEC_FIELDS = Object.fromEntries(SPEC_SECTIONS.flatMap(sec => sec.fields).map(f => [f.key, f]));
 
 const lbl = (list, id) => (list.find(x => x.id === id) || {}).label || id || '';
 const when = iso => (iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
@@ -591,6 +592,51 @@ async function tearPage(ctx, k, it, c) {
     y += 4;
   });
   k.y = Math.max(bottom, y);
+
+  // The original next to our version (when the product was based on a brand's item)
+  const o = (it.spec || {})._original;
+  if (o && tear.show_original) {
+    const custom = ((it.spec || {})._custom || []).filter(ch => ch.ours);
+    const show = (key, v) => { const f = SPEC_FIELDS[key]; return f ? fieldValue(f, { [key]: v }) || String(v || '') : String(v || ''); };
+    const pic = (await loadImages((o.images || []).slice(0, 1)))[0];
+    const tx = pic ? M + 50 : M;
+    const tw = R - tx;
+    const cw = [tw * 0.32, tw * 0.34, tw * 0.34];
+    const rows = custom.map(ch => {
+      font('normal', 8.5);
+      const cells = [ch.label, show(ch.key, ch.original) || '—', show(ch.key, ch.ours)].map((t2, ci2) => doc.splitTextToSize(t2, cw[ci2] - 3));
+      return { cells, h: Math.max(...cells.map(cl => cl.length)) * 3.9 + 2.5 };
+    });
+    const need = Math.max(pic ? 50 : 0, 16 + rows.reduce((t2, r) => t2 + r.h, 0) + (rows.length ? 7 : 6));
+    k.heading('The original & our version', need + 12);
+    const top = k.y;
+    if (pic) fitBox(ctx, pic, M, top - 2, 45, 45);
+    font('bold', 10);
+    doc.text(doc.splitTextToSize(`Based on ${[o.brand, o.model].filter(Boolean).join(' ')}`, tw)[0], tx, top + 2);
+    font('normal', 8, grey);
+    doc.text([o.designer ? `Design: ${o.designer}` : '', o.product_url].filter(Boolean).map(t2 => doc.splitTextToSize(t2, tw)[0]), tx, top + 7);
+    let ty = top + (o.designer && o.product_url ? 16 : 12);
+    if (rows.length) {
+      font('bold', 7.5, grey);
+      ['DETAIL', 'ORIGINAL', 'OUR VERSION'].forEach((h2, ci2) => doc.text(h2, tx + cw.slice(0, ci2).reduce((a2, b2) => a2 + b2, 0), ty));
+      ty += 5;
+      rows.forEach(r => {
+        r.cells.forEach((cl, ci2) => {
+          font(ci2 === 2 ? 'bold' : 'normal', 8.5, ci2 === 0 ? grey : ci2 === 2 ? accent : undefined);
+          doc.text(cl, tx + cw.slice(0, ci2).reduce((a2, b2) => a2 + b2, 0), ty);
+        });
+        doc.setDrawColor(...line);
+        doc.setLineWidth(0.15);
+        doc.line(tx, ty + r.h - 3, R, ty + r.h - 3);
+        ty += r.h;
+      });
+    } else {
+      font('normal', 9);
+      doc.text('Made to the original’s specification.', tx, ty);
+      ty += 6;
+    }
+    k.y = Math.max(ty, pic ? top + 46 : ty) + 4;
+  }
 }
 
 async function buildTearSheets(items, fonts, logo) {

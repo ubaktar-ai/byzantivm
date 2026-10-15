@@ -96,6 +96,11 @@ export class SupabaseBackend {
     return this.callFunction('read-document', { path, mode });
   }
 
+  // Ask the "product-finder" Edge Function (Claude + web search) to read what a client sent / find an original product.
+  findProducts(body) {
+    return this.callFunction('product-finder', body);
+  }
+
   // Ask the "social-writer" Edge Function (Claude) for post drafts, post ideas or a networking message.
   socialWriter(body) {
     return this.callFunction('social-writer', body);
@@ -271,6 +276,11 @@ export class LocalBackend {
   async hasColumn() { return true; }
   async readDocument() {
     const err = new Error('Reading documents with AI works with the team database, not in demo mode.');
+    err.demo = true;
+    throw err;
+  }
+  async findProducts() {
+    const err = new Error('Finding products online works with the team database, not in demo mode.');
     err.demo = true;
     throw err;
   }

@@ -547,7 +547,9 @@ function buildCostReport(p, fonts, logo) {
     font('bold', 9);
     const name = doc.splitTextToSize(`${it.item_no || String(i + 1).padStart(2, '0')}  ${it.name}`, col.qty - col.desc - 12);
     font('normal', 7.5);
-    const detail = doc.splitTextToSize([it.supplier, it.supplier_ref].filter(Boolean).join(' · '), col.qty - col.desc - 12);
+    const o = (it.spec || {})._original;
+    const orig = o ? `Original: ${[o.brand, o.model].filter(Boolean).join(' ')}${o.retail_price ? ` · retail ${new Intl.NumberFormat(locale, { style: 'currency', currency: /^[A-Z]{3}$/.test(o.currency || '') ? o.currency : (p.currency || 'EUR') }).format(o.retail_price)}` : ''}` : '';
+    const detail = doc.splitTextToSize([[it.supplier, it.supplier_ref].filter(Boolean).join(' · '), orig].filter(Boolean).join('\n'), col.qty - col.desc - 12);
     const h = name.length * 4.4 + (detail[0] ? detail.length * 3.6 : 0) + 4;
     if (y + h > 262) { newPage(); header(); }
     font('bold', 9);

@@ -11,6 +11,7 @@ import {
   samplesBlock, requestsBlock, submissionsBlock, linksBlock, openRequests, requestsOf, requestStatus, moreAction, moreHistory,
 } from './qc-more.js';
 import { uploadFiles } from '../files.js';
+import { originalSummary } from '../finder.js';
 import { emptyState } from './common.js';
 
 // ---------- Data helpers ----------
@@ -217,6 +218,7 @@ function lightCard(p, it) {
         </div>
       </header>
 
+      ${originalSummary(it, { full: true })}
       <section class="qc-block">
         <h4>Specification</h4>
         ${v ? `
@@ -237,6 +239,7 @@ function lightCard(p, it) {
           <button class="btn small" data-action="qc-card-pdf" data-party="client" data-id="${it.id}">Client spec card PDF</button>
           <button class="btn small" data-action="qc-card-pdf" data-party="supplier" data-id="${it.id}">Supplier spec card PDF</button>
           <button class="btn small" data-action="tear-edit" data-id="${it.id}">Tear sheet</button>
+          <button class="btn small" data-action="finder-item" data-id="${it.id}">✨ ${(it.spec || {})._original ? 'Original again' : 'Find original online'}</button>
         </div>
       </section>
 

@@ -18,7 +18,7 @@ export const TEAR_SECTIONS = [
   { title: 'Mounting & certification', keys: ['suspension', 'cable_length', 'canopy', 'certification', 'ip_rating', 'location_rating'] },
 ].map(sec => ({ ...sec, fields: sec.keys.map(k => FIELD[k]).filter(f => f && f.type !== 'files') }));
 
-export const tearOf = it => ({ description: '', images: [], hidden: [], ...(((it && it.spec) || {})._tear || {}) });
+export const tearOf = it => ({ description: '', images: [], hidden: [], show_original: true, ...(((it && it.spec) || {})._tear || {}) });
 
 // What the tear sheet shows: [{ title, rows: [[label, value]] }] — filled-in details that apply and aren't switched off.
 export function tearRows(it) {
@@ -64,6 +64,8 @@ export function openTearSheet(it) {
             <label class="field wide"><span>Description</span>
               <textarea name="tear_description" rows="3" placeholder="e.g. Hand-blown opal glass pendant on a satin brass canopy, made to order for the lobby.">${esc(tear.description)}</textarea></label>
           </div>
+          ${spec._original ? `<label class="check-row"><input type="checkbox" name="tear_original" ${tear.show_original ? 'checked' : ''}>
+            <span>Show the original (${esc([spec._original.brand, spec._original.model].filter(Boolean).join(' '))}) next to our version</span></label>` : ''}
         </details>
         ${TEAR_SECTIONS.map((sec, i) => `
           <details class="spec-sec" ${i < 2 ? 'open' : ''}>
@@ -89,6 +91,7 @@ export function openTearSheet(it) {
       const next = readSpec(form, spec);
       next._tear = {
         description: String(fd.get('tear_description') || '').trim(),
+        show_original: !!fd.get('tear_original'),
         images: bag.tear || [],
         hidden: TEAR_SECTIONS.flatMap(sec => sec.fields).filter(f => form.elements[`tear_on_${f.key}`] && !form.elements[`tear_on_${f.key}`].checked).map(f => f.key),
       };

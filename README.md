@@ -210,6 +210,19 @@ The private links use a third Supabase function, `qc-portal`. It needs no API ke
 
 With the Supabase CLI: `supabase functions deploy qc-portal --no-verify-jwt`.
 
+### 9. Find products online (optional)
+
+On a project's **Order** tab, **✨ Find products online** reads what a client sent (photos, screenshots,
+scans, PDFs and the text of their email), works out which products they want and what they want changed,
+then looks up each original online: brand, model, details, retail price and pictures. You check the
+original next to **our version** (the original plus the client's changes) before anything is saved; the
+original is kept with the product (product sheet, QC tab, tear sheet, cost report). Any product can also be
+looked up later with **✨ Find the original online**.
+
+Setup: the same `ANTHROPIC_API_KEY` secret as step 6, then deploy `supabase/functions/product-finder`
+as a function named **product-finder** (Verify JWT **on**). Each lookup uses a few web searches and takes
+about a minute; the Edge Function stops itself before Supabase's 150-second limit.
+
 ## Demo mode
 
 Without a key, or by tapping **Try demo mode** on the sign-in screen, the app runs with data stored only on that device.

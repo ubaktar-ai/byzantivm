@@ -1113,3 +1113,20 @@ a.qc-thumb.file { text-decoration: none; }
 .section-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .check-row { display: flex; align-items: center; gap: 10px; font-size: 15px; cursor: pointer; }
 .check-row input { width: 20px; height: 20px; accent-color: var(--accent); }
+.finder-cta { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 12px; }
+.finder-cta p { margin: 4px 0 0; }
+.finder-files { display: grid; gap: 6px; margin-bottom: 8px; }
+.finder-steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.finder-steps li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; }
+.spinner.small { width: 12px; height: 12px; border-width: 2px; display: inline-block; vertical-align: -2px; margin-right: 4px; }
+.finder-card { border: 1px solid var(--border); border-radius: 14px; padding: 12px; display: grid; gap: 10px; }
+.finder-card:has(> .check-line input:not(:checked)) .finder-cols { opacity: .45; }
+.finder-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.finder-cols h4 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-2); }
+.finder-orig p { margin: 0 0 6px; }
+.finder-orig .qc-thumb { width: 72px; height: 72px; }
+.finder-price { font-weight: 650; }
+.finder-ours { display: grid; gap: 10px; align-content: start; }
+.finder-note { padding: 10px 12px; border-radius: 12px; background: var(--surface-2, rgba(127,127,127,.08)); display: grid; gap: 4px; font-size: 14px; }
+.qc-card > .finder-note { margin: 0 16px 8px; }
+@media (max-width: 700px) { .finder-cols { grid-template-columns: 1fr; } }
