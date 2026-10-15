@@ -486,7 +486,7 @@ export async function createQcPdf(kind, id, party = 'client') {
   return presentPdf(res.out, { company: res.c.company, client: res.c.client });
 }
 
-// ---------- Tear sheets (client-facing product sheet, 1–2 pages per light) ----------
+// ---------- Tear sheets (client-facing product sheet, 1–2 pages per light; no prices) ----------
 
 // Picture fitted and centred in a light box.
 function fitBox(ctx, im, x, y, w, h) {
@@ -498,11 +498,9 @@ function fitBox(ctx, im, x, y, w, h) {
   doc.addImage(im.dataUrl, 'JPEG', x + (w - im.w * s) / 2, y + (h - im.h * s) / 2, im.w * s, im.h * s);
 }
 
-async function tearPage(ctx, k, it, c, { price }) {
+async function tearPage(ctx, k, it, c) {
   const { doc, grey, font, M, R, accent, line } = ctx;
   const tear = tearOf(it);
-  const { locale } = docLocale(c.company, 'en');
-  const money = v => new Intl.NumberFormat(locale, { style: 'currency', currency: c.p.currency || 'EUR' }).format(v);
   const qty = Number(it.quantity) || 1;
 
   // Title
@@ -593,31 +591,9 @@ async function tearPage(ctx, k, it, c, { price }) {
     y += 4;
   });
   k.y = Math.max(bottom, y);
-
-  // Lead time and (optional) price
-  const facts = [
-    tear.lead_time ? ['Lead time', tear.lead_time] : null,
-    price && Number(it.unit_price) ? ['Price per piece', `${money(Number(it.unit_price))} (excl. tax)`] : null,
-    price && Number(it.unit_price) && qty > 1 ? [`Total for ${qty}`, `${money(Number(it.unit_price) * qty)} (excl. tax)`] : null,
-  ].filter(Boolean);
-  if (facts.length) {
-    const h = 8 + facts.length * 6;
-    if (k.y + h > 272) { newPage(); k.y = 22; }
-    doc.setFillColor(244, 243, 239);
-    doc.roundedRect(M, k.y, R - M, h, 2, 2, 'F');
-    let y = k.y + 7;
-    facts.forEach(([key, val]) => {
-      font('normal', 9, grey);
-      doc.text(key, M + 5, y);
-      font('bold', 10);
-      doc.text(val, R - 5, y, { align: 'right' });
-      y += 6;
-    });
-    k.y += h + 4;
-  }
 }
 
-async function buildTearSheets(items, opts, fonts, logo) {
+async function buildTearSheets(items, fonts, logo) {
   const c = context(items[0].project_id);
   const ctx = startDocument({ fonts, logo, company: c.company, t: c.t, title: `Tear sheet ${items.length === 1 ? items[0].name : c.p.name}` });
   const k = kit(ctx);
@@ -631,14 +607,14 @@ async function buildTearSheets(items, opts, fonts, logo) {
       ctx.doc.text([c.company.legal_name || c.company.name, c.p.order_no, c.p.name].filter(Boolean).join('  ·  '), ctx.M, 12);
       k.y = 22;
     }
-    await tearPage(ctx, k, items[i], c, opts);
+    await tearPage(ctx, k, items[i], c);
   }
   finishDocument({ ...ctx, company: c.company, t: c.t });
   const name = items.length === 1 ? `Tear sheet ${itemNo(items[0])} ${items[0].name}` : `Tear sheets ${c.p.order_no || ''} ${c.p.name}`;
   return { out: { blob: ctx.doc.output('blob'), fileName: `${safeFileName(name.replace(/\s+/g, ' '))}.pdf` }, c };
 }
 
-export async function createTearPdf(kind, id, { price = false } = {}) {
+export async function createTearPdf(kind, id) {
   const items = kind === 'order' ? lightingOf(id) : [store.get('items', id)].filter(Boolean);
   if (!items.length) { toast('No lighting products in this order'); return; }
   const p = store.get('projects', items[0].project_id);
@@ -647,7 +623,7 @@ export async function createTearPdf(kind, id, { price = false } = {}) {
   let res;
   try {
     const [fonts, logo] = await Promise.all([preloadPdf(), loadLogo(company).catch(() => null)]);
-    res = await buildTearSheets(items, { price }, fonts, logo);
+    res = await buildTearSheets(items, fonts, logo);
   } catch (err) {
     console.error(err);
     toast(`Couldn't create the PDF: ${err.message || err}`);

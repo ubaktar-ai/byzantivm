@@ -1,10 +1,10 @@
 // Tear sheets: a short, client-facing product sheet for a light (pictures, description and the key details),
 // made into a 1–2 page PDF. The details are the spec's own fields, so they are filled in once; the tear sheet
-// only adds its own pictures, a description, a lead time and which details to leave off.
+// only adds its own pictures, a description and which details to leave off. It shows the product, not prices.
 import { esc, openSheet, sheetHeader, toast, $ } from '../lib.js';
 import { store } from '../store.js';
 import { SPEC_SECTIONS, visible, fieldValue } from '../qc-spec.js';
-import { fieldHtml, readSpec, wireSpecFields, photoPicker, wirePhotos, templateOf, itemNo, lightingOf } from './qc.js';
+import { fieldHtml, readSpec, wireSpecFields, photoPicker, wirePhotos, templateOf, itemNo } from './qc.js';
 
 const FIELD = Object.fromEntries(SPEC_SECTIONS.flatMap(s => s.fields).map(f => [f.key, f]));
 
@@ -18,7 +18,7 @@ export const TEAR_SECTIONS = [
   { title: 'Mounting & certification', keys: ['suspension', 'cable_length', 'canopy', 'certification', 'ip_rating', 'location_rating'] },
 ].map(sec => ({ ...sec, fields: sec.keys.map(k => FIELD[k]).filter(f => f && f.type !== 'files') }));
 
-export const tearOf = it => ({ description: '', lead_time: '', images: [], hidden: [], ...(((it && it.spec) || {})._tear || {}) });
+export const tearOf = it => ({ description: '', images: [], hidden: [], ...(((it && it.spec) || {})._tear || {}) });
 
 // What the tear sheet shows: [{ title, rows: [[label, value]] }] — filled-in details that apply and aren't switched off.
 export function tearRows(it) {
@@ -63,7 +63,6 @@ export function openTearSheet(it) {
           <div class="spec-grid">
             <label class="field wide"><span>Description</span>
               <textarea name="tear_description" rows="3" placeholder="e.g. Hand-blown opal glass pendant on a satin brass canopy, made to order for the lobby.">${esc(tear.description)}</textarea></label>
-            <label class="field"><span>Lead time</span><input name="tear_lead_time" value="${esc(tear.lead_time)}" placeholder="e.g. 10–12 weeks after approval" autocomplete="off"></label>
           </div>
         </details>
         ${TEAR_SECTIONS.map((sec, i) => `
@@ -71,7 +70,6 @@ export function openTearSheet(it) {
             <summary>${esc(sec.title)}</summary>
             <div class="spec-grid">${sec.fields.map(f => fieldHtml(f, spec, template, { toggles: onSheet })).join('')}</div>
           </details>`).join('')}
-        <label class="check-row"><input type="checkbox" name="tear_price"> <span>Show the price on this PDF</span></label>
       </div>
       <footer>
         <span class="spacer"></span>
@@ -91,42 +89,22 @@ export function openTearSheet(it) {
       const next = readSpec(form, spec);
       next._tear = {
         description: String(fd.get('tear_description') || '').trim(),
-        lead_time: String(fd.get('tear_lead_time') || '').trim(),
         images: bag.tear || [],
         hidden: TEAR_SECTIONS.flatMap(sec => sec.fields).filter(f => form.elements[`tear_on_${f.key}`] && !form.elements[`tear_on_${f.key}`].checked).map(f => f.key),
       };
       try { await store.update('items', it.id, { spec: next }); } catch (err) { return false; }
-      if (submitter && submitter.hasAttribute('data-pdf')) {
-        const price = !!fd.get('tear_price');
-        setTimeout(() => makeTearPdf('one', it.id, { price }), 50);
-      } else toast('Tear sheet saved');
+      if (submitter && submitter.hasAttribute('data-pdf')) setTimeout(() => makeTearPdf('one', it.id), 50);
+      else toast('Tear sheet saved');
     },
   });
 }
 
-// All tear sheets of an order: ask about prices, then one PDF.
-function openOrderTearSheet(p) {
-  const lights = lightingOf(p.id);
-  if (!lights.length) { toast('No lighting products in this order'); return; }
-  openSheet(`
-    <form>
-      ${sheetHeader('Tear sheets — whole order')}
-      <div class="fields">
-        <p>${lights.length} light${lights.length === 1 ? '' : 's'}, each on its own page${lights.length > 1 ? 's' : ''}.</p>
-        <label class="check-row"><input type="checkbox" name="price"> <span>Show prices</span></label>
-      </div>
-      <footer><button type="button" class="btn" data-close>Cancel</button><span class="spacer"></span><button type="submit" class="btn primary">Make PDF</button></footer>
-    </form>`, {
-    onSubmit(fd) { setTimeout(() => makeTearPdf('order', p.id, { price: !!fd.get('price') }), 50); },
-  });
-}
-
-export const makeTearPdf = (kind, id, opts) => import('../qc-pdf.js').then(m => m.createTearPdf(kind, id, opts));
+export const makeTearPdf = (kind, id) => import('../qc-pdf.js').then(m => m.createTearPdf(kind, id));
 
 export function tearAction(action, el) {
   const id = el.dataset.id;
   if (action === 'tear-edit') { const it = store.get('items', id); if (it) openTearSheet(it); return true; }
-  if (action === 'tear-pdf') { makeTearPdf('one', id, { price: false }); return true; }
-  if (action === 'tear-order') { const p = store.get('projects', id); if (p) openOrderTearSheet(p); return true; }
+  if (action === 'tear-pdf') { makeTearPdf('one', id); return true; }
+  if (action === 'tear-order') { makeTearPdf('order', id); return true; }
   return false;
 }
