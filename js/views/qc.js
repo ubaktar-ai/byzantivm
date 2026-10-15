@@ -12,6 +12,7 @@ import {
 } from './qc-more.js';
 import { uploadFiles } from '../files.js';
 import { originalSummary } from '../finder.js';
+import { pricesBlock } from './prices.js';
 import { emptyState } from './common.js';
 
 // ---------- Data helpers ----------
@@ -326,6 +327,7 @@ export function qcTab(p) {
       <p class="muted small">A furniture checklist can be added later.</p>` : ''}
     ${removed.length ? `<p class="muted small">History kept for removed products: ${removed.map(v => esc(v.item_name)).join(', ')}.</p>` : ''}
 
+    ${pricesBlock(p)}
     ${linksBlock(p)}
 
     <h2 class="section section-with-action">Issues <button class="btn small" data-action="qc-new-issue" data-project="${p.id}">${icon.plus} Report issue</button></h2>

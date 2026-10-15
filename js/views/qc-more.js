@@ -242,7 +242,7 @@ function openSubmissionView(s) {
 
 // ---------- Links for the supplier and the client ----------
 
-export const linksOf = pid => store.all('qc_links').filter(l => l.project_id === pid).sort(byCreated);
+export const linksOf = pid => store.all('qc_links').filter(l => l.project_id === pid && l.purpose !== 'quote').sort(byCreated);
 export const portalUrl = link => `${location.origin}${location.pathname.replace(/[^/]*$/, '')}portal.html#${link.token}`;
 
 export function linksBlock(p) {
@@ -269,7 +269,7 @@ export function linksBlock(p) {
     </div>`;
 }
 
-function newToken() {
+export function newToken() {
   const b = new Uint8Array(24);
   crypto.getRandomValues(b);
   return Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
@@ -302,18 +302,20 @@ function openLinkSheet(p, party) {
   });
 }
 
-function shareLink(link) {
+export function shareLink(link) {
   const url = portalUrl(link);
   const p = store.get('projects', link.project_id);
-  const text = link.party === 'supplier'
+  const text = link.purpose === 'quote'
+    ? `Price request${p && p.order_no ? ` for order ${p.order_no}` : ''}: please send your price per piece and lead time for each item.`
+    : link.party === 'supplier'
     ? `Production specs for ${p ? p.name : 'our order'}${p && p.order_no ? ` (${p.order_no})` : ''}: please check and confirm each item, and send photos. Any change must be requested here.`
     : `Specs for ${p ? p.name : 'your order'}${p && p.order_no ? ` (${p.order_no})` : ''}: please review and approve.`;
   openSheet(`
     <div>
-      ${sheetHeader(`${link.party === 'client' ? 'Client' : 'Supplier'} link`)}
+      ${sheetHeader(link.purpose === 'quote' ? 'Price request link' : `${link.party === 'client' ? 'Client' : 'Supplier'} link`)}
       <div class="fields">
         <input class="link-box" readonly value="${esc(url)}">
-        <p class="muted small">Anyone with this link can see these specs and send answers, so share it only with the right person. You can switch it off any time.</p>
+        <p class="muted small">${link.purpose === 'quote' ? 'The supplier sees the pictures and details — not the original’s price, your prices or the client.' : ''} Anyone with this link can see these specs and send answers, so share it only with the right person. You can switch it off any time.</p>
       </div>
       <footer><span class="spacer"></span>
         <button type="button" class="btn" data-copy>Copy</button>

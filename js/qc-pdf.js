@@ -677,3 +677,86 @@ export async function createTearPdf(kind, id) {
   }
   return presentPdf(res.out, { company: res.c.company, client: res.c.client });
 }
+
+// ---------- Price request PDF (for the supplier: no original price, no prices, no client) ----------
+
+export async function createRfqPdf(projectId, itemIds) {
+  const items = itemIds.map(id => store.get('items', id)).filter(Boolean);
+  if (!items.length) return;
+  const p = store.get('projects', projectId);
+  const company = p && store.get('companies', p.company_id);
+  toast('Creating PDF…');
+  let res;
+  try {
+    const [fonts, logo] = await Promise.all([preloadPdf(), loadLogo(company).catch(() => null)]);
+    const c = context(projectId);
+    const ctx = startDocument({ fonts, logo, company: c.company, t: c.t, title: `Price request ${c.p.order_no || c.p.name}` });
+    const k = kit(ctx);
+    const { doc, grey, font, M, R, accent, line, ink } = ctx;
+    const ref = c.p.order_no || c.p.name;
+    const show = (key, v) => { const f = SPEC_FIELDS[key]; return f ? fieldValue(f, { [key]: v }) || String(v || '') : String(v || ''); };
+    if (items.length > 1) {
+      k.title('PRICE REQUEST', [['Order', ref], ['Items', String(items.length)], ['Date', fmtDate(new Date().toISOString())]]);
+      k.para('Please send your price per piece and lead time for each item below, made as described. Write it on each page or reply with your quote.', { size: 9.5 });
+      k.heading('Items');
+      k.rows(items.map(it => [`${itemNo(it)}  ${it.name}`, `${Number(it.quantity) || 1} pcs`]));
+    }
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      const spec = it.spec || {};
+      if (items.length > 1 || i > 0) {
+        doc.addPage();
+        doc.setFillColor(...accent);
+        doc.rect(0, 0, 210, 4, 'F');
+        font('normal', 8, grey);
+        doc.text([c.company.legal_name || c.company.name, ref ? `Order ${ref}` : ''].filter(Boolean).join('  ·  '), M, 12);
+        k.y = 22;
+      }
+      k.title('PRICE REQUEST', [['Order', ref], ['Item no.', itemNo(it)], ['Quantity', `${Number(it.quantity) || 1} pcs`], ['Date', fmtDate(new Date().toISOString())]]);
+      font('bold', 15);
+      const nameLines = doc.splitTextToSize(it.name, R - M);
+      doc.text(nameLines, M, k.y);
+      k.y += nameLines.length * 6 + 2;
+      // Pictures: proposed, tear sheet, the original's and the client's
+      const o = spec._original;
+      const ids = [...new Set([...((spec._images || {}).offer || []), ...(((spec._tear || {}).images) || []), ...((o && o.images) || []), ...((spec._images || {}).vision || [])])];
+      const imgs = await loadImages(ids.slice(0, 6));
+      if (imgs.length) await k.photos(imgs);
+      const changes = (spec._custom || []).filter(ch => ch && ch.ours && showsFor(spec, ch.key, 'supplier', c.company.qc_template || {}));
+      if (changes.length) {
+        k.heading('Changed from the original');
+        k.rows(changes.map(ch => [ch.label, `${show(ch.key, ch.original) || '—'}  →  ${show(ch.key, ch.ours)}`]));
+      }
+      specRows(spec, 'supplier', c.company.qc_template || {}).forEach(sec => {
+        k.heading(sec.title);
+        k.rows(sec.rows);
+        if (sec.lines.length) k.rows(sec.lines.map((l, n) => [`Request ${n + 1}`, l]));
+      });
+      if (o) {
+        k.heading('The original we’re based on');
+        k.para([[o.brand, o.model].filter(Boolean).join(' — '), o.designer ? `design ${o.designer}` : ''].filter(Boolean).join('  ·  '), { bold: true, size: 9.5 });
+        if (o.description) k.para(o.description, { size: 9 });
+        const rows = Object.entries(o.specs || {}).filter(([key, v]) => SPEC_FIELDS[key] && String(v || '').trim()).map(([key, v]) => [SPEC_FIELDS[key].label, show(key, v)]);
+        if (rows.length) k.rows(rows);
+      }
+      // Space for the supplier's answer
+      k.heading('Your price', 46);
+      [['Price per piece (currency)', 0], ['Lead time', 0], ['Notes', 0]].forEach(([label]) => {
+        font('normal', 9, grey);
+        doc.text(label, M, k.y + 4);
+        doc.setDrawColor(...ink);
+        doc.setLineWidth(0.25);
+        doc.line(M + 52, k.y + 5, R, k.y + 5);
+        k.y += 11;
+      });
+      doc.setDrawColor(...line);
+    }
+    finishDocument({ ...ctx, company: c.company, t: c.t });
+    res = { out: { blob: doc.output('blob'), fileName: `${safeFileName(`Price request ${ref}`)}.pdf` }, c };
+  } catch (err) {
+    console.error(err);
+    toast(`Couldn't create the PDF: ${err.message || err}`);
+    return;
+  }
+  return presentPdf(res.out, { company: res.c.company });
+}

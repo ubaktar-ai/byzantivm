@@ -16,6 +16,7 @@ import { openShipmentSheet, openDeliverySheet } from './views/shipping.js';
 import { qcAction } from './views/qc.js';
 import { tearAction } from './views/tear.js';
 import { openFinder } from './finder.js';
+import { pricesAction } from './views/prices.js';
 import { viewMoney } from './views/money.js';
 import { viewCalendar } from './views/calendar.js';
 import { viewActivity } from './views/activity.js';
@@ -306,6 +307,7 @@ document.addEventListener('click', e => {
   const task = () => store.get('tasks', id);
   if (action && action.startsWith('qc-')) { qcAction(action, el); return; }
   if (action && action.startsWith('tear-')) { tearAction(action, el); return; }
+  if (action && action.startsWith('price-')) { pricesAction(action, el); return; }
   if (action === 'finder-open') { openFinder(el.dataset.id); return; }
   if (action === 'finder-item') { const it = store.get('items', el.dataset.id); if (it) openFinder(it.project_id, { itemId: it.id }); return; }
 

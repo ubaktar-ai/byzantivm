@@ -223,6 +223,16 @@ Setup: the same `ANTHROPIC_API_KEY` secret as step 6, then deploy `supabase/func
 as a function named **product-finder** (Verify JWT **on**). Each lookup uses a few web searches and takes
 about a minute; the Edge Function stops itself before Supabase's 150-second limit.
 
+### 10. Supplier price requests (lights)
+
+Run `supabase/migrations/010_supplier_prices.sql` once. Then, on a project's **QC** tab, **Supplier prices →
+New price request** makes a private link for a supplier (the same `qc-portal` function as step 8). The supplier
+sees, per light, the pictures, every detail meant for suppliers, what changed from the original and the
+original's materials — never the original's price or shop link, your cost or selling price, or the client — and
+sends a price per piece, lead time and notes. Prices arrive in the same section (also typed in by hand for
+prices that came by email); **Accept** sets the product's cost and supplier. **Price request PDF** is the same
+request on paper. Every price is kept permanently with the name and the date.
+
 ## Demo mode
 
 Without a key, or by tapping **Try demo mode** on the sign-in screen, the app runs with data stored only on that device.

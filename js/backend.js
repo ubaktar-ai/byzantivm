@@ -7,7 +7,7 @@ export const keyOf = table => (table === 'team_members' ? 'email' : 'id');
 
 // Quality-control records are permanent: the database refuses changes and deletes.
 export const QC_TABLES = ['spec_versions', 'qc_approvals', 'qc_inspections', 'qc_issues', 'qc_issue_updates', 'qc_overrides',
-  'qc_samples', 'qc_sample_updates', 'qc_requests', 'qc_request_updates', 'qc_submissions'];
+  'qc_samples', 'qc_sample_updates', 'qc_requests', 'qc_request_updates', 'qc_submissions', 'supplier_prices'];
 
 // Foreign keys, mirroring supabase/schema.sql: when a parent row is deleted,
 // children are deleted ('cascade') or have the link cleared ('null').
@@ -225,7 +225,8 @@ const DEFAULTS = {
   qc_requests: () => ({ item_id: null, version_id: null, person: '', photos: [], link_id: null }),
   qc_request_updates: () => ({ note: '' }),
   qc_submissions: () => ({ item_id: null, person: '', note: '', photos: [], link_id: null }),
-  qc_links: () => ({ item_ids: [], label: '', revoked_at: null }),
+  qc_links: () => ({ item_ids: [], label: '', revoked_at: null, purpose: 'qc', currency: '' }),
+  supplier_prices: () => ({ item_id: null, item_name: '', link_id: null, party: 'us', person: '', currency: '', lead_time: '', notes: '', photos: [] }),
   shipments: () => ({ carrier: '', tracking: '', status: 'preparing', shipped_date: null, delivered_date: null, cost: 0, packages: '', notes: '' }),
   social_posts: () => ({ project_id: null, status: 'draft', title: '', idea: '', body: '', hashtags: '', photo_ids: [], language: 'en', scheduled_for: null, posted_at: null, posted_url: '', sort_order: 0 }),
   social_contacts: () => ({ role: '', organisation: '', category: 'other', platform: 'linkedin', profile_url: '', status: 'to_connect', message: '', next_follow_up: null, notes: '' }),
@@ -340,6 +341,8 @@ export class LocalBackend {
       r.title = `Change request — ${r.item_name || 'order'}`;
     } else if (table === 'qc_request_updates') {
       r.title = ((this.db.qc_requests || []).find(x => x.id === r.request_id) || {}).title || '';
+    } else if (table === 'supplier_prices') {
+      r.title = `Price — ${r.item_name || 'item'}`;
     } else if (table === 'qc_submissions') {
       r.title = `${r.purpose[0].toUpperCase()}${r.purpose.slice(1)} photos — ${r.item_name || 'order'}`;
     }

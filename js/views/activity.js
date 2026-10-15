@@ -105,6 +105,10 @@ function sentence(a) {
     }
     case 'qc_request_updates': return `answered ${name}`;
     case 'qc_submissions': return `received ${name}`;
+    case 'supplier_prices': {
+      const r = store.get('supplier_prices', a.entity_id);
+      return r ? `${r.party === 'supplier' ? 'received a supplier price' : 'added a supplier price'}${r.person ? ` from ${esc(r.person)}` : ''}: ${name}` : `received ${name}`;
+    }
     case 'qc_overrides': return `<b class="warn-text">overrode a quality-control check</b> on this order`;
     case 'costs':
       return a.action === 'created' ? `added cost ${name}` : a.action === 'deleted' ? `deleted cost ${name}` : `updated cost ${name}`;

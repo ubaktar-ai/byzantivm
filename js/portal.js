@@ -112,8 +112,106 @@ function itemCard(it) {
     </article>`;
 }
 
+// ---------- Price request: pictures, our version, the original's materials, and a price form per light ----------
+
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'CNY', 'TRY'];
+const FIELDS = Object.fromEntries(SPEC_SECTIONS.flatMap(sec => sec.fields).map(f => [f.key, f]));
+const money = (v, cur) => { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur || 'USD' }).format(v); } catch (e) { return `${cur} ${v}`; } };
+const shown = (key, v) => (FIELDS[key] ? fieldValue(FIELDS[key], { [key]: v }) || String(v || '') : String(v || ''));
+
+function quoteCard(it) {
+  const s = it.spec;
+  const shape = { ...(it.layout || {}), ...s };
+  const sections = SPEC_SECTIONS.map(sec => ({
+    title: sec.title,
+    rows: sec.fields.filter(f => s[f.key] !== undefined && visible(f, shape))
+      .map(f => [f.label, f.type === 'files' ? fileLinks(s[f.key]) : f.type === 'lines' ? esc(String(s[f.key])).replace(/\n/g, '<br>') : esc(fieldValue(f, s))]).filter(([, val]) => val),
+  })).filter(sec => sec.rows.length);
+  const o = it.original;
+  const origRows = o ? Object.entries(o.specs || {}).filter(([k, v]) => FIELDS[k] && String(v || '').trim()).map(([k, v]) => [FIELDS[k].label, shown(k, v)]) : [];
+  const last = it.prices[it.prices.length - 1];
+  const cur = (last && last.currency) || data.currency;
+  return `
+    <article class="card-surface qc-card portal-card" data-item="${esc(it.id)}">
+      <header class="qc-card-head">
+        <div>
+          <div class="muted small">Item ${esc(it.item_no || '')}</div>
+          <h3>${esc(it.name)} <span class="muted">× ${esc(String(it.quantity || 1))}</span></h3>
+        </div>
+      </header>
+      ${it.pictures.length ? `<div class="portal-gallery">${pics(it.pictures)}</div>` : '<p class="muted small">No pictures yet.</p>'}
+      ${it.changes.length ? `<h4 class="portal-sec">Changed from the original</h4>
+        <table class="qc-diff"><tbody>${it.changes.map(c => `<tr><th>${esc(c.label)}</th><td><s>${esc(shown(c.key, c.original) || '—')}</s></td><td>→</td><td><b>${esc(shown(c.key, c.ours))}</b></td></tr>`).join('')}</tbody></table>` : ''}
+      ${sections.map(sec => `<h4 class="portal-sec">${esc(sec.title)}</h4><dl class="facts">${sec.rows.map(([k, val]) => `<dt>${esc(k)}</dt><dd>${val}</dd>`).join('')}</dl>`).join('')}
+      ${o ? `<h4 class="portal-sec">The original we're based on</h4>
+        <p class="small"><b>${esc([o.brand, o.model].filter(Boolean).join(' — '))}</b>${o.designer ? ` <span class="muted">· design ${esc(o.designer)}</span>` : ''}</p>
+        ${o.description ? `<p class="small">${esc(o.description)}</p>` : ''}
+        ${origRows.length ? `<dl class="facts">${origRows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}` : ''}
+      <h4 class="portal-sec">Your price</h4>
+      ${it.prices.length ? `<ul class="small">${it.prices.map(p => `<li><b>${esc(money(p.unit_price, p.currency))}</b> per piece${p.lead_time ? ` · lead time ${esc(p.lead_time)}` : ''}${p.person ? ` · ${esc(p.person)}` : ''} · ${esc(when(p.at))}${p.notes ? ` — ${esc(p.notes)}` : ''}</li>`).join('')}</ul>` : ''}
+      <form class="portal-price" data-price>
+        <div class="field-row">
+          <label class="field"><span>Price per piece</span><input name="unit_price" inputmode="decimal" required placeholder="e.g. 420" autocomplete="off"></label>
+          <label class="field"><span>Currency</span><select name="currency">${[...new Set([cur, ...CURRENCIES])].map(c => `<option ${c === cur ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+        </div>
+        <label class="field"><span>Lead time</span><input name="lead_time" placeholder="e.g. 8–10 weeks after approval" autocomplete="off"></label>
+        <label class="field"><span>Notes (optional)</span><textarea name="notes" rows="2" placeholder="What's included, transport, packing, options…"></textarea></label>
+        <label class="field"><span>Your quote or drawings (optional)</span><input type="file" name="files" multiple accept="image/*,application/pdf"></label>
+        <div class="qc-actions"><button type="submit" class="btn primary">${it.prices.length ? 'Send a new price' : 'Send price'}</button><span class="muted small" data-status></span></div>
+      </form>
+    </article>`;
+}
+
+function renderQuote() {
+  const d = data;
+  const ref = d.order.order_no || d.order.name;
+  document.title = `Price request${ref ? ` · ${ref}` : ''}`;
+  root.innerHTML = `
+    <header class="portal-head" style="--c:${esc(d.company.color || '#333')}">
+      ${d.company.logo || builtInLogo(d.company.name) ? `<img class="portal-logo" src="${esc(d.company.logo || builtInLogo(d.company.name))}" alt="${esc(d.company.name)}">` : `<b class="portal-company">${esc(d.company.name)}</b>`}
+      <div>
+        <div class="muted small">Price request</div>
+        <h1>${ref ? `Order ${esc(ref)}` : 'Price request'}</h1>
+        <div class="muted small">${d.items.length} item${d.items.length === 1 ? '' : 's'}</div>
+      </div>
+    </header>
+    <div class="card-surface pad portal-intro">
+      <label class="field"><span>Your name</span><input id="portal-name" value="${esc(getName())}" placeholder="Saved with every price you send" autocomplete="name"></label>
+      <p class="muted small">Please send your price per piece for each item, made as described below, with your lead time. Tap a picture to see it full size.
+        If something can't be made as described, say so in the notes. You can send a new price at any time; we see every price with your name and the date.</p>
+    </div>
+    ${d.items.length ? d.items.map(quoteCard).join('') : '<div class="empty">Nothing to price yet.</div>'}
+    <p class="muted small portal-foot">${esc(d.company.name)}</p>`;
+}
+
+root.addEventListener('submit', async e => {
+  const form = e.target.closest('[data-price]');
+  if (!form) return;
+  e.preventDefault();
+  const card = form.closest('[data-item]');
+  const it = data && data.items.find(x => x.id === card.dataset.item);
+  const name = needName();
+  if (!it || !name) return;
+  const price = Number(String(form.elements.unit_price.value).replace(/[^\d.,]/g, '').replace(/,(?=\d{3}\b)/g, '').replace(',', '.'));
+  if (!Number.isFinite(price) || price <= 0) { toast('Please fill in a price per piece'); return; }
+  const status = t => { const el = $('[data-status]', form); if (el) el.textContent = t; };
+  const btn = $('button[type=submit]', form);
+  btn.disabled = true;
+  try {
+    const ids = await uploadAll([...form.elements.files.files], it.id, status);
+    await call('price', { item_id: it.id, unit_price: price, currency: form.elements.currency.value, lead_time: form.elements.lead_time.value, notes: form.elements.notes.value, photo_ids: ids, person: name });
+    toast('Price sent — thank you');
+    reload();
+  } catch (err) {
+    status('');
+    toast(err.message || 'Something went wrong');
+    btn.disabled = false;
+  }
+});
+
 function render() {
   const d = data;
+  if (d.purpose === 'quote') { renderQuote(); return; }
   document.title = `${d.order.order_no ? `${d.order.order_no} · ` : ''}${d.order.name}`;
   root.innerHTML = `
     <header class="portal-head" style="--c:${esc(d.company.color || '#333')}">
