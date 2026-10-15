@@ -107,6 +107,7 @@ const READ_SCHEMA = obj({
       model_guess: str,
       product_url: str,          // a link given by the client, or ""
       search_query: str,         // the best web search to find the original
+      pictures: { type: 'array', items: { type: 'integer' } }, // numbers of the client's files that show this product
       changes: specList,         // what the client wants different from the original (our version)
       change_notes: str,         // changes that don't fit a field
     }),
@@ -159,17 +160,20 @@ Deno.serve(async req => {
   const { data: member, error: memberError } = await sb.rpc('is_team_member');
   if (memberError || !member) return json({ error: 'Please sign in with a team account.' }, 403);
 
-  // The client's files (from the app's storage) as content blocks.
+  // The client's files (from the app's storage) as content blocks, each labelled "File n" (n = its place in `paths`).
   // deno-lint-ignore no-explicit-any
   const files: any[] = [];
+  let fileNo = 0;
   const paths = (Array.isArray(body.paths) ? body.paths : []).filter((p: unknown) => typeof p === 'string' && p && !p.includes('..')).slice(0, 6);
   for (const path of paths) {
     const { data: file } = await sb.storage.from('files').download(path);
+    fileNo++;
     if (!file || file.size > MAX_FILE) continue;
     const mime = file.type || (path.toLowerCase().endsWith('.pdf') ? 'application/pdf' : '');
     const data = encodeBase64(new Uint8Array(await file.arrayBuffer()));
-    if (mime === 'application/pdf') files.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } });
-    else if (/^image\/(jpeg|png|gif|webp)$/.test(mime)) files.push({ type: 'image', source: { type: 'base64', media_type: mime, data } });
+    const block = mime === 'application/pdf' ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }
+      : /^image\/(jpeg|png|gif|webp)$/.test(mime) ? { type: 'image', source: { type: 'base64', media_type: mime, data } } : null;
+    if (block) files.push({ type: 'text', text: `File ${fileNo}:` }, block);
   }
 
   const started = Date.now();
@@ -188,6 +192,7 @@ List every product the client wants (one entry per distinct product). For each:
 - seen: what the client showed or described, in one sentence.
 - brand_guess / model_guess: only if the brand or model is named, printed or clearly recognisable; otherwise "".
 - product_url: a link the client gave for it, or "".
+- pictures: the numbers of the files above that show this product (e.g. [2]); [] if none.
 - search_query: the best web search to find the original item (brand + model if known, otherwise a precise description).
 - changes: ONLY what the client wants different from or in addition to the original (their size, finish, dimming, voltage, colour temperature…), using these field keys:
 ${KEY_LIST}

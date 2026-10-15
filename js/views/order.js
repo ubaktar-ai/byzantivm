@@ -10,7 +10,7 @@ import {
 import { emptyState } from './common.js';
 import { docCard, liveFileStrip, attachmentsOfItem } from '../files.js';
 import { passGate, qcLine, qcReady, guessCategory } from './qc.js';
-import { originalSummary } from '../finder.js';
+import { originalSummary, specSummary } from '../finder.js';
 
 const num = v => Number(v) || 0;
 const round2 = n => Math.round(n * 100) / 100;
@@ -332,6 +332,9 @@ export function openProductSheet(projectId, existing) {
           <label class="field grow"><span>Product</span><input name="name" value="${esc(it.name)}" required autofocus placeholder="e.g. Dining table, Pendant light"></label>
           <label class="field qty-field"><span>Quantity</span><input name="quantity" value="${esc(String(num(it.quantity) || 1))}" inputmode="decimal"></label>
         </div>
+        ${existing ? originalSummary(it, { full: true }) : ''}
+        ${existing ? specSummary(it) : ''}
+        ${existing ? `<div><button type="button" class="btn small" data-action="finder-item" data-id="${it.id}">✨ ${(it.spec || {})._original ? 'Look up the original again' : 'Find the original online'}</button></div>` : ''}
         ${qcReady() ? `<label class="field"><span>Item no.</span><input name="item_no" value="${esc(it.item_no || '')}" placeholder="${existing ? 'automatic: position in the order' : 'e.g. L-01 (empty = automatic)'}" autocomplete="off"></label>` : ''}
         ${qcReady() ? `<label class="field"><span>Type</span><select name="category">${options([{ id: 'lighting', label: 'Lighting — uses quality control (spec, approvals, inspections)' }, { id: 'furniture', label: 'Furniture' }, { id: 'other', label: 'Other' }], it.category || 'furniture')}</select></label>` : ''}
         <div class="field-row">
@@ -342,8 +345,6 @@ export function openProductSheet(projectId, existing) {
         <label class="field"><span>Notes</span><textarea name="description" rows="2" placeholder="Special requests, references…">${esc(it.description)}</textarea></label>
 
         <h3 class="sheet-sub">Costing</h3>
-        ${existing ? originalSummary(it, { full: true }) : ''}
-        ${existing ? `<button type="button" class="btn small" data-action="finder-item" data-id="${it.id}">✨ ${(it.spec || {})._original ? 'Look up the original again' : 'Find the original online'}</button>` : ''}
         <div class="field-row">
           <label class="field"><span>Supplier / workshop</span><input name="supplier" value="${esc(it.supplier)}" list="supplier-list" autocomplete="off"></label>
           <label class="field"><span>Supplier quote no.</span><input name="supplier_ref" value="${esc(it.supplier_ref)}"></label>

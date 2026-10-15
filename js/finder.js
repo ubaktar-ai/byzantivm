@@ -5,7 +5,7 @@
 import { esc, toast, openSheet, sheetHeader, $, $$ } from './lib.js';
 import { store, productsOf, nextSortOrder } from './store.js';
 import { filesOfKind, uploadFiles } from './files.js';
-import { SPEC_SECTIONS, fieldValue, IMAGE_GROUPS } from './qc-spec.js';
+import { SPEC_SECTIONS, fieldValue, visible, IMAGE_GROUPS } from './qc-spec.js';
 import { parseAmount } from './money.js';
 
 const clean = v => String(v == null ? '' : v).trim();
@@ -13,6 +13,21 @@ const FIELD = Object.fromEntries(SPEC_SECTIONS.flatMap(s => s.fields).map(f => [
 const label = key => (FIELD[key] ? FIELD[key].label : key);
 const shown = (key, value) => (FIELD[key] ? fieldValue(FIELD[key], { [key]: value }) || clean(value) : clean(value));
 const isDoc = a => /^image\/|application\/pdf/.test(a.mime || '');
+// Words that say what a product is, for matching AI results to products already on the order.
+const COMMON = new Set(['light', 'lights', 'lamp', 'lamps', 'ceiling', 'wall', 'floor', 'table', 'pendant', 'sconce', 'with', 'and', 'the', 'for',
+  'mounted', 'mount', 'brass', 'glass', 'opal', 'white', 'black', 'gold', 'metal', 'round', 'large', 'small', 'fixture', 'design']);
+const words = s => clean(s).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(w => w.length >= 4 && !COMMON.has(w));
+const alike = (a, b) => a === b || (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a)));
+function bestMatch(pr, r, existing, used) {
+  const mine = [...new Set(words([pr.name, pr.brand_guess, pr.model_guess, r && r.brand, r && r.model].join(' ')))];
+  let best = null, score = 0;
+  existing.filter(x => !used.has(x.id)).forEach(x => {
+    const theirs = words(`${x.name} ${x.description || ''}`);
+    const s = mine.filter(w => theirs.some(t => alike(w, t))).length;
+    if (s > score) { best = x; score = s; }
+  });
+  return best;
+}
 const pairs = list => Object.fromEntries((Array.isArray(list) ? list : []).filter(x => x && FIELD[x.key] && clean(x.value)).map(x => [x.key, clean(x.value)]));
 
 let run = 0; // answers for a search the user walked away from are ignored
@@ -111,7 +126,6 @@ async function startSearch(p, files, text, link) {
   state.phase = 'research';
   draw();
 
-  const images = files.filter(a => /^image\//.test(a.mime || ''));
   const company = store.get('companies', p.company_id) || {};
   const market = company.country === 'US' ? 'US' : 'EU';
   let next = 0;
@@ -121,7 +135,7 @@ async function startSearch(p, files, text, link) {
       try {
         const res = await store.backend.findProducts({
           mode: 'research', product: products[i], currency: p.currency || (market === 'US' ? 'USD' : 'EUR'), market,
-          paths: images.slice(0, 3).map(a => a.path),
+          paths: picturesOf(products[i], files, products.length).slice(0, 3).map(a => a.path),
         });
         state.results[i] = (res && res.result) || { found: false, notes: 'No answer' };
       } catch (err) {
@@ -165,6 +179,13 @@ async function findForItem(p, it) {
   review(p, [], { summary: '' }, [product], [(res && res.result) || { found: false }], it);
 }
 
+// The client's pictures of one product: the files the AI said show it (numbered from 1); with a single product, all of them.
+function picturesOf(pr, files, count) {
+  const nums = Array.isArray(pr.pictures) ? pr.pictures : [];
+  const picked = nums.map(n => files[Number(n) - 1]).filter(Boolean);
+  return (picked.length ? picked : count === 1 ? files : []).filter(a => /^image\//.test(a.mime || ''));
+}
+
 function problem(err) {
   const msg = err.demo
     ? 'Finding products online works when you are signed in to the team database, not in demo mode.'
@@ -192,13 +213,19 @@ function changeInput(name, key, value) {
 
 function review(p, files, read, products, results, onlyItem) {
   const existing = productsOf(p.id);
+  const used = new Set();
+  const matches = products.map((pr, i) => {
+    const m = onlyItem || bestMatch(pr, results[i], existing, used);
+    if (m) used.add(m.id);
+    return m;
+  });
   const card = (pr, r, i) => {
     r = r || {};
     const orig = pairs(r.specs);
     const changes = pairs(pr.changes);
     const keys = Object.keys(changes);
     const origRows = Object.entries(orig).filter(([k]) => !changes[k]);
-    const match = onlyItem || existing.find(x => x.name.toLowerCase() === clean(pr.name).toLowerCase());
+    const match = matches[i];
     return `
       <section class="finder-card" data-i="${i}">
         <label class="check-line"><input type="checkbox" name="pick_${i}" checked> <b class="grow">${esc(pr.name)}</b></label>
@@ -220,15 +247,15 @@ function review(p, files, read, products, results, onlyItem) {
           <div class="finder-ours">
             <h4>Our version</h4>
             <div class="field-row">
-              <label class="field grow"><span>Product name</span><input name="name_${i}" value="${esc(pr.name)}"></label>
-              <label class="field qty-field"><span>Qty</span><input name="qty_${i}" value="${esc(String(Number(pr.quantity) || 1))}" inputmode="decimal"></label>
+              <label class="field grow"><span>Product name</span><input name="name_${i}" value="${esc(match ? match.name : pr.name)}"></label>
+              <label class="field qty-field"><span>Qty</span><input name="qty_${i}" value="${esc(String(Number(match ? match.quantity : pr.quantity) || 1))}" inputmode="decimal"></label>
             </div>
             <label class="field"><span>Type</span><select name="cat_${i}">${['lighting', 'furniture', 'other'].map(c => `<option ${c === (pr.category || 'lighting') ? 'selected' : ''} value="${c}">${c[0].toUpperCase() + c.slice(1)}</option>`).join('')}</select></label>
             ${keys.length ? `<p class="small"><b>What the client wants changed</b></p>${keys.map(k => `
               <label class="field"><span>${esc(label(k))}${orig[k] ? ` <span class="muted">— original: ${esc(shown(k, orig[k]))}</span>` : ''}</span>
                 ${changeInput(`chg_${i}_${k}`, k, changes[k])}</label>`).join('')}` : '<p class="muted small">No changes asked for — same as the original.</p>'}
             ${clean(pr.change_notes) ? `<label class="field"><span>Other wishes</span><textarea name="notes_${i}" rows="2">${esc(pr.change_notes)}</textarea></label>` : ''}
-            ${onlyItem ? '' : `<label class="field"><span>Save as</span><select name="target_${i}">
+            ${onlyItem ? '' : `<label class="field"><span>Save as</span><select name="target_${i}" data-i="${i}">
               <option value="new">New product on this order</option>
               ${existing.map(x => `<option value="${x.id}" ${match && match.id === x.id ? 'selected' : ''}>Update “${esc(x.name)}”</option>`).join('')}
             </select></label>`}
@@ -248,7 +275,17 @@ function review(p, files, read, products, results, onlyItem) {
       <footer><button type="button" class="btn" data-close>Cancel</button><span class="spacer"></span><button type="submit" class="btn primary">Save</button></footer>
     </form>`, {
     wide: true,
-    onOpen(sheet) { sheet.dataset.dirty = '1'; },
+    onOpen(sheet) {
+      sheet.dataset.dirty = '1';
+      // Updating a product keeps its own name and quantity; a new one takes the AI's.
+      sheet.addEventListener('change', e => {
+        const sel = e.target.closest('select[name^=target_]');
+        if (!sel) return;
+        const i = sel.dataset.i, x = store.get('items', sel.value);
+        $(`[name=name_${i}]`, sheet).value = x ? x.name : products[i].name;
+        $(`[name=qty_${i}]`, sheet).value = String(Number(x ? x.quantity : products[i].quantity) || 1);
+      });
+    },
     async onSubmit(fd) {
       let n = 0;
       for (let i = 0; i < products.length; i++) {
@@ -266,7 +303,7 @@ function review(p, files, read, products, results, onlyItem) {
             seen: clean(pr.seen),
             original: r.found ? r : null,
             changes,
-            clientImages: files.filter(a => /^image\//.test(a.mime || '')).map(a => a.id),
+            clientImages: picturesOf(pr, files, products.length).map(a => a.id),
           });
           n++;
         } catch (err) { console.error(err); }
@@ -327,5 +364,19 @@ export function originalSummary(it, { full = false } = {}) {
       ${o.retail_price ? ` · <span>retail ${esc(money(o.retail_price, o.currency))}</span>` : ''}
       ${o.product_url ? ` · <a href="${esc(o.product_url)}" target="_blank" rel="noopener">page ↗</a>` : ''}</div>
     ${full && custom.length ? `<div class="small">Our changes: ${custom.map(c => `${esc(c.label)} <b>${esc(shown(c.key, c.ours))}</b>${c.original ? ` <span class="muted">(original ${esc(shown(c.key, c.original))})</span>` : ''}`).join(' · ')}</div>` : ''}
+  </div>`;
+}
+
+// The spec's key details on the product sheet (the full spec opens from here).
+const KEY_DETAILS = ['overall_size', 'diameter', 'overall_drop', 'body_material', 'glass', 'finish', 'source_type', 'led_power', 'socket', 'cct', 'dimming', 'voltage'];
+export function specSummary(it) {
+  const spec = (it && it.spec) || {};
+  const filled = SPEC_SECTIONS.flatMap(sec => sec.fields).filter(f => f.type !== 'files' && visible(f, spec) && fieldValue(f, spec));
+  if (!filled.length) return '';
+  const rows = KEY_DETAILS.map(k => FIELD[k]).filter(f => f && visible(f, spec) && fieldValue(f, spec));
+  return `<div class="finder-note">
+    <div><span class="muted small">Spec</span> <b>${filled.length} detail${filled.length === 1 ? '' : 's'} filled in</b></div>
+    ${rows.length ? `<dl class="facts small">${rows.map(f => `<dt>${esc(f.label)}</dt><dd>${esc(fieldValue(f, spec))}</dd>`).join('')}</dl>` : ''}
+    ${it.category === 'lighting' ? `<div><button type="button" class="btn small" data-action="qc-spec" data-id="${esc(it.id)}">Open the full spec</button></div>` : ''}
   </div>`;
 }

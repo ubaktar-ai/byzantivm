@@ -300,7 +300,8 @@ document.addEventListener('click', e => {
 
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-action]');
-  if (!el || !$('#app').contains(el)) return;
+  // Buttons inside a sheet are handled by the sheet itself, except these, which open another sheet.
+  if (!el || !($('#app').contains(el) || (['qc-spec', 'finder-item'].includes(el.dataset.action) && el.closest('#sheet')))) return;
   const { action, id } = el.dataset;
   const task = () => store.get('tasks', id);
   if (action && action.startsWith('qc-')) { qcAction(action, el); return; }
