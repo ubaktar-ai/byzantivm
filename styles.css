@@ -1138,3 +1138,31 @@ a.qc-thumb.file { text-decoration: none; }
 .price-item:last-of-type { border-bottom: 0; }
 .price-item > .btn { justify-self: start; }
 .price-links-title { margin: 14px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-2); }
+/* Steps tab */
+.flow { display: grid; gap: 14px; }
+.flow-step { padding: 16px 18px; display: grid; gap: 10px; }
+.flow-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.flow-head h3 { margin: 0; font-size: 17px; }
+.flow-no { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;
+  background: var(--surface-2, rgba(127,127,127,.12)); flex: none; }
+.flow-step.done .flow-no { background: var(--good, #2e7d46); color: #fff; }
+.flow-no svg { width: 16px; height: 16px; }
+.flow-status { margin-left: auto; }
+.flow-body { display: grid; gap: 10px; }
+.flow-body p { margin: 0; }
+.flow-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.flow-card { display: flex; gap: 12px; align-items: center; text-align: left; padding: 10px; border: 1px solid var(--border); border-radius: 14px; background: none; color: inherit; font: inherit; cursor: pointer; }
+.flow-card:hover { border-color: var(--text-2); }
+.flow-pic { width: 72px; height: 72px; flex: none; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--surface-2, rgba(127,127,127,.08)); }
+.flow-pic img { width: 100%; height: 100%; object-fit: cover; }
+.flow-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.flow-table-wrap { overflow-x: auto; }
+.flow-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.flow-table th { text-align: left; font-size: 12px; color: var(--text-2); font-weight: 650; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.flow-table td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.flow-table tfoot td { border-bottom: 0; }
+.flow-in { width: 100px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--input-bg, transparent); color: inherit; font: inherit; }
+.flow-margin { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.flow-margin .spacer { flex: 1; }
+.flow-next { text-align: center; }
+@media (max-width: 600px) { .flow-table th:nth-child(5), .flow-table td:nth-child(5) { display: none; } .flow-in { width: 80px; } }

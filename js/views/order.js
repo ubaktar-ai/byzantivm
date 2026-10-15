@@ -26,8 +26,8 @@ export const PRODUCTION = [
 export const depositInvoice = pid => invoicesOf(pid).filter(i => i.kind === 'deposit' && i.status !== 'cancelled').pop() || null;
 export const balanceInvoice = pid => invoicesOf(pid).filter(i => i.kind === 'balance' && i.status !== 'cancelled').pop() || null;
 export const isPaid = inv => !!inv && inv.status === 'paid';
-const openProposal = pid => quotesOf(pid).filter(q => q.status === 'draft' || q.status === 'sent').pop() || null;
-const acceptedProposal = pid => quotesOf(pid).filter(q => q.status === 'approved').pop() || null;
+export const openProposal = pid => quotesOf(pid).filter(q => q.status === 'draft' || q.status === 'sent').pop() || null;
+export const acceptedProposal = pid => quotesOf(pid).filter(q => q.status === 'approved').pop() || null;
 
 // none | sent | changes | approved
 export function drawingState(item) {
@@ -82,7 +82,7 @@ export async function runStep(step, p) {
   }
 }
 
-async function createOrUpdateProposal(p) {
+export async function createOrUpdateProposal(p, { notes } = {}) {
   const products = productsOf(p.id);
   if (!products.length) { toast('Add the products first'); openProductSheet(p.id); return; }
   const unpriced = products.filter(i => !num(i.unit_price));
@@ -90,11 +90,11 @@ async function createOrUpdateProposal(p) {
 
   let q = openProposal(p.id);
   if (q) {
-    await store.update('quotes', q.id, { status: 'sent', issue_date: todayStr() });
+    await store.update('quotes', q.id, { status: 'sent', issue_date: todayStr(), ...(notes !== undefined ? { notes } : {}) });
   } else {
     q = await store.insert('quotes', {
       id: uuid(), project_id: p.id, number: nextNumber('quotes', p.id), title: p.name,
-      issue_date: todayStr(), valid_until: addDays(todayStr(), 30), status: 'sent', notes: '', ...docExtras(p.id),
+      issue_date: todayStr(), valid_until: addDays(todayStr(), 30), status: 'sent', notes: notes || '', ...docExtras(p.id),
     });
   }
   for (const old of itemsOf(q.id)) await store.remove('quote_items', old.id);

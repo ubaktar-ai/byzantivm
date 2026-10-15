@@ -309,7 +309,7 @@ function review(p, files, read, products, results, onlyItem) {
         } catch (err) { console.error(err); }
       }
       toast(n ? `Saved ${n} product${n === 1 ? '' : 's'}` : 'Nothing saved');
-      if (n && !onlyItem) location.hash = `#/project/${p.id}/order`;
+      if (n && !onlyItem) location.hash = `#/project/${p.id}/${/\/order$/.test(location.hash) ? 'order' : 'steps'}`;
     },
   });
 }

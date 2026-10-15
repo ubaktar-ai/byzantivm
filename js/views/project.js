@@ -2,6 +2,7 @@ import { STAGES, CURRENCIES, esc, icon, avatar, fmtDate, label, stageIndex } fro
 import { store, tasksOf, progress, contactsOf, commentCount, attachmentsWhere } from '../store.js';
 import { drawingsTab } from './deliverables.js';
 import { orderTab } from './order.js';
+import { stepsTab } from './steps.js';
 import { shippingTab } from './shipping.js';
 import { moneyTab } from './money.js';
 import { qcTab, qcReady, issuesOf, isOpenIssue } from './qc.js';
@@ -11,8 +12,8 @@ import { fileTile, uploadButton, isImage, docCard } from '../files.js';
 import { ui } from '../ui-state.js';
 import { companyChip, statusChip, dueChip, prioDot, companyColor, taskRow, emptyState } from './common.js';
 
-export function viewProject(id, tab = 'order') {
-  if (!tab || tab === 'deliverables') tab = tab === 'deliverables' ? 'drawings' : 'order';
+export function viewProject(id, tab = 'steps') {
+  if (!tab || tab === 'deliverables') tab = tab === 'deliverables' ? 'drawings' : 'steps';
   const p = store.get('projects', id);
   if (!p) {
     return store.loaded
@@ -37,6 +38,7 @@ export function viewProject(id, tab = 'order') {
   const nProducts = store.all('items').filter(i => i.project_id === p.id).length;
   const nFiles = attachmentsWhere('project_id', p.id).length;
   const tabs = [
+    { id: 'steps', label: 'Steps' },
     { id: 'order', label: `Order${nProducts ? ` <span class="tab-count">${nProducts}</span>` : ''}` },
     { id: 'drawings', label: 'Drawings' },
     { id: 'qc', label: (() => {
@@ -57,7 +59,8 @@ export function viewProject(id, tab = 'order') {
     : tab === 'linecards' ? (qcReady() ? lineCardsView(p) : qcTab(p))
     : tab === 'shipping' ? shippingTab(p)
     : tab === 'tasks' ? tasksTab(p)
-    : orderTab(p);
+    : tab === 'order' ? orderTab(p)
+    : stepsTab(p);
 
   return `
     <a class="crumbs" href="#/projects">${icon.back}Projects</a>

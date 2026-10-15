@@ -298,8 +298,20 @@ function reviewSupplierQuote(p, att, r) {
       if (touched.size === 1 && !att.item_id && store.fileSections) {
         store.update('attachments', att.id, { item_id: [...touched][0], kind: 'supplier_quote' }).catch(() => {});
       }
+      // Keep a permanent record of each price (who quoted what, when, from which document).
+      if (!store.missing.has('supplier_prices')) {
+        lines.forEach((l, i) => {
+          const it = store.get('items', fd.get(`m_${i}`));
+          const unitCost = parseAmount(fd.get(`c_${i}`));
+          if (!it || !(unitCost > 0)) return;
+          store.insert('supplier_prices', {
+            project_id: p.id, item_id: it.id, item_name: it.name, party: 'us', person: supplier || it.supplier || '',
+            unit_price: unitCost, currency: cur || p.currency || '', lead_time: '', notes: `From ${att.name}${ref ? ` (quote ${ref})` : ''}`,
+          }).catch(() => {});
+        });
+      }
       toast(n ? `Saved costs for ${n} product${n === 1 ? '' : 's'} — set the client prices next` : 'Nothing saved');
-      location.hash = `#/project/${p.id}/order`;
+      location.hash = `#/project/${p.id}/${location.hash.includes('/steps') || !location.hash.split('/')[3] ? 'steps' : 'order'}`;
     },
   });
 }
