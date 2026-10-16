@@ -296,6 +296,8 @@ function review(projectId, cards, stats) {
       <div class="fields">
         <p class="small">${stats.files} file${stats.files === 1 ? '' : 's'}, ${stats.pages} drawing page${stats.pages === 1 ? '' : 's'} looked at · ${withPic} with a picture.
           Untick what isn't ours, fix names and quantities. <b>Bigger</b> widens a picture; <b>Whole page</b> uses the full page.</p>
+        <label class="check-row"><input type="checkbox" name="originals" checked>
+          <span>Then look up each light's <b>original online</b> (brand, model, specs, retail price, pictures) — about a minute per light, three at a time</span></label>
         ${cards.length ? cards.map((c, i) => `
           <div class="read-row ${c.suggestion ? 'suggestion' : ''}" data-row="${i}">
             <label class="read-use"><input type="checkbox" name="use_${i}" ${c.use ? 'checked' : ''}></label>
@@ -338,15 +340,16 @@ function review(projectId, cards, stats) {
     async onSubmit(fd) {
       const chosen = cards.map((c, i) => ({ ...c, use: !!fd.get(`use_${i}`), name: String(fd.get(`name_${i}`) || c.name || '').trim(), quantity: Number(String(fd.get(`qty_${i}`) || '').replace(',', '.')) || 0 })).filter(c => c.use);
       if (!chosen.length) { toast('Tick at least one light'); return false; }
-      try { await save(projectId, chosen); } catch (err) { console.error(err); return false; }
+      try { await save(projectId, chosen, { originals: !!fd.get('originals') }); } catch (err) { console.error(err); return false; }
     },
   });
 }
 
 // ---------- 5. Save ----------
 
-async function save(projectId, cards) {
+async function save(projectId, cards, { originals = false } = {}) {
   let order = nextSortOrder(productsOf(projectId));
+  const made = [];
   for (const c of cards) {
     const notes = [
       c.location && `Location: ${c.location}`,
@@ -360,15 +363,100 @@ async function save(projectId, cards) {
     if (c.size) spec.overall_size = c.size;
     if (c.finish) spec.finish = c.finish;
     if (c.pic) spec._crop = { attachment_id: c.pic.at.att.id, page: c.pic.at.page, box: c.pic.box.map(v => Math.round(v * 1000) / 1000) };
-    await store.insert('items', {
+    made.push((await store.insert('items', {
       project_id: projectId, item_no: c.code || '', name: c.name || c.code || 'Light', description: c.description || '',
       quantity: c.quantity || 1, category: 'lighting', sort_order: order++, spec,
-    });
+    })).id);
   }
   thumbs.forEach(u => URL.revokeObjectURL(u));
   thumbs.clear();
   toast(`${cards.length} card${cards.length === 1 ? '' : 's'} made — cutting the pictures…`);
   // The pictures are cut from the original PDFs at full sharpness while the cards are already on screen.
-  cutPictures(projectId).then(n => { if (n) toast(`${n} picture${n === 1 ? '' : 's'} added to the cards`); }).catch(err => console.error(err));
+  cutPictures(projectId).then(async n => {
+    if (n) toast(`${n} picture${n === 1 ? '' : 's'} added to the cards`);
+    if (!originals) return;
+    toast('Looking up the originals online…');
+    const r = await findOriginals(projectId, { ids: made });
+    if (r) toast(`Originals found for ${r.found} of ${r.done} light${r.done === 1 ? '' : 's'}`);
+  }).catch(err => { console.error(err); toast(err.demo ? 'Finding originals online works with the team database, not in demo mode.' : `Couldn't finish: ${err.message || err}`); });
 }
 
+
+// ---------- 6. The originals online ----------
+// For each card with a client picture, the product-finder function looks at the picture, recognises or
+// describes the light and searches the web for the original (brand, model, specs, retail price, pictures).
+// What it finds is kept next to the card as "the original" — our own details on the card are not changed.
+
+export const needsOriginal = it => {
+  const s = (it && it.spec) || {};
+  return !!(((s._images || {}).vision || []).length && !s._original && !s._original_search);
+};
+export const originalsWaiting = projectId => productsOf(projectId).filter(needsOriginal);
+
+const clean = v => String(v == null ? '' : v).trim();
+let searching = false;
+
+async function applyOriginal(projectId, itemId, o) {
+  const it = store.get('items', itemId);
+  if (!it) return false;
+  const spec = { ...(it.spec || {}) };
+  if (!o || o.error || !o.found) {
+    spec._original_search = { at: new Date().toISOString(), found: false, note: clean((o && (o.error || o.notes)) || '').slice(0, 300) };
+    await store.update('items', itemId, { spec });
+    return false;
+  }
+  let ids = [];
+  if ((o.images || []).length) {
+    const files = o.images.map(im => new File([Uint8Array.from(atob(im.data), c => c.charCodeAt(0))], im.name, { type: im.mime }));
+    ids = (await uploadFiles(files, { project_id: projectId, item_id: itemId, kind: 'qc', quiet: true })).map(a => a.id);
+  }
+  const specs = Object.fromEntries((o.specs || []).filter(s => s && s.key && clean(s.value)).map(s => [s.key, clean(s.value)]));
+  const fresh = store.get('items', itemId) || it;
+  const next = { ...(fresh.spec || {}) };
+  const images = { ...(next._images || {}) };
+  if (!(images.offer || []).length && ids.length) images.offer = [ids[0]];
+  next._images = images;
+  next._original = {
+    brand: clean(o.brand), model: clean(o.model), designer: clean(o.designer), product_url: clean(o.product_url),
+    description: clean(o.description), retail_price: Number(o.retail_price) || 0,
+    currency: /^[A-Z]{3}$/.test(clean(o.currency).toUpperCase()) ? clean(o.currency).toUpperCase() : '', price_note: clean(o.price_note),
+    confidence: clean(o.confidence), specs, images: ids, sources: (o.sources || []).map(clean).filter(Boolean).slice(0, 8),
+    notes: clean(o.notes), found_at: new Date().toISOString(),
+  };
+  next._original_search = { at: new Date().toISOString(), found: true };
+  await store.update('items', itemId, { spec: next });
+  return true;
+}
+
+// Look up the originals of the given cards (all waiting ones if none given), three at a time.
+export async function findOriginals(projectId, { ids, onProgress } = {}) {
+  if (searching) return null;
+  searching = true;
+  try {
+    const p = store.get('projects', projectId);
+    const company = p && store.get('companies', p.company_id);
+    const market = company && company.country === 'NL' ? 'EU' : (p && p.currency === 'EUR' ? 'EU' : 'US');
+    const todo = (ids ? ids.map(id => store.get('items', id)).filter(Boolean) : originalsWaiting(projectId)).filter(needsOriginal);
+    let done = 0, found = 0;
+    await pool(todo, 3, async it => {
+      const pics = ((it.spec._images || {}).vision || []).map(id => store.get('attachments', id)).filter(a => a && /^image\//.test(a.mime || ''));
+      const product = {
+        name: it.name, seen: [it.description, it.spec.location_tag && `In: ${it.spec.location_tag}`, 'The picture is cut from the designer’s rendering / mood board.'].filter(Boolean).join(' '),
+        brand_guess: '', model_guess: '', product_url: '', search_query: [it.name, it.description].filter(Boolean).join(' ').slice(0, 200), changes: [], change_notes: '',
+      };
+      let res;
+      try {
+        res = await store.backend.findProducts({ mode: 'research', product, currency: (p && p.currency) || 'USD', market, paths: pics.slice(0, 2).map(a => a.path) });
+      } catch (err) {
+        if (err.demo || err.notSetUp) throw err;
+        res = { result: { found: false, error: err.message || String(err) } };
+      }
+      if (await applyOriginal(projectId, it.id, res && res.result).catch(e => { console.error(e); return false; })) found++;
+      done++;
+      if (onProgress) onProgress(done, todo.length, found);
+    });
+    return { done, found };
+  } finally {
+    searching = false;
+  }
+}
