@@ -120,6 +120,7 @@ export class SupabaseBackend {
       try { const body = await error.context.json(); msg = (body && (body.error || body.message)) || msg; } catch (e) { /* no details */ }
       const err = new Error(msg);
       err.notSetUp = status === 404 || /failed to send|ANTHROPIC_API_KEY/i.test(msg);
+      err.status = status;
       throw err;
     }
     return data;

@@ -14,7 +14,7 @@ import { pdfjs, cutPictures } from './pdfcrop.js';
 const SIDE = 1568;          // page pictures for the AI (long side, px)
 const SCHEDULE_CHARS = 1200; // a page with this much text is a schedule / table, not a drawing
 const PER_CALL = 3;
-const PARALLEL = 3;
+const PARALLEL = 2;
 
 const isPdf = a => a.mime === 'application/pdf' || /\.pdf$/i.test(a.name || '');
 const isXlsx = a => /spreadsheetml/.test(a.mime || '') || /\.xlsx$/i.test(a.name || '');
@@ -163,6 +163,19 @@ async function extract(atts, progress) {
 
 // ---------- 2. The AI ----------
 
+// "The AI is busy" (rate limit) or a timeout: wait and try again, a few times, before giving up.
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function retry(fn, onWait) {
+  const waits = [8000, 20000, 45000];
+  for (let i = 0; ; i++) {
+    try { return await fn(); } catch (err) {
+      if (err.demo || err.notSetUp || ![429, 502, 503, 504].includes(err.status) || i >= waits.length) throw err;
+      if (onWait) onWait(waits[i]);
+      await sleep(waits[i]);
+    }
+  }
+}
+
 async function pool(jobs, n, fn) {
   const out = new Array(jobs.length);
   let next = 0;
@@ -203,7 +216,8 @@ async function run(projectId, atts, mark, company) {
     if (texts.length) {
       progress('Finding the lights in the schedule…');
       const pics = await Promise.all(schedulePages.map(async pg => ({ label: pg.label, mime: 'image/jpeg', data: await toB64(pg.blob) })));
-      const r = await store.backend.readDrawings({ mode: 'schedule', company, text: texts.join('\n\n').slice(0, 120000), pages: pics });
+      const r = await retry(() => store.backend.readDrawings({ mode: 'schedule', company, text: texts.join('\n\n').slice(0, 120000), pages: pics }),
+        ms => progress(`The AI is busy — trying again in ${Math.round(ms / 1000)} s…`));
       items = ((r && r.result && r.result.items) || []).filter(it => it && (it.code || it.name));
       const hint = r && r.result && String(r.result.mark_hint || '').trim();
       if (hint && mark === 'B' && !/\bB\b/.test(hint)) mark = hint; // the documents say how they mark our lights
@@ -212,24 +226,26 @@ async function run(projectId, atts, mark, company) {
     const batches = [];
     for (let i = 0; i < pages.length; i += PER_CALL) batches.push(pages.slice(i, i + PER_CALL));
     let looked = 0;
+    const skipped = [];
     const brief = items.map(it => ({ code: it.code, name: it.name, description: it.description, location: it.location, notes: (it.notes || '').slice(0, 200) }));
     const found = (await pool(batches, PARALLEL, async batch => {
       if (stop()) return [];
       const body = { mode: 'marks', company, mark, items: brief, pages: await Promise.all(batch.map(async pg => ({ label: pg.label, mime: 'image/jpeg', data: await toB64(pg.blob) }))) };
       let lights = [];
       try {
-        const r = await store.backend.readDrawings(body);
+        const r = await retry(() => store.backend.readDrawings(body));
         lights = ((r && r.result && r.result.lights) || []).map(l => ({ ...l, at: batch[(Number(l.page) || 1) - 1] })).filter(l => l.at && toBox(l.box));
       } catch (err) {
         if (err.demo || err.notSetUp) throw err;
-        console.error(err); // one batch failing shouldn't lose the rest
+        console.error(err); // one batch failing shouldn't lose the rest — but say which pages were skipped
+        skipped.push(...batch.map(pg => pg.label));
       }
       looked += batch.length;
       progress(`Looking at the drawings: ${looked} of ${pages.length} pages`);
       return lights;
     })).flat();
     if (stop()) return;
-    review(projectId, merge(items, found, projectId), { pages: pages.length, files: atts.length });
+    review(projectId, merge(items, found, projectId), { pages: pages.length, files: atts.length, skipped });
   } catch (err) {
     if (stop()) return;
     console.error(err);
@@ -295,6 +311,7 @@ function review(projectId, cards, stats) {
       ${sheetHeader(`Found ${ours.length} light${ours.length === 1 ? '' : 's'}`)}
       <div class="fields">
         <p class="small">${stats.files} file${stats.files === 1 ? '' : 's'}, ${stats.pages} drawing page${stats.pages === 1 ? '' : 's'} looked at · ${withPic} with a picture.
+          ${stats.skipped.length ? `</p><p class="ai-problem">${stats.skipped.length} page${stats.skipped.length === 1 ? '' : 's'} couldn't be looked at (the AI was busy): ${esc(stats.skipped.join('; '))}. Cancel and read again in a few minutes to include them.</p><p class="small">` : ''}
           Untick what isn't ours, fix names and quantities. <b>Bigger</b> widens a picture; <b>Whole page</b> uses the full page.</p>
         <label class="check-row"><input type="checkbox" name="originals" checked>
           <span>Then look up each light's <b>original online</b> (brand, model, specs, retail price, pictures) — about a minute per light, three at a time</span></label>
@@ -446,7 +463,7 @@ export async function findOriginals(projectId, { ids, onProgress } = {}) {
       };
       let res;
       try {
-        res = await store.backend.findProducts({ mode: 'research', product, currency: (p && p.currency) || 'USD', market, paths: pics.slice(0, 2).map(a => a.path) });
+        res = await retry(() => store.backend.findProducts({ mode: 'research', product, currency: (p && p.currency) || 'USD', market, paths: pics.slice(0, 2).map(a => a.path) }));
       } catch (err) {
         if (err.demo || err.notSetUp) throw err;
         res = { result: { found: false, error: err.message || String(err) } };
