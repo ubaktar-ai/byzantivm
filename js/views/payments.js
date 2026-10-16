@@ -2,9 +2,10 @@
 // when the lights are ready to ship, the balance is checked, invoiced, received and paid on to the supplier.
 // Payouts live in their own table (supplier_payouts): the supplier's price is already counted as product cost.
 import { esc, money, toast, openSheet, sheetHeader, todayStr, fmtDate, uuid, stageIndex, $ } from '../lib.js';
-import { store, productsOf } from '../store.js';
+import { store, productsOf, shipmentsOf } from '../store.js';
 import { parseAmount, quoteTotal, companyCountry } from '../money.js';
 import { uploadFiles } from '../files.js';
+import { trackingUrl, deliveryAddress } from './shipping.js';
 import { openProposal, acceptedProposal, depositInvoice, balanceInvoice, isPaid, acceptProposal, createBalance, moveStage } from './order.js';
 
 const num = v => Number(v) || 0;
@@ -97,13 +98,40 @@ export function paySteps(p, step) {
       ${isPaid(bal) ? '' : `<button class="btn primary" data-action="pay-ready" data-id="${p.id}">${bal ? 'Has the balance been paid?' : 'Lights are ready to ship'}</button>`}
       ${bal ? `<button class="btn" data-action="pay-invoice-pdf" data-id="${bal.id}">Balance invoice PDF</button>` : ''}
     </div>
-    ${isPaid(bal) ? '<p class="small good-text">Balance received — ship when the supplier is paid. Shipping is in the Order tab.</p>' : ''}`;
+    ${isPaid(bal) ? '<p class="small good-text">Balance received — pay the supplier, then ship (step 12).</p>' : ''}`;
 
   const allPaidOut = sup.cost > 0 && sup.paid >= sup.cost - 0.01;
+  const toPay = payouts.filter(x => x.status === 'to_pay').length;
+  const toMake = invoices.filter(inv => isPaid(inv) && !payoutFor(inv)).length;
   return `
     ${step(8, 'Client’s PO → invoice', dep ? (p.client_po ? `PO ${esc(p.client_po)}` : 'invoiced') : '', s8, { done: !!dep })}
-    ${step(9, 'Payments → supplier payout slips', invoices.length ? `${invoices.filter(isPaid).length}/${invoices.length} received` : '', s9, { done: allPaidOut })}
+    ${step(9, 'Payments → supplier payout slips', toPay || toMake ? `<span class="bad-text">${toPay ? `${toPay} to pay` : `${toMake} slip to make`}</span>` : invoices.length ? `${invoices.filter(isPaid).length}/${invoices.length} received` : '', s9, { done: allPaidOut, attention: !!(toPay || toMake) })}
     ${step(10, 'Ready to ship → balance', isPaid(bal) ? 'balance received' : bal ? 'balance invoiced' : '', s10, { done: isPaid(bal) })}`;
+}
+
+// 12 — ship & deliver: where to, packing list, carrier and tracking, delivered.
+export function shipStep(p, step) {
+  const bal = balanceInvoice(p.id);
+  const list = shipmentsOf(p.id);
+  const sh = list.filter(x => x.status !== 'delivered').pop() || list[list.length - 1];
+  const addr = deliveryAddress(p);
+  const delivered = p.stage === 'delivered' || (list.length > 0 && list.every(x => x.status === 'delivered'));
+  const url = sh && trackingUrl(sh.carrier, sh.tracking);
+  const body = `
+    ${bal && !isPaid(bal) ? '<p class="small bad-text">The balance isn’t received yet (step 10) — ship once it is.</p>' : ''}
+    <p class="small"><b>Deliver to:</b> ${addr ? esc(addr.replace(/\n+/g, ', ')) : '<span class="muted">no address yet</span>'}
+      <button class="btn small" data-action="edit-delivery" data-id="${p.id}">Change</button></p>
+    ${sh ? `<p class="small"><b>${esc(sh.carrier || 'Shipment')}</b>${sh.tracking ? ` · ${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(sh.tracking)}</a>` : esc(sh.tracking)}` : ''}
+      · ${sh.status === 'delivered' ? `delivered ${esc(fmtDate(sh.delivered_date || todayStr()))}` : sh.status === 'shipped' ? `on the way since ${esc(fmtDate(sh.shipped_date || todayStr()))}` : 'being packed'}
+      <button class="btn small" data-action="edit-shipment" data-id="${sh.id}">Edit</button></p>` : ''}
+    <div class="qc-actions">
+      <button class="btn" data-action="wf" data-step="packing" data-id="${p.id}">Packing list PDF</button>
+      ${!sh ? `<button class="btn primary" data-action="new-shipment" data-project="${p.id}">Add carrier &amp; tracking</button>`
+        : sh.status === 'preparing' ? `<button class="btn primary" data-action="wf" data-step="shipped" data-id="${p.id}">It’s shipped</button>`
+        : !delivered ? `<button class="btn primary" data-action="wf" data-step="delivered" data-id="${p.id}">Delivered ✓</button>` : ''}
+    </div>
+    ${delivered ? '<p class="small good-text">Delivered — order complete.</p>' : ''}`;
+  return step(12, 'Ship & deliver', delivered ? 'delivered' : sh ? (sh.status === 'shipped' ? 'on the way' : 'packing') : '', body, { done: delivered });
 }
 
 // ---------- 8: the client's PO ----------

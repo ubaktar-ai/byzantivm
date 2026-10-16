@@ -300,7 +300,7 @@ export function roundsSteps(p, step) {
     <p class="muted small">The PDF highlights what changed and marks the cards as sent. New prices: you choose per card to keep your margin, keep your price, or set a new one.</p>`;
   return [
     step(6, 'Client’s reply', replied.length ? `${approved.length}/${cards.length} approved` : '', s6, { done: cards.length > 0 && approved.length === cards.length }),
-    step(7, 'Supplier confirms the changes', toSend.length ? `${toSend.length} to send` : waiting.length ? `${waiting.length} waiting` : '', s7),
+    step(7, 'Supplier confirms the changes', toSend.length ? `${toSend.length} to send` : waiting.length ? `${waiting.length} waiting` : '', s7, { attention: toSend.length > 0 || waiting.length > 0 }),
   ].join('');
 }
 

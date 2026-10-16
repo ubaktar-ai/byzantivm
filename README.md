@@ -9,6 +9,10 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
 
 - **Two companies, one app**: switch between All, Byzantivm, or Demya. Every screen follows the switch.
 - **Overview**: stats per company, your tasks, the team's tasks due this week, the project pipeline, and upcoming deadlines.
+- **Steps** — an order is one page of numbered steps, one under the other: client's request → product cards,
+  supplier prices, cost sheet, proposal, client's reply, PO → invoice, payments → supplier payouts, ready to ship →
+  balance, quality control, ship & deliver. Finished steps fold to one line with a tick; the step you're on and the
+  next one are open. Everything else (details, files, money, QC, shipping, tasks, products, drawings) is under **More**.
 - **Order workflow** for made-to-order furniture & lighting. Every project moves through
   **Inquiry → Costing → Proposal → Deposit → Drawings → Client approval → Production → Balance → Shipping → Delivered**.
   The project's **Next step** card says what's due and has one-tap buttons:

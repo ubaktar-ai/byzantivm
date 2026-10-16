@@ -2,16 +2,19 @@
 //   1 Client's request → AI product cards   2 Ask the supplier for prices   3 Supplier's prices back
 //   4 Cost sheet & your prices              5 Proposal & tear sheets for the client   6–7 Client's reply, revisions
 //   8 Client's PO → invoice   9 Payments → supplier payout slips   10 Ready to ship → balance   11 Quality control
+//   12 Ship & deliver
 // Everything else (spec details, approvals, inspections…) stays in its own tab, out of the way.
 import { esc, icon, money, toast, openSheet, closeSheet, sheetHeader, $ } from '../lib.js';
 import { store, productsOf, nextSortOrder } from '../store.js';
 import { SPEC_SECTIONS, fieldValue, visible } from '../qc-spec.js';
 import { parseAmount } from '../money.js';
+import { qcReady, issuesOf, isOpenIssue } from './qc.js';
+import { openRequests, requestStatus } from './qc-more.js';
 import { lightingOf, fieldHtml, readSpec, wireSpecFields, photoPicker, wirePhotos, templateOf, itemNo } from './qc.js';
 import { openProposal, acceptedProposal, createOrUpdateProposal } from './order.js';
 import { pricesOf, pricesReady } from './prices.js';
 import { uploadFiles } from '../files.js';
-import { paySteps } from './payments.js';
+import { paySteps, shipStep } from './payments.js';
 import { roundsSteps, openClientReply, markSent, readNewPrices, makeRevisedProposal, withChanges, unsent } from './rounds.js';
 
 const num = v => Number(v) || 0;
@@ -29,12 +32,46 @@ export const cardPicture = it => {
 const summary = it => [val(it, 'overall_size') || val(it, 'diameter') || it.dimensions, val(it, 'body_material') || it.materials, val(it, 'finish'),
   val(it, 'source_type') && [val(it, 'source_type'), val(it, 'cct')].filter(Boolean).join(' '), val(it, 'dimming')].filter(Boolean).join(' · ');
 
-function step(n, title, status, body, { done = false, open = true } = {}) {
-  return `<section class="card-surface flow-step ${done ? 'done' : ''}">
-    <header class="flow-head"><span class="flow-no">${done ? icon.check : n}</span><h3>${esc(title)}</h3>${status ? `<span class="flow-status muted small">${status}</span>` : ''}</header>
-    ${open ? `<div class="flow-body">${body}</div>` : ''}
-  </section>`;
+// One step card. It folds: finished steps close to one line, the step you're on and the next one are open,
+// later ones show only their title. Tapping a title opens or closes it (remembered while the app is open).
+// `attention`: something in it still needs you (e.g. a payout to pay) — it stays open even after later steps.
+function step(n, title, status, body, { done = false, attention = false } = {}) {
+  return `<details class="card-surface flow-step ${done ? 'done' : ''}" data-step="${n}" data-done="${done ? 1 : 0}" data-attn="${attention ? 1 : 0}" %%OPEN-${n}%%>
+    <summary class="flow-head"><span class="flow-no">${done ? icon.check : n}</span><h3>${esc(title)}</h3>${status ? `<span class="flow-status muted small">${status}</span>` : ''}<span class="flow-chev" aria-hidden="true"></span></summary>
+    <div class="flow-body">${body}</div>
+  </details>`;
 }
+
+const qcOpen = pid => {
+  if (!qcReady()) return '';
+  const n = issuesOf(pid).filter(isOpenIssue).length + openRequests(pid).filter(r => requestStatus(r) === 'open').length;
+  return n ? `<span class="bad-text">${n} open</span>` : '';
+};
+
+const folds = new Map(); // `${projectId}:${n}` → true/false, what the user opened or closed by hand
+
+function foldSteps(pid, html) {
+  const steps = [...html.matchAll(/data-step="(\d+)" data-done="([01])" data-attn="([01])"/g)].map(m => ({ n: +m[1], done: m[2] === '1', attn: m[3] === '1' }));
+  let last = -1;
+  steps.forEach((st, i) => { if (st.done) last = i; });
+  const cur = steps.findIndex((st, i) => i > last && !st.done);
+  const open = new Set(cur < 0 ? [] : [steps[cur].n, ...(steps[cur + 1] ? [steps[cur + 1].n] : [])]);
+  steps.forEach(st => { if (st.attn && !st.done) open.add(st.n); });
+  return html.replace(/%%OPEN-(\d+)%%/g, (_, n) => {
+    const key = `${pid}:${n}`;
+    const isOpen = folds.has(key) ? folds.get(key) : open.has(+n);
+    return isOpen ? 'open' : '';
+  }).replace(new RegExp(`data-step="${cur < 0 ? 'x' : steps[cur].n}" `), m => `${m}data-current="1" `);
+}
+
+// Remember steps opened or closed by hand (taps on a step's title only, not the screen being drawn).
+document.addEventListener('click', e => {
+  const sum = e.target.closest && e.target.closest('details.flow-step > summary');
+  if (!sum) return;
+  const d = sum.parentElement;
+  const wrap = d.closest('[data-flow-project]');
+  if (wrap) folds.set(`${wrap.dataset.flowProject}:${d.dataset.step}`, !d.open);
+});
 
 export function stepsTab(p) {
   const cards = lightingOf(p.id);
@@ -123,20 +160,19 @@ export function stepsTab(p) {
   const s6 = `<p class="muted small">Specs, approvals by us, the supplier and the client, samples, inspections and packing — in its own tab.</p>
     <a class="btn" href="#/project/${p.id}/qc">Open quality control</a>`;
 
-  return `
-    <div class="flow">
+  return foldSteps(p.id, `
+    <div class="flow" data-flow-project="${p.id}">
       ${step(1, 'Client’s request → product cards', cards.length ? `${cards.length} card${cards.length === 1 ? '' : 's'}` : '', s1, { done: cards.length > 0 })}
-      ${step(2, 'Ask the supplier for prices', links.length ? 'link sent' : '', s2)}
+      ${step(2, 'Ask the supplier for prices', links.length ? 'link sent' : '', s2, { done: priced.length > 0 || links.length > 0 })}
       ${step(3, 'Supplier’s prices', cards.length ? `${priced.length}/${cards.length} priced` : '', s3, { done: cards.length > 0 && priced.length === cards.length })}
       ${step(4, 'Cost sheet & your prices', cards.length ? `${selling.length}/${cards.length} with your price${margin != null ? ` · margin ${margin}%` : ''}` : '', s4, { done: cards.length > 0 && selling.length === cards.length })}
       ${step(5, 'Proposal & tear sheets for the client', proposal ? (proposal.status === 'approved' ? 'accepted' : 'sent') : '', s5, { done: !!proposal })}
       ${roundsSteps(p, step)}
       ${paySteps(p, step)}
-      ${step(11, 'Quality control', '', s6)}
-    </div>`;
+      ${step(11, 'Quality control', qcOpen(p.id), s6)}
+      ${shipStep(p, step)}
+    </div>`);
 }
-
-// ---------- The simple product card editor ----------
 
 function openCardSheet(p, existing) {
   const it = existing || { name: '', quantity: 1, description: '', spec: {} };

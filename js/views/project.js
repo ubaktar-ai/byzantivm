@@ -1,4 +1,4 @@
-import { STAGES, CURRENCIES, esc, icon, avatar, fmtDate, label, stageIndex } from '../lib.js';
+import { STAGES, CURRENCIES, esc, icon, avatar, fmtDate, label, stageIndex, openSheet, closeSheet, sheetHeader } from '../lib.js';
 import { store, tasksOf, progress, contactsOf, commentCount, attachmentsWhere } from '../store.js';
 import { drawingsTab } from './deliverables.js';
 import { orderTab } from './order.js';
@@ -24,33 +24,7 @@ export function viewProject(id, tab = 'steps') {
   const lead = store.get('profiles', p.lead_id);
   const pr = progress(p.id);
   const color = companyColor(p.company_id);
-  const current = stageIndex(p.stage);
 
-  const stepper = `
-    <div class="stepper" role="list" aria-label="Project stage">
-      ${STAGES.map((s, i) => `
-        <button type="button" role="listitem" class="step ${i < current ? 'past' : ''} ${i === current ? 'current' : ''}"
-          data-action="set-project-stage" data-id="${p.id}" data-stage="${s.id}" aria-current="${i === current ? 'step' : 'false'}">
-          <span class="step-dot">${i < current ? icon.check : i + 1}</span><span class="step-label">${esc(s.label)}</span>
-        </button>`).join('')}
-    </div>`;
-
-  const nProducts = store.all('items').filter(i => i.project_id === p.id).length;
-  const nFiles = attachmentsWhere('project_id', p.id).length;
-  const tabs = [
-    { id: 'steps', label: 'Steps' },
-    { id: 'order', label: `Order${nProducts ? ` <span class="tab-count">${nProducts}</span>` : ''}` },
-    { id: 'drawings', label: 'Drawings' },
-    { id: 'qc', label: (() => {
-      const n = qcReady() ? issuesOf(p.id).filter(isOpenIssue).length + openRequests(p.id).filter(r => requestStatus(r) === 'open').length : 0;
-      return `QC${n ? ` <span class="tab-count bad" title="Open issues and new change requests">${n}</span>` : ''}`;
-    })() },
-    { id: 'money', label: 'Money' },
-    { id: 'shipping', label: 'Shipping' },
-    { id: 'tasks', label: `Tasks${pr.total ? ` <span class="tab-count">${pr.total}</span>` : ''}` },
-    { id: 'files', label: `Files${nFiles ? ` <span class="tab-count">${nFiles}</span>` : ''}` },
-    { id: 'details', label: 'Details' },
-  ];
   const body = tab === 'details' ? detailsTab(p, client, pr)
     : tab === 'drawings' ? drawingsTab(p)
     : tab === 'files' ? filesTab(p)
@@ -77,15 +51,38 @@ export function viewProject(id, tab = 'steps') {
         </div>
       </div>
       <div class="head-actions">
-        <button class="btn" data-action="edit-project" data-id="${p.id}">${icon.edit} Edit</button>
-        <button class="btn primary" data-action="new-task" data-project="${p.id}">${icon.plus} Task</button>
+        <button class="btn" data-action="project-more" data-id="${p.id}" aria-haspopup="dialog">More</button>
       </div>
     </div>
-    ${stepper}
-    <div class="tabs" role="tablist">
-      ${tabs.map(t => `<a role="tab" href="#/project/${p.id}/${t.id}" aria-selected="${tab === t.id}">${t.label}</a>`).join('')}
-    </div>
+    ${tab === 'steps' ? '' : `<div class="sub-bar"><a class="btn" href="#/project/${p.id}">${icon.back} Back to steps</a>
+      <h2>${esc((MORE.find(m => m[0] === tab) || [tab, tab === 'linecards' ? 'Specification cards' : ''])[1])}</h2></div>`}
     ${body}`;
+}
+
+// "More": everything that isn't a step, out of the way — one big button each.
+const MORE = [
+  ['details', 'Client & order details', 'Client, delivery address, currency, deposit %, deadline'],
+  ['files', 'All files', 'Everything uploaded for this order'],
+  ['money', 'Money overview', 'Proposals, invoices, costs and profit'],
+  ['qc', 'Quality control', 'Specs, approvals, samples, inspections'],
+  ['shipping', 'Shipping details', 'Shipments, packing list, shipping papers'],
+  ['tasks', 'Tasks', 'To-do list for this order'],
+  ['order', 'Products (full list)', 'Every product with all its details'],
+  ['drawings', 'Drawings', 'Furniture drawings and client approval'],
+];
+
+export function openProjectMore(p) {
+  openSheet(`
+    <div>
+      ${sheetHeader('More')}
+      <div class="more-list">
+        ${MORE.map(([id, title, hint]) => `<a class="more-item" href="#/project/${p.id}/${id}"><b>${esc(title)}</b><span class="muted small">${esc(hint)}</span></a>`).join('')}
+        <button type="button" class="more-item" data-action="more-edit" data-id="${p.id}"><b>Edit order name, client, deadline</b><span class="muted small">Change the basics of this order</span></button>
+      </div>
+      <footer><span class="spacer"></span><button type="button" class="btn" data-close>Close</button></footer>
+    </div>`, {
+    onOpen(sheet) { sheet.querySelectorAll('a.more-item').forEach(a => a.addEventListener('click', () => closeSheet())); },
+  });
 }
 
 function tasksTab(p) {

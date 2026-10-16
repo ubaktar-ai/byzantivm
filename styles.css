@@ -1176,3 +1176,21 @@ a.qc-thumb.file { text-decoration: none; }
 .pay-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; font-size: 14px; }
 .pay-line > span:last-child { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .pay-line.muted-line > span:first-child { color: var(--text-2); }
+
+/* Project page: steps only; the rest sits behind "More" */
+.sub-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 16px; }
+.sub-bar h2 { margin: 0; font-size: 19px; }
+.more-list { display: grid; gap: 8px; padding: 4px 0; }
+.more-item { display: grid; gap: 2px; text-align: left; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface); color: var(--text); text-decoration: none; font: inherit; cursor: pointer; }
+.more-item:hover, .more-item:focus-visible { background: var(--surface-2); }
+details.flow-step > summary { list-style: none; cursor: pointer; }
+details.flow-step > summary::-webkit-details-marker { display: none; }
+details.flow-step:not([open]) { padding-top: 12px; padding-bottom: 12px; gap: 0; }
+details.flow-step.done:not([open]) .flow-head h3 { color: var(--text-2); font-weight: 600; font-size: 15px; }
+details.flow-step:not([open]):not(.done) .flow-head h3 { color: var(--text-2); }
+details.flow-step[data-current] { box-shadow: 0 0 0 2px var(--accent), var(--shadow); }
+.flow-chev { width: 10px; height: 10px; border-right: 2px solid var(--text-2); border-bottom: 2px solid var(--text-2); transform: rotate(45deg); margin: -4px 4px 0 6px; transition: transform .15s; }
+.flow-status + .flow-chev { margin-left: 6px; }
+.flow-head h3 + .flow-chev { margin-left: auto; }
+details.flow-step[open] .flow-chev { transform: rotate(-135deg); margin-top: 4px; }

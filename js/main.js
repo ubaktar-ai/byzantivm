@@ -304,7 +304,7 @@ document.addEventListener('click', e => {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-action]');
   // Buttons inside a sheet are handled by the sheet itself, except these, which open another sheet.
-  if (!el || !($('#app').contains(el) || (['qc-spec', 'finder-item'].includes(el.dataset.action) && el.closest('#sheet')))) return;
+  if (!el || !($('#app').contains(el) || (['qc-spec', 'finder-item', 'more-edit'].includes(el.dataset.action) && el.closest('#sheet')))) return;
   const { action, id } = el.dataset;
   const task = () => store.get('tasks', id);
   if (action && action.startsWith('qc-')) { qcAction(action, el); return; }
@@ -332,7 +332,8 @@ document.addEventListener('click', e => {
     case 'edit-task': { const t = task(); if (t) openTaskSheet(t); break; }
     case 'toggle-done': { e.stopPropagation(); const t = task(); if (t) toggleTaskDone(t); break; }
     case 'new-project': openProjectSheet(null, { stage: el.dataset.stage, client_id: el.dataset.client }); break;
-    case 'edit-project': { const p = store.get('projects', id); if (p) openProjectSheet(p); break; }
+    case 'edit-project': case 'more-edit': { const p = store.get('projects', id); if (p) openProjectSheet(p); break; }
+    case 'project-more': { const p = store.get('projects', id); if (p) import('./views/project.js').then(m => m.openProjectMore(p)); break; }
     case 'set-project-stage': {
       const p = store.get('projects', id);
       if (p && p.stage !== el.dataset.stage) {
