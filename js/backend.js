@@ -102,6 +102,11 @@ export class SupabaseBackend {
     return this.callFunction('product-finder', body);
   }
 
+  // Ask the "drawing-reader" Edge Function (Claude) to read a schedule / look at drawing pages.
+  readDrawings(body) {
+    return this.callFunction('drawing-reader', body);
+  }
+
   // Ask the "social-writer" Edge Function (Claude) for post drafts, post ideas or a networking message.
   socialWriter(body) {
     return this.callFunction('social-writer', body);
@@ -115,6 +120,7 @@ export class SupabaseBackend {
       try { const body = await error.context.json(); msg = (body && (body.error || body.message)) || msg; } catch (e) { /* no details */ }
       const err = new Error(msg);
       err.notSetUp = status === 404 || /failed to send|ANTHROPIC_API_KEY/i.test(msg);
+      err.status = status;
       throw err;
     }
     return data;
@@ -284,6 +290,11 @@ export class LocalBackend {
   }
   async findProducts() {
     const err = new Error('Finding products online works with the team database, not in demo mode.');
+    err.demo = true;
+    throw err;
+  }
+  async readDrawings() {
+    const err = new Error('Reading documents with AI works with the team database, not in demo mode.');
     err.demo = true;
     throw err;
   }

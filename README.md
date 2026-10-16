@@ -255,6 +255,17 @@ invoice and a *supplier payouts* list). After that, on a project's **Steps** tab
 
 Payouts are kept apart from Costs: the supplier's price already counts as product cost, so profit stays right.
 
+### 12. Read schedule & drawings (lighting projects)
+
+For projects where a lighting designer sends a **luminaire schedule** (PDF or Excel) and **drawing sets** with our
+lights marked (e.g. a red "B"): Steps → 1 → **📐 Read schedule & drawings**. The app reads every page in the
+browser (text for schedules, a picture for drawings), and the Edge Function
+[`drawing-reader`](supabase/functions/drawing-reader/index.ts) (Claude) picks the schedule rows that name us, then
+looks at the drawings three pages at a time to find each marked light. A check screen shows every light with its
+cut-out picture (Bigger / Whole page / No picture); saving makes the cards and cuts each picture from the original
+PDF at full sharpness. Deploy it like `product-finder` (same `ANTHROPIC_API_KEY`). Links that need a sign-in
+(SharePoint, OneDrive, Google Drive) can't be read — download the files and add them instead; the app says so.
+
 ## Demo mode
 
 Without a key, or by tapping **Try demo mode** on the sign-in screen, the app runs with data stored only on that device.

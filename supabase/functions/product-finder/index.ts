@@ -134,6 +134,8 @@ const SAVE_TOOL = {
     image_urls: { type: 'array', items: str },
     sources: { type: 'array', items: str },
     notes: str,
+    // When there's no exact original (or it's uncertain): up to 3 similar products on sale, as a price benchmark.
+    similar: { type: 'array', items: obj({ brand: str, model: str, product_url: str, image_url: str, retail_price: num, currency: str, why: str }) },
   }),
 };
 
@@ -282,7 +284,8 @@ Then call save_original once with:
 ${KEY_LIST}
 - image_urls: up to 3 direct image file URLs (jpg/png/webp) of the product from the page you used.
 - sources: the pages you used. notes: anything uncertain.
-If you cannot identify it with reasonable confidence, call save_original with found=false and say why in notes.`;
+If you cannot identify it with reasonable confidence, call save_original with found=false and say why in notes.
+similar: when found=false or your confidence is low, also give up to 3 SIMILAR products that are really on sale (closest in shape, materials and size first) — brand, model, product_url, image_url (a direct jpg/png/webp of that product, or ""), retail_price (0 if none), currency, and why (one short line: what is alike and what differs). Only products you actually saw on a page; never invent them. Otherwise similar = [].`;
     // deno-lint-ignore no-explicit-any
     const messages: any[] = [{ role: 'user', content: [...files, { type: 'text', text: prompt }] }];
     // deno-lint-ignore no-explicit-any
@@ -315,9 +318,20 @@ If you cannot identify it with reasonable confidence, call save_original with fo
     if (!saved) return json({ error: 'The search took too long — try again, or add a link to the product.' }, 504);
 
     // Fetch a few product pictures here (the browser can't, because of other sites' rules).
-    const urls = Date.now() - started < 135_000 ? (Array.isArray(saved.image_urls) ? saved.image_urls : []).slice(0, 3) : [];
-    const images = (await Promise.all(urls.map((u: unknown) => fetchImage(String(u))))).filter(Boolean);
-    return json({ result: { ...saved, images } });
+    const inTime = Date.now() - started < 135_000;
+    const urls = inTime ? (Array.isArray(saved.image_urls) ? saved.image_urls : []).slice(0, 3) : [];
+    // deno-lint-ignore no-explicit-any
+    const similar = (Array.isArray(saved.similar) ? saved.similar : []).slice(0, 3).map((x: any) => ({
+      brand: text(x && x.brand, 120), model: text(x && x.model, 160), product_url: text(x && x.product_url, 500), image_url: text(x && x.image_url, 500),
+      retail_price: Number(x && x.retail_price) || 0, currency: text(x && x.currency, 3), why: text(x && x.why, 300),
+    })).filter((x: { brand: string; model: string; product_url: string }) => (x.brand || x.model) && /^https:\/\//.test(x.product_url));
+    const [images, simImages] = await Promise.all([
+      Promise.all(urls.map((u: unknown) => fetchImage(String(u)))),
+      Promise.all(similar.map((x: { image_url: string }) => (inTime && x.image_url ? fetchImage(x.image_url) : Promise.resolve(null)))),
+    ]);
+    // deno-lint-ignore no-explicit-any
+    similar.forEach((x: any, i: number) => { x.image = simImages[i] || null; });
+    return json({ result: { ...saved, images: images.filter(Boolean), similar } });
   } catch (err) {
     console.error(err);
     if (abort.signal.aborted) return json({ error: 'The search took too long — try again, or add a link to the product.' }, 504);

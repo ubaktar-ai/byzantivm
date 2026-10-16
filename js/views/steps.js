@@ -16,6 +16,8 @@ import { pricesOf, pricesReady } from './prices.js';
 import { uploadFiles } from '../files.js';
 import { paySteps, shipStep } from './payments.js';
 import { needsCut } from '../pdfcrop.js';
+import { needsOriginal } from '../reader.js';
+import { originalSummary } from '../finder.js';
 import { roundsSteps, openClientReply, markSent, readNewPrices, makeRevisedProposal, withChanges, unsent } from './rounds.js';
 
 const num = v => Number(v) || 0;
@@ -30,6 +32,18 @@ export const cardPicture = it => {
   return [...((s._images || {}).offer || []), ...((s._tear || {}).images || []), ...((s._original || {}).images || []), ...((s._images || {}).vision || [])]
     .map(id => store.get('attachments', id)).find(a => a && /^image\//.test(a.mime || '')) || null;
 };
+const firstImage = ids => (ids || []).map(id => store.get('attachments', id)).find(a => a && /^image\//.test(a.mime || '')) || null;
+const clientPicture = it => firstImage((((it && it.spec) || {})._images || {}).vision);
+const originalPicture = it => firstImage((((it && it.spec) || {})._original || {}).images);
+// "· 3 similar, $93–$1,999" — the price range of the similar products kept on a card.
+function similarLine(it, p) {
+  const sim = ((it.spec || {})._similar || []);
+  if (!sim.length) return '';
+  const prices = sim.filter(x => x.retail_price).map(x => x.retail_price);
+  const cur = (sim.find(x => x.currency) || {}).currency || p.currency;
+  const range = prices.length ? ` (${money(Math.min(...prices), cur)}${prices.length > 1 && Math.max(...prices) !== Math.min(...prices) ? `–${money(Math.max(...prices), cur)}` : ''})` : '';
+  return ` · ${sim.length} similar${range}`;
+}
 const summary = it => [val(it, 'overall_size') || val(it, 'diameter') || it.dimensions, val(it, 'body_material') || it.materials, val(it, 'finish'),
   val(it, 'source_type') && [val(it, 'source_type'), val(it, 'cct')].filter(Boolean).join(' '), val(it, 'dimming')].filter(Boolean).join(' · ');
 
@@ -77,6 +91,7 @@ document.addEventListener('click', e => {
 export function stepsTab(p) {
   const cards = lightingOf(p.id);
   const waitingCuts = cards.filter(needsCut).length;
+  const waitingOriginals = waitingCuts ? 0 : cards.filter(needsOriginal).length;
   const m = v => money(v, p.currency);
   const priced = cards.filter(i => num(i.unit_cost));
   const selling = cards.filter(i => num(i.unit_price));
@@ -88,20 +103,25 @@ export function stepsTab(p) {
 
   // 1 — client's request → product cards
   const s1 = `
-    <p class="muted small">Add everything the client sent — photos, screenshots of emails, PDFs, links. The AI makes one product card per light; you check them before they're saved.</p>
+    <p class="muted small">Photos, screenshots, a product link → <b>Add from client files</b>. A luminaire schedule with drawing sets (lights marked for us) → <b>Read schedule &amp; drawings</b>. You check the cards before they're saved.</p>
     <div class="qc-actions">
       <button class="btn primary" data-action="finder-open" data-id="${p.id}">✨ Add from client files</button>
+      <button class="btn" data-action="card-read" data-id="${p.id}">📐 Read schedule &amp; drawings</button>
       <button class="btn" data-action="card-new" data-id="${p.id}">${icon.plus} Card by hand</button>
       ${waitingCuts ? `<button class="btn primary" data-action="card-cut" data-id="${p.id}">✂️ Cut ${waitingCuts} picture${waitingCuts === 1 ? '' : 's'} from the drawings</button>` : ''}
+      ${waitingOriginals ? `<button class="btn" data-action="card-originals" data-id="${p.id}">🔎 Find the originals online (${waitingOriginals})</button>` : ''}
     </div>
     ${cards.length ? `<div class="flow-cards">${cards.map(it => {
-      const pic = cardPicture(it);
+      const client = clientPicture(it);
+      const orig = originalPicture(it);
+      const pic = client || cardPicture(it);
       return `<button type="button" class="flow-card" data-action="card-edit" data-id="${it.id}">
-        <span class="flow-pic">${pic ? `<img data-path="${esc(pic.path)}" alt="">` : '<span class="muted small">No picture</span>'}</span>
+        <span class="flow-pic">${pic ? `<img data-path="${esc(pic.path)}" alt="">` : '<span class="muted small">No picture</span>'}${client && orig && orig.id !== client.id ? `<img class="flow-orig" data-path="${esc(orig.path)}" alt="The original" title="The original">` : ''}</span>
         <span class="flow-card-text"><b>${esc(itemNo(it))} · ${esc(it.name)}</b> <span class="muted">× ${esc(String(num(it.quantity) || 1))}</span>
           <span class="muted small">${esc(summary(it) || 'Tap to add the details')}</span>
           ${unsent(it) ? '<span class="chip warn">Changed — not sent to supplier</span>' : ''}
-          ${(it.spec || {})._original ? `<span class="muted small">Based on ${esc([it.spec._original.brand, it.spec._original.model].filter(Boolean).join(' '))}</span>` : ''}</span>
+          ${(it.spec || {})._original ? `<span class="muted small">Original: ${esc([it.spec._original.brand, it.spec._original.model].filter(Boolean).join(' '))}${it.spec._original.retail_price ? ` · retail ${esc(money(it.spec._original.retail_price, /^[A-Z]{3}$/.test(it.spec._original.currency || '') ? it.spec._original.currency : p.currency))}` : ''}</span>`
+            : (it.spec || {})._original_search ? `<span class="muted small">Original not found online${similarLine(it, p)}</span>` : ''}</span>
       </button>`;
     }).join('')}</div>` : ''}`;
 
@@ -182,7 +202,8 @@ function openCardSheet(p, existing) {
   const spec = { ...(it.spec || {}) };
   const template = templateOf(p);
   const bag = { card: [...((spec._images || {}).offer || [])] };
-  const others = [...((spec._original || {}).images || []), ...((spec._images || {}).vision || [])].map(id => store.get('attachments', id)).filter(a => a && /^image\//.test(a.mime || ''));
+  const imgs = ids => (ids || []).map(id => store.get('attachments', id)).filter(a => a && /^image\//.test(a.mime || ''));
+  const refs = [...imgs((spec._images || {}).vision).map(a => [a, 'From the client']), ...imgs((spec._original || {}).images).map(a => [a, 'The original'])];
   openSheet(`
     <form class="spec-form card-form">
       ${sheetHeader(existing ? it.name : 'New product card')}
@@ -192,7 +213,14 @@ function openCardSheet(p, existing) {
           <label class="field qty-field"><span>Qty</span><input name="quantity" value="${esc(String(num(it.quantity) || 1))}" inputmode="decimal"></label>
         </div>
         <div class="field"><span>Pictures</span>${photoPicker('card', 'Add pictures', true)}
-          ${others.length ? `<span class="muted small">Also on the card: ${others.length} picture${others.length === 1 ? '' : 's'} from the client and the original.</span>` : ''}</div>
+          ${refs.length ? `<div class="card-refs">${refs.map(([a, label]) => `<figure><img data-path="${esc(a.path)}" alt=""><figcaption class="muted small">${label}</figcaption></figure>`).join('')}</div>` : ''}</div>
+        ${existing ? originalSummary(it) : ''}
+        ${(spec._similar || []).length ? `<div class="similar-list"><span class="muted small">Similar products — not the original, for comparing prices</span>
+          ${spec._similar.map(x => { const a = x.image && store.get('attachments', x.image); return `<div class="similar-row">
+            ${a ? `<img data-path="${esc(a.path)}" alt="">` : '<span class="similar-noimg"></span>'}
+            <span class="small"><b>${esc([x.brand, x.model].filter(Boolean).join(' — '))}</b>${x.retail_price ? ` · ${esc(money(x.retail_price, x.currency || p.currency))}` : ''}
+              ${x.product_url ? ` · <a href="${esc(x.product_url)}" target="_blank" rel="noopener">page ↗</a>` : ''}${x.why ? `<br><span class="muted">${esc(x.why)}</span>` : ''}</span></div>`; }).join('')}</div>` : ''}
+        ${spec.notes ? `<details class="card-doc-notes"><summary class="small">From the client's documents</summary><p class="small prewrap">${esc(spec.notes)}</p></details>` : ''}
         <div class="spec-grid">${CARD_FIELDS.map(f => fieldHtml(f, spec, template, { toggles: () => '' })).join('')}</div>
         <label class="field"><span>Notes / special requests</span><textarea name="description" rows="3">${esc(it.description || '')}</textarea></label>
         ${existing ? `<p class="muted small">More details (driver, mounting, certification…) are in the <button type="button" class="link-btn" data-action="qc-spec" data-id="${it.id}">full spec</button>.</p>` : ''}
@@ -280,6 +308,8 @@ export function stepsAction(action, el) {
   else if (action === 'flow-rfq-each' && p) openEachPdfSheet(p);
   else if (action === 'flow-apply-margin' && p) applyMargin(p);
   else if (action === 'card-cut' && p) cutFromDrawings(p, el);
+  else if (action === 'card-read' && p) import('../reader.js').then(m => m.openReader(p.id));
+  else if (action === 'card-originals' && p) lookUpOriginals(p, el);
   else if (action === 'flow-reply' && p) openClientReply(p);
   else if (action === 'flow-send-changed' && p) {
     const ids = lightingOf(p.id).filter(unsent).map(i => i.id);
@@ -308,6 +338,23 @@ async function cutFromDrawings(p, el) {
     toast(`Couldn't cut the pictures: ${err.message || err}`);
   } finally {
     cutting = false;
+    el.disabled = false;
+  }
+}
+
+// Each card's original found online, three at a time; the cards update as answers come in.
+async function lookUpOriginals(p, el) {
+  el.disabled = true;
+  toast('Looking up the originals online — about a minute per light…');
+  try {
+    const { findOriginals } = await import('../reader.js');
+    const r = await findOriginals(p.id);
+    if (r) toast(`Originals found for ${r.found} of ${r.done} light${r.done === 1 ? '' : 's'}`);
+  } catch (err) {
+    console.error(err);
+    toast(err.demo ? 'Finding originals online works with the team database, not in demo mode.'
+      : err.notSetUp ? 'The “product-finder” function isn’t set up yet.' : `Couldn't search: ${err.message || err}`);
+  } finally {
     el.disabled = false;
   }
 }
