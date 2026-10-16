@@ -404,29 +404,47 @@ async function save(projectId, cards, { originals = false } = {}) {
 // describes the light and searches the web for the original (brand, model, specs, retail price, pictures).
 // What it finds is kept next to the card as "the original" — our own details on the card are not changed.
 
+// Searches before similar products were kept (version 1) are run again for cards without an original.
+const SEARCH_V = 2;
 export const needsOriginal = it => {
   const s = (it && it.spec) || {};
-  return !!(((s._images || {}).vision || []).length && !s._original && !s._original_search);
+  const tried = s._original_search && (s._original_search.v || 1) >= SEARCH_V;
+  return !!(((s._images || {}).vision || []).length && !s._original && !tried);
 };
 export const originalsWaiting = projectId => productsOf(projectId).filter(needsOriginal);
 
 const clean = v => String(v == null ? '' : v).trim();
 let searching = false;
 
+const toFile = im => new File([Uint8Array.from(atob(im.data), c => c.charCodeAt(0))], im.name, { type: im.mime });
+const currencyOf = c => (/^[A-Z]{3}$/.test(clean(c).toUpperCase()) ? clean(c).toUpperCase() : '');
+
+// Up to 3 similar products on sale (not the original) — a price benchmark when there's no exact original.
+async function similarOf(projectId, itemId, list) {
+  const out = [];
+  for (const x of (list || []).filter(x => x && /^https:\/\//.test(clean(x.product_url))).slice(0, 3)) {
+    let image = null;
+    if (x && x.image) image = ((await uploadFiles([toFile(x.image)], { project_id: projectId, item_id: itemId, kind: 'qc', quiet: true }))[0] || {}).id || null;
+    out.push({ brand: clean(x.brand), model: clean(x.model), product_url: clean(x.product_url), retail_price: Number(x.retail_price) || 0,
+      currency: currencyOf(x.currency), why: clean(x.why), image });
+  }
+  return out.filter(x => x.brand || x.model);
+}
+
 async function applyOriginal(projectId, itemId, o) {
   const it = store.get('items', itemId);
   if (!it) return false;
-  const spec = { ...(it.spec || {}) };
+  const at = new Date().toISOString();
+  const similar = o && !o.error ? await similarOf(projectId, itemId, o.similar) : [];
   if (!o || o.error || !o.found) {
-    spec._original_search = { at: new Date().toISOString(), found: false, note: clean((o && (o.error || o.notes)) || '').slice(0, 300) };
+    const spec = { ...((store.get('items', itemId) || it).spec || {}) };
+    spec._original_search = { at, v: SEARCH_V, found: false, note: clean((o && (o.error || o.notes)) || '').slice(0, 300) };
+    if (similar.length) spec._similar = similar;
     await store.update('items', itemId, { spec });
     return false;
   }
   let ids = [];
-  if ((o.images || []).length) {
-    const files = o.images.map(im => new File([Uint8Array.from(atob(im.data), c => c.charCodeAt(0))], im.name, { type: im.mime }));
-    ids = (await uploadFiles(files, { project_id: projectId, item_id: itemId, kind: 'qc', quiet: true })).map(a => a.id);
-  }
+  if ((o.images || []).length) ids = (await uploadFiles(o.images.map(toFile), { project_id: projectId, item_id: itemId, kind: 'qc', quiet: true })).map(a => a.id);
   const specs = Object.fromEntries((o.specs || []).filter(s => s && s.key && clean(s.value)).map(s => [s.key, clean(s.value)]));
   const fresh = store.get('items', itemId) || it;
   const next = { ...(fresh.spec || {}) };
@@ -436,11 +454,12 @@ async function applyOriginal(projectId, itemId, o) {
   next._original = {
     brand: clean(o.brand), model: clean(o.model), designer: clean(o.designer), product_url: clean(o.product_url),
     description: clean(o.description), retail_price: Number(o.retail_price) || 0,
-    currency: /^[A-Z]{3}$/.test(clean(o.currency).toUpperCase()) ? clean(o.currency).toUpperCase() : '', price_note: clean(o.price_note),
+    currency: currencyOf(o.currency), price_note: clean(o.price_note),
     confidence: clean(o.confidence), specs, images: ids, sources: (o.sources || []).map(clean).filter(Boolean).slice(0, 8),
-    notes: clean(o.notes), found_at: new Date().toISOString(),
+    notes: clean(o.notes), found_at: at,
   };
-  next._original_search = { at: new Date().toISOString(), found: true };
+  if (similar.length) next._similar = similar;
+  next._original_search = { at, v: SEARCH_V, found: true };
   await store.update('items', itemId, { spec: next });
   return true;
 }

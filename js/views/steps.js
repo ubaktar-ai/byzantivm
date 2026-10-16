@@ -35,6 +35,15 @@ export const cardPicture = it => {
 const firstImage = ids => (ids || []).map(id => store.get('attachments', id)).find(a => a && /^image\//.test(a.mime || '')) || null;
 const clientPicture = it => firstImage((((it && it.spec) || {})._images || {}).vision);
 const originalPicture = it => firstImage((((it && it.spec) || {})._original || {}).images);
+// "· 3 similar, $93–$1,999" — the price range of the similar products kept on a card.
+function similarLine(it, p) {
+  const sim = ((it.spec || {})._similar || []);
+  if (!sim.length) return '';
+  const prices = sim.filter(x => x.retail_price).map(x => x.retail_price);
+  const cur = (sim.find(x => x.currency) || {}).currency || p.currency;
+  const range = prices.length ? ` (${money(Math.min(...prices), cur)}${prices.length > 1 && Math.max(...prices) !== Math.min(...prices) ? `–${money(Math.max(...prices), cur)}` : ''})` : '';
+  return ` · ${sim.length} similar${range}`;
+}
 const summary = it => [val(it, 'overall_size') || val(it, 'diameter') || it.dimensions, val(it, 'body_material') || it.materials, val(it, 'finish'),
   val(it, 'source_type') && [val(it, 'source_type'), val(it, 'cct')].filter(Boolean).join(' '), val(it, 'dimming')].filter(Boolean).join(' · ');
 
@@ -112,7 +121,7 @@ export function stepsTab(p) {
           <span class="muted small">${esc(summary(it) || 'Tap to add the details')}</span>
           ${unsent(it) ? '<span class="chip warn">Changed — not sent to supplier</span>' : ''}
           ${(it.spec || {})._original ? `<span class="muted small">Original: ${esc([it.spec._original.brand, it.spec._original.model].filter(Boolean).join(' '))}${it.spec._original.retail_price ? ` · retail ${esc(money(it.spec._original.retail_price, /^[A-Z]{3}$/.test(it.spec._original.currency || '') ? it.spec._original.currency : p.currency))}` : ''}</span>`
-            : (it.spec || {})._original_search ? '<span class="muted small">Original not found online</span>' : ''}</span>
+            : (it.spec || {})._original_search ? `<span class="muted small">Original not found online${similarLine(it, p)}</span>` : ''}</span>
       </button>`;
     }).join('')}</div>` : ''}`;
 
@@ -206,6 +215,11 @@ function openCardSheet(p, existing) {
         <div class="field"><span>Pictures</span>${photoPicker('card', 'Add pictures', true)}
           ${refs.length ? `<div class="card-refs">${refs.map(([a, label]) => `<figure><img data-path="${esc(a.path)}" alt=""><figcaption class="muted small">${label}</figcaption></figure>`).join('')}</div>` : ''}</div>
         ${existing ? originalSummary(it) : ''}
+        ${(spec._similar || []).length ? `<div class="similar-list"><span class="muted small">Similar products — not the original, for comparing prices</span>
+          ${spec._similar.map(x => { const a = x.image && store.get('attachments', x.image); return `<div class="similar-row">
+            ${a ? `<img data-path="${esc(a.path)}" alt="">` : '<span class="similar-noimg"></span>'}
+            <span class="small"><b>${esc([x.brand, x.model].filter(Boolean).join(' — '))}</b>${x.retail_price ? ` · ${esc(money(x.retail_price, x.currency || p.currency))}` : ''}
+              ${x.product_url ? ` · <a href="${esc(x.product_url)}" target="_blank" rel="noopener">page ↗</a>` : ''}${x.why ? `<br><span class="muted">${esc(x.why)}</span>` : ''}</span></div>`; }).join('')}</div>` : ''}
         ${spec.notes ? `<details class="card-doc-notes"><summary class="small">From the client's documents</summary><p class="small prewrap">${esc(spec.notes)}</p></details>` : ''}
         <div class="spec-grid">${CARD_FIELDS.map(f => fieldHtml(f, spec, template, { toggles: () => '' })).join('')}</div>
         <label class="field"><span>Notes / special requests</span><textarea name="description" rows="3">${esc(it.description || '')}</textarea></label>

@@ -1213,3 +1213,6 @@ details.flow-step[open] .flow-chev { transform: rotate(-135deg); margin-top: 4px
 .card-refs figure { margin: 0; width: 140px; }
 .card-refs img { width: 140px; height: 110px; object-fit: contain; background: var(--surface-2); border-radius: 8px; display: block; }
 .card-doc-notes summary { cursor: pointer; }
+.similar-list { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; }
+.similar-row { display: flex; gap: 10px; align-items: flex-start; }
+.similar-row img, .similar-noimg { width: 64px; height: 64px; object-fit: contain; background: var(--surface-2); border-radius: 8px; flex: none; }
