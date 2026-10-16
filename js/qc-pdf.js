@@ -722,6 +722,12 @@ export async function createRfqPdf(projectId, itemIds) {
       const ids = [...new Set([...((spec._images || {}).offer || []), ...(((spec._tear || {}).images) || []), ...((o && o.images) || []), ...((spec._images || {}).vision || [])])];
       const imgs = await loadImages(ids.slice(0, 6));
       if (imgs.length) await k.photos(imgs);
+      // Changes since the last time we sent this card: the supplier must update the price.
+      const rev = spec._rev;
+      if (rev && (rev.changes || []).length && !rev.priced_at) {
+        k.heading('Changed since last time — please update your price');
+        k.rows(rev.changes.map(ch => [ch.label, `${show(ch.key, ch.from) || '—'}  →  ${show(ch.key, ch.to)}`]));
+      }
       const changes = (spec._custom || []).filter(ch => ch && ch.ours && showsFor(spec, ch.key, 'supplier', c.company.qc_template || {}));
       if (changes.length) {
         k.heading('Changed from the original');

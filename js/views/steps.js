@@ -10,6 +10,7 @@ import { lightingOf, fieldHtml, readSpec, wireSpecFields, photoPicker, wirePhoto
 import { openProposal, acceptedProposal, createOrUpdateProposal } from './order.js';
 import { pricesOf, pricesReady } from './prices.js';
 import { uploadFiles } from '../files.js';
+import { roundsSteps, openClientReply, markSent, readNewPrices, makeRevisedProposal, withChanges, unsent } from './rounds.js';
 
 const num = v => Number(v) || 0;
 const round2 = n => Math.round(n * 100) / 100;
@@ -57,6 +58,7 @@ export function stepsTab(p) {
         <span class="flow-pic">${pic ? `<img data-path="${esc(pic.path)}" alt="">` : '<span class="muted small">No picture</span>'}</span>
         <span class="flow-card-text"><b>${esc(itemNo(it))} · ${esc(it.name)}</b> <span class="muted">× ${esc(String(num(it.quantity) || 1))}</span>
           <span class="muted small">${esc(summary(it) || 'Tap to add the details')}</span>
+          ${unsent(it) ? '<span class="chip warn">Changed — not sent to supplier</span>' : ''}
           ${(it.spec || {})._original ? `<span class="muted small">Based on ${esc([it.spec._original.brand, it.spec._original.model].filter(Boolean).join(' '))}</span>` : ''}</span>
       </button>`;
     }).join('')}</div>` : ''}`;
@@ -126,8 +128,9 @@ export function stepsTab(p) {
       ${step(3, 'Supplier’s prices', cards.length ? `${priced.length}/${cards.length} priced` : '', s3, { done: cards.length > 0 && priced.length === cards.length })}
       ${step(4, 'Cost sheet & your prices', cards.length ? `${selling.length}/${cards.length} with your price${margin != null ? ` · margin ${margin}%` : ''}` : '', s4, { done: cards.length > 0 && selling.length === cards.length })}
       ${step(5, 'Proposal & tear sheets for the client', proposal ? (proposal.status === 'approved' ? 'accepted' : 'sent') : '', s5, { done: !!proposal })}
-      ${step(6, 'Quality control', '', s6)}
-      <p class="muted small flow-next">Coming next: the client's reply (changes go back to the supplier, revised prices), the PO and invoice, payments and supplier payout slips.</p>
+      ${roundsSteps(p, step)}
+      ${step(8, 'Quality control', '', s6)}
+      <p class="muted small flow-next">Coming next: the client's PO and invoice, payments and supplier payout slips.</p>
     </div>`;
 }
 
@@ -179,6 +182,17 @@ function openCardSheet(p, existing) {
         description: String(fd.get('description') || '').trim(), spec: next, category: 'lighting',
         dimensions: next.overall_size || next.diameter || it.dimensions || '', materials: [next.body_material, next.finish].filter(Boolean).join(', ') || it.materials || '',
       };
+      // After the proposal, edits are changes: marked on the card until they're sent to the supplier.
+      if (existing && (openProposal(p.id) || acceptedProposal(p.id))) {
+        const watch = [...CARD_FIELDS.map(f => f.key), 'quantity', 'name'];
+        const before = k => (k === 'quantity' ? String(num(it.quantity) || 1) : k === 'name' ? it.name : String((it.spec || {})[k] || ''));
+        const after = k => (k === 'quantity' ? String(row.quantity) : k === 'name' ? row.name : String(next[k] || ''));
+        const changes = watch.filter(k => before(k) !== after(k)).map(k => ({ key: k, label: k === 'quantity' ? 'Quantity' : k === 'name' ? 'Name' : FIELD[k].label, from: before(k), to: after(k) }));
+        if (changes.length) {
+          const marked = withChanges({ ...it, spec: next }, changes, { by: 'us' });
+          row.spec = { ...next, _rev: marked._rev, _history: marked._history };
+        }
+      }
       try {
         if (existing) await store.update('items', existing.id, row);
         else await store.insert('items', { project_id: p.id, sort_order: nextSortOrder(productsOf(p.id)), ...row });
@@ -224,6 +238,12 @@ export function stepsAction(action, el) {
   else if (action === 'flow-rfq-all' && p) import('../qc-pdf.js').then(mod => mod.createRfqPdf(p.id, lightingOf(p.id).map(i => i.id)));
   else if (action === 'flow-rfq-each' && p) openEachPdfSheet(p);
   else if (action === 'flow-apply-margin' && p) applyMargin(p);
+  else if (action === 'flow-reply' && p) openClientReply(p);
+  else if (action === 'flow-send-changed' && p) {
+    const ids = lightingOf(p.id).filter(unsent).map(i => i.id);
+    if (ids.length) import('../qc-pdf.js').then(mod => mod.createRfqPdf(p.id, ids)).then(() => markSent(p, ids));
+  }
+  else if (action === 'flow-revised' && p) makeRevisedProposal(p).catch(err => console.error(err));
   else if (action === 'flow-proposal' && p) {
     const notes = (document.querySelector(`[data-flow-notes="${p.id}"]`) || {}).value;
     createOrUpdateProposal(p, { notes: notes == null ? undefined : String(notes).trim() }).catch(err => console.error(err));
@@ -244,6 +264,11 @@ document.addEventListener('change', async e => {
     const saved = await uploadFiles(t.files, { project_id: p.id, kind: 'supplier_quote' });
     t.value = '';
     if (saved[0]) import('../ai.js').then(m => m.readWithAI(saved[0], 'supplier'));
+  } else if (t.matches && t.matches('[data-flow-newprices]') && t.files.length) {
+    const p = store.get('projects', t.dataset.flowNewprices);
+    const file = t.files[0];
+    t.value = '';
+    readNewPrices(p, file);
   } else if (t.matches && t.matches('[data-flow-notes]')) {
     const q = openProposal(t.dataset.flowNotes);
     if (q) store.update('quotes', q.id, { notes: t.value.trim() }).catch(() => {});

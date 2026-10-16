@@ -6,6 +6,7 @@
 // Two steps, each well inside the 150-second limit of an Edge Function:
 //   mode "read":     files + email text  -> the products the client wants, with their requested changes
 //   mode "research": one product         -> the original item found online
+//   mode "changes":  the client's reply + the current cards -> what changes per card (and what's approved)
 // Setup: the same ANTHROPIC_API_KEY secret as "read-document"; deploy as "product-finder" (Verify JWT on).
 import Anthropic from 'npm:@anthropic-ai/sdk@^0.131.0';
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -148,7 +149,7 @@ Deno.serve(async req => {
   // deno-lint-ignore no-explicit-any
   let body: any;
   try { body = await req.json(); } catch { return json({ error: 'Invalid request' }, 400); }
-  const mode = body && (body.mode === 'read' || body.mode === 'research') ? body.mode : null;
+  const mode = body && ['read', 'research', 'changes'].includes(body.mode) ? body.mode : null;
   if (!mode) return json({ error: 'Invalid request' }, 400);
 
   // Act as the signed-in user: only team members get through, and storage rules still apply.
@@ -203,6 +204,53 @@ Also client_name (the client's company or name, or "") and summary (the request 
         model: MODEL, max_tokens: 16000,
         betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
         output_config: { effort: 'medium', format: { type: 'json_schema', schema: READ_SCHEMA } },
+        system: SYSTEM,
+        messages: [{ role: 'user', content: [...files, { type: 'text', text: prompt }] }],
+      };
+      const msg = await client.beta.messages.create(params, { signal: abort.signal });
+      if (msg.stop_reason === 'refusal') return json({ error: 'The AI declined to read this. Try a different picture or text.' }, 422);
+      // deno-lint-ignore no-explicit-any
+      const out = msg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
+      return json({ result: JSON.parse(out), usage: msg.usage });
+    }
+
+    if (mode === 'changes') {
+      const email = text(body.text, 12000);
+      if (!files.length && !email.trim()) return json({ error: 'Add the client’s reply: a picture, a PDF or the text of the email.' }, 400);
+      // deno-lint-ignore no-explicit-any
+      const cards = (Array.isArray(body.cards) ? body.cards : []).slice(0, 40).map((c: any) => ({
+        id: text(c && c.id, 64), name: text(c && c.name, 200), quantity: Number(c && c.quantity) || 1,
+        details: Object.fromEntries(Object.entries((c && c.details) || {}).filter(([k]) => SPEC_KEYS[k]).map(([k, v]) => [k, text(v, 300)])),
+      })).filter((c: { id: string }) => /^[0-9a-f-]{36}$/i.test(c.id));
+      if (!cards.length) return json({ error: 'There are no product cards to update yet.' }, 400);
+      const FIELDS = [...Object.keys(SPEC_KEYS), 'quantity', 'name', 'notes'];
+      const schema = obj({
+        summary: str,
+        cards: { type: 'array', items: obj({
+          item_id: { type: 'string', enum: cards.map((c: { id: string }) => c.id) },
+          status: { type: 'string', enum: ['approved', 'changes', 'rejected', 'no_reply'] },
+          changes: { type: 'array', items: obj({ key: { type: 'string', enum: FIELDS }, value: str }) },
+          note: str,
+        }) },
+        new_items: { type: 'array', items: obj({ name: str, quantity: num, note: str }) },
+      });
+      const prompt = `These are the product cards we sent the client (current details):
+${JSON.stringify(cards, null, 1)}
+
+The client's reply is ${files.length ? 'in the files above' : 'below'}${files.length && email ? ' and in this message' : ''}.
+${email ? `\n--- Reply ---\n${email}\n--- End ---\n` : ''}
+For every card, say what the client wants:
+- status: approved (accepted as is), changes (accepted with changes), rejected (not wanted), or no_reply (not mentioned).
+- changes: only what must change, as the NEW value, using these keys: the detail keys below, plus quantity (a number), name, notes (a special request in their words).
+${KEY_LIST}
+- note: anything else they said about this card, short.
+Also new_items: products they ask for that are not on any card. summary: the reply in 1–3 sentences.
+Only use what the client actually wrote or marked; don't guess.`;
+      // deno-lint-ignore no-explicit-any
+      const params: any = {
+        model: MODEL, max_tokens: 16000,
+        betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default',
+        output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
         system: SYSTEM,
         messages: [{ role: 'user', content: [...files, { type: 'text', text: prompt }] }],
       };

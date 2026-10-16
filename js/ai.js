@@ -198,7 +198,7 @@ function reviewInquiry(p, att, r) {
 const words = s => new Set(clean(s).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(w => w.length > 2));
 
 // Pair each quote line with the product it most likely prices (each product used once).
-function matchLines(lines, products, att) {
+export function matchLines(lines, products, att) {
   if (att.item_id && lines.length === 1 && products.some(i => i.id === att.item_id)) return [att.item_id];
   const used = new Set();
   return lines.map(l => {

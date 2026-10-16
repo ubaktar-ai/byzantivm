@@ -82,18 +82,20 @@ export async function runStep(step, p) {
   }
 }
 
-export async function createOrUpdateProposal(p, { notes } = {}) {
+export async function createOrUpdateProposal(p, { notes, revised = false } = {}) {
   const products = productsOf(p.id);
   if (!products.length) { toast('Add the products first'); openProductSheet(p.id); return; }
   const unpriced = products.filter(i => !num(i.unit_price));
   if (unpriced.length && !confirm(`${unpriced.length} product${unpriced.length === 1 ? ' has' : 's have'} no price yet. Create the proposal anyway?`)) return;
 
-  let q = openProposal(p.id);
+  // A revised proposal is a new one (v2, v3…); the earlier ones stay as they were sent.
+  let q = revised ? null : openProposal(p.id);
+  const version = quotesOf(p.id).length + 1;
   if (q) {
     await store.update('quotes', q.id, { status: 'sent', issue_date: todayStr(), ...(notes !== undefined ? { notes } : {}) });
   } else {
     q = await store.insert('quotes', {
-      id: uuid(), project_id: p.id, number: nextNumber('quotes', p.id), title: p.name,
+      id: uuid(), project_id: p.id, number: nextNumber('quotes', p.id), title: revised ? `${p.name} — revised proposal (v${version})` : p.name,
       issue_date: todayStr(), valid_until: addDays(todayStr(), 30), status: 'sent', notes: notes || '', ...docExtras(p.id),
     });
   }

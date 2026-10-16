@@ -1166,3 +1166,6 @@ a.qc-thumb.file { text-decoration: none; }
 .flow-margin .spacer { flex: 1; }
 .flow-next { text-align: center; }
 @media (max-width: 600px) { .flow-table th:nth-child(5), .flow-table td:nth-child(5) { display: none; } .flow-in { width: 80px; } }
+.flow-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.reply-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.reply-val { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--input-bg, transparent); color: inherit; font: inherit; min-width: 120px; }
