@@ -1194,3 +1194,16 @@ details.flow-step[data-current] { box-shadow: 0 0 0 2px var(--accent), var(--sha
 .flow-status + .flow-chev { margin-left: 6px; }
 .flow-head h3 + .flow-chev { margin-left: auto; }
 details.flow-step[open] .flow-chev { transform: rotate(-135deg); margin-top: 4px; }
+
+/* Read schedule & drawings */
+.reader-files { display: grid; gap: 6px; }
+.read-row { display: grid; grid-template-columns: 28px 150px 1fr; gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--border); }
+.read-row.suggestion { opacity: .8; }
+.read-use { padding-top: 6px; }
+.read-pic { width: 150px; min-height: 60px; display: flex; align-items: center; justify-content: center; background: var(--surface-2); border-radius: 8px; overflow: hidden; }
+.read-pic img { max-width: 150px; max-height: 150px; display: block; }
+.read-text { display: grid; gap: 4px; min-width: 0; }
+.read-line { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.read-line input[name^="name_"] { flex: 1 1 120px; min-width: 0; width: 100%; }
+.read-tools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+@media (max-width: 560px) { .read-row { grid-template-columns: 24px 96px 1fr; } .read-pic, .read-pic img { width: 96px; max-width: 96px; } }

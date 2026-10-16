@@ -88,9 +88,10 @@ export function stepsTab(p) {
 
   // 1 — client's request → product cards
   const s1 = `
-    <p class="muted small">Add everything the client sent — photos, screenshots of emails, PDFs, links. The AI makes one product card per light; you check them before they're saved.</p>
+    <p class="muted small">Photos, screenshots, a product link → <b>Add from client files</b>. A luminaire schedule with drawing sets (lights marked for us) → <b>Read schedule &amp; drawings</b>. You check the cards before they're saved.</p>
     <div class="qc-actions">
       <button class="btn primary" data-action="finder-open" data-id="${p.id}">✨ Add from client files</button>
+      <button class="btn" data-action="card-read" data-id="${p.id}">📐 Read schedule &amp; drawings</button>
       <button class="btn" data-action="card-new" data-id="${p.id}">${icon.plus} Card by hand</button>
       ${waitingCuts ? `<button class="btn primary" data-action="card-cut" data-id="${p.id}">✂️ Cut ${waitingCuts} picture${waitingCuts === 1 ? '' : 's'} from the drawings</button>` : ''}
     </div>
@@ -280,6 +281,7 @@ export function stepsAction(action, el) {
   else if (action === 'flow-rfq-each' && p) openEachPdfSheet(p);
   else if (action === 'flow-apply-margin' && p) applyMargin(p);
   else if (action === 'card-cut' && p) cutFromDrawings(p, el);
+  else if (action === 'card-read' && p) import('../reader.js').then(m => m.openReader(p.id));
   else if (action === 'flow-reply' && p) openClientReply(p);
   else if (action === 'flow-send-changed' && p) {
     const ids = lightingOf(p.id).filter(unsent).map(i => i.id);

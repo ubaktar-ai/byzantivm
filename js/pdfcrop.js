@@ -1,6 +1,6 @@
 // Cut a card's picture out of a client PDF (drawings, design studies). A card can point at an area of an
 // uploaded PDF in spec._crop = { attachment_id, page, box: [x0, y0, x1, y1] } (fractions of the page);
-// this renders just that area with pdf.js and saves it as the card's "received from client" picture.
+// (a photo works too) — this renders just that area with pdf.js and saves it as the card's "received from client" picture.
 import { store, productsOf } from './store.js';
 import { fileUrls, uploadFiles } from './files.js';
 import { toast } from './lib.js';
@@ -8,7 +8,7 @@ import { toast } from './lib.js';
 const TARGET = 1400; // pixels across the cut-out picture
 let lib = null;
 
-async function pdfjs() {
+export async function pdfjs() {
   if (!lib) {
     lib = await import('../vendor/pdfjs/pdf.min.mjs');
     lib.GlobalWorkerOptions.workerSrc = new URL('../vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
@@ -23,8 +23,26 @@ export const needsCut = it => {
 };
 export const cutsWaiting = projectId => productsOf(projectId).filter(needsCut);
 
+// A photo behaves like a one-page document.
+async function imageDoc(url) {
+  const img = await new Promise((res, rej) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = rej; i.src = url; });
+  return { image: img, numPages: 1, destroy() {} };
+}
+
 // Render one area of one page to a JPEG file.
 async function renderArea(doc, pageNo, box, name) {
+  if (doc.image) {
+    const img = doc.image;
+    const sw = (box[2] - box[0]) * img.naturalWidth, sh = (box[3] - box[1]) * img.naturalHeight;
+    const s = Math.min(1, TARGET / Math.max(sw, sh));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(sw * s)); c.height = Math.max(1, Math.round(sh * s));
+    c.getContext('2d').drawImage(img, box[0] * img.naturalWidth, box[1] * img.naturalHeight, sw, sh, 0, 0, c.width, c.height);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88));
+    c.width = c.height = 0;
+    if (!blob) throw new Error('The picture could not be made');
+    return new File([blob], name, { type: 'image/jpeg' });
+  }
   const page = await doc.getPage(Math.min(Math.max(1, pageNo), doc.numPages));
   const base = page.getViewport({ scale: 1 });
   const w = (box[2] - box[0]) * base.width;
@@ -50,7 +68,6 @@ async function renderArea(doc, pageNo, box, name) {
 export async function cutPictures(projectId, { onProgress } = {}) {
   const todo = cutsWaiting(projectId);
   if (!todo.length) return 0;
-  const { getDocument } = await pdfjs();
   const byFile = new Map();
   todo.forEach(it => { const id = it.spec._crop.attachment_id; byFile.set(id, [...(byFile.get(id) || []), it]); });
   let done = 0;
@@ -58,7 +75,7 @@ export async function cutPictures(projectId, { onProgress } = {}) {
     const att = store.get('attachments', attId);
     const url = (await fileUrls([att.path]))[att.path];
     if (!url) { toast(`Couldn't open ${att.name}`); continue; }
-    const doc = await getDocument({ url, disableAutoFetch: true }).promise;
+    const doc = /^image\//.test(att.mime || '') ? await imageDoc(url) : await (await pdfjs()).getDocument({ url, disableAutoFetch: true }).promise;
     try {
       for (const it of items) {
         const c = it.spec._crop;

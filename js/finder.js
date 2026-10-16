@@ -3,6 +3,7 @@
 // retail price and pictures. The review sheet shows the original next to our version (the original plus the
 // client's changes); nothing is saved until it has been checked.
 import { esc, toast, openSheet, sheetHeader, $, $$ } from './lib.js';
+import { needsLogin, LOGIN_WARNING } from './reader.js';
 import { store, productsOf, nextSortOrder } from './store.js';
 import { filesOfKind, uploadFiles } from './files.js';
 import { SPEC_SECTIONS, fieldValue, visible, IMAGE_GROUPS } from './qc-spec.js';
@@ -58,11 +59,16 @@ export function openFinder(projectId, { itemId } = {}) {
         <label class="field"><span>Client's email or notes</span>
           <textarea name="text" rows="6" placeholder="Paste the client's email here — e.g. “We love the Bocci 28 pendant but need it 30% bigger, 2700K and DALI dimming, 12 pieces.”"></textarea></label>
         <label class="field"><span>Link to the product (optional)</span><input name="link" type="url" placeholder="https://…" autocomplete="off"></label>
+        <p class="ai-problem" data-link-warning hidden>${esc(LOGIN_WARNING)}</p>
       </div>
       <footer><button type="button" class="btn" data-close>Cancel</button><span class="spacer"></span><button type="submit" class="btn primary">Find products</button></footer>
     </form>`, {
     wide: true,
     onOpen(sheet) {
+      // Links behind a login (SharePoint, OneDrive…) can't be opened by the AI: say so straight away.
+      const warn = () => { $('[data-link-warning]', sheet).hidden = !(needsLogin($('[name=link]', sheet).value) || needsLogin($('[name=text]', sheet).value)); };
+      $('[name=link]', sheet).addEventListener('input', warn);
+      $('[name=text]', sheet).addEventListener('input', warn);
       const input = $('[data-finder-upload]', sheet);
       input.addEventListener('change', async e => {
         e.stopPropagation();
@@ -76,8 +82,9 @@ export function openFinder(projectId, { itemId } = {}) {
     onSubmit(fd, form) {
       const chosen = $$('[name=file]:checked', form).map(el => store.get('attachments', el.value)).filter(Boolean);
       const text = clean(fd.get('text'));
-      const link = clean(fd.get('link'));
-      if (!chosen.length && !text && !link) { toast('Add a picture, a PDF, the email text or a link'); return false; }
+      let link = clean(fd.get('link'));
+      if (needsLogin(link)) link = '';
+      if (!chosen.length && !text && !link) { toast(needsLogin(clean(fd.get('link'))) ? 'Download the files from that link and add them here' : 'Add a picture, a PDF, the email text or a link'); return false; }
       setTimeout(() => startSearch(p, chosen, text, link), 30);
     },
   });
