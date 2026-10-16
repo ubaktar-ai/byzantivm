@@ -116,7 +116,7 @@ export async function uploadFiles(fileList, target) {
   if (tooBig.length) toast(`${tooBig.map(f => f.name).join(', ')} is over 50 MB and was skipped`);
   const todo = files.filter(f => f.size <= MAX_BYTES);
   if (!todo.length) return [];
-  toast(todo.length === 1 ? 'Uploading…' : `Uploading ${todo.length} files…`);
+  if (!target.quiet) toast(todo.length === 1 ? 'Uploading…' : `Uploading ${todo.length} files…`);
   const saved = [];
   for (const file of todo) {
     const prepared = await prepareFile(file);
@@ -143,7 +143,7 @@ export async function uploadFiles(fileList, target) {
       store.backend.removeFiles([path]).catch(() => {});
     }
   }
-  if (saved.length) toast(saved.length === 1 ? 'File uploaded' : `${saved.length} files uploaded`);
+  if (saved.length && !target.quiet) toast(saved.length === 1 ? 'File uploaded' : `${saved.length} files uploaded`);
   return saved;
 }
 

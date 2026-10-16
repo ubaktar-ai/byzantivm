@@ -15,6 +15,7 @@ import { openProposal, acceptedProposal, createOrUpdateProposal } from './order.
 import { pricesOf, pricesReady } from './prices.js';
 import { uploadFiles } from '../files.js';
 import { paySteps, shipStep } from './payments.js';
+import { needsCut } from '../pdfcrop.js';
 import { roundsSteps, openClientReply, markSent, readNewPrices, makeRevisedProposal, withChanges, unsent } from './rounds.js';
 
 const num = v => Number(v) || 0;
@@ -75,6 +76,7 @@ document.addEventListener('click', e => {
 
 export function stepsTab(p) {
   const cards = lightingOf(p.id);
+  const waitingCuts = cards.filter(needsCut).length;
   const m = v => money(v, p.currency);
   const priced = cards.filter(i => num(i.unit_cost));
   const selling = cards.filter(i => num(i.unit_price));
@@ -90,6 +92,7 @@ export function stepsTab(p) {
     <div class="qc-actions">
       <button class="btn primary" data-action="finder-open" data-id="${p.id}">✨ Add from client files</button>
       <button class="btn" data-action="card-new" data-id="${p.id}">${icon.plus} Card by hand</button>
+      ${waitingCuts ? `<button class="btn primary" data-action="card-cut" data-id="${p.id}">✂️ Cut ${waitingCuts} picture${waitingCuts === 1 ? '' : 's'} from the drawings</button>` : ''}
     </div>
     ${cards.length ? `<div class="flow-cards">${cards.map(it => {
       const pic = cardPicture(it);
@@ -162,7 +165,7 @@ export function stepsTab(p) {
 
   return foldSteps(p.id, `
     <div class="flow" data-flow-project="${p.id}">
-      ${step(1, 'Client’s request → product cards', cards.length ? `${cards.length} card${cards.length === 1 ? '' : 's'}` : '', s1, { done: cards.length > 0 })}
+      ${step(1, 'Client’s request → product cards', cards.length ? `${cards.length} card${cards.length === 1 ? '' : 's'}${waitingCuts ? ` · <span class="bad-text">${waitingCuts} without picture</span>` : ''}` : '', s1, { done: cards.length > 0 && !waitingCuts, attention: waitingCuts > 0 })}
       ${step(2, 'Ask the supplier for prices', links.length ? 'link sent' : '', s2, { done: priced.length > 0 || links.length > 0 })}
       ${step(3, 'Supplier’s prices', cards.length ? `${priced.length}/${cards.length} priced` : '', s3, { done: cards.length > 0 && priced.length === cards.length })}
       ${step(4, 'Cost sheet & your prices', cards.length ? `${selling.length}/${cards.length} with your price${margin != null ? ` · margin ${margin}%` : ''}` : '', s4, { done: cards.length > 0 && selling.length === cards.length })}
@@ -276,6 +279,7 @@ export function stepsAction(action, el) {
   else if (action === 'flow-rfq-all' && p) import('../qc-pdf.js').then(mod => mod.createRfqPdf(p.id, lightingOf(p.id).map(i => i.id)));
   else if (action === 'flow-rfq-each' && p) openEachPdfSheet(p);
   else if (action === 'flow-apply-margin' && p) applyMargin(p);
+  else if (action === 'card-cut' && p) cutFromDrawings(p, el);
   else if (action === 'flow-reply' && p) openClientReply(p);
   else if (action === 'flow-send-changed' && p) {
     const ids = lightingOf(p.id).filter(unsent).map(i => i.id);
@@ -285,6 +289,26 @@ export function stepsAction(action, el) {
   else if (action === 'flow-proposal' && p) {
     const notes = (document.querySelector(`[data-flow-notes="${p.id}"]`) || {}).value;
     createOrUpdateProposal(p, { notes: notes == null ? undefined : String(notes).trim() }).catch(err => console.error(err));
+  }
+}
+
+// Cards that point at an area of a client PDF get their picture cut out of it.
+let cutting = false;
+async function cutFromDrawings(p, el) {
+  if (cutting) return;
+  cutting = true;
+  el.disabled = true;
+  toast('Cutting pictures from the drawings…');
+  try {
+    const { cutPictures } = await import('../pdfcrop.js');
+    const n = await cutPictures(p.id, { onProgress: (i, all) => { el.textContent = `✂️ ${i} of ${all} done…`; } });
+    toast(n ? `${n} picture${n === 1 ? '' : 's'} added to the cards` : 'No pictures could be made');
+  } catch (err) {
+    console.error(err);
+    toast(`Couldn't cut the pictures: ${err.message || err}`);
+  } finally {
+    cutting = false;
+    el.disabled = false;
   }
 }
 
