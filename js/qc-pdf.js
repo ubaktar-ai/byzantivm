@@ -766,3 +766,76 @@ export async function createRfqPdf(projectId, itemIds) {
   }
   return presentPdf(res.out, { company: res.c.company });
 }
+
+// ---------- Supplier payout slip: what we pay the supplier after a client payment ----------
+// Supplier prices only — no client, no selling prices — so it can go to the supplier with the transfer.
+export async function createPayoutPdf(payoutId) {
+  const out = store.get('supplier_payouts', payoutId);
+  if (!out) return;
+  const p = store.get('projects', out.project_id);
+  const company = p && store.get('companies', p.company_id);
+  toast('Creating PDF…');
+  let res;
+  try {
+    const [fonts, logo] = await Promise.all([preloadPdf(), loadLogo(company).catch(() => null)]);
+    const c = context(out.project_id);
+    const ref = c.p.order_no || c.p.name;
+    const ctx = startDocument({ fonts, logo, company: c.company, t: c.t, title: `Supplier payout ${out.number || ref}` });
+    const k = kit(ctx);
+    const { doc, grey, font, M, R, accent, line } = ctx;
+    const cur = c.p.currency;
+    const m = v => new Intl.NumberFormat(cur === 'USD' ? 'en-US' : 'en-GB', { style: 'currency', currency: cur }).format(Number(v) || 0);
+    k.title('SUPPLIER PAYOUT', [['Slip no.', out.number], ['Order', ref], ['Date', fmtDate(out.created_at || new Date().toISOString())],
+      ['Status', out.status === 'paid' ? `Paid ${out.paid_date ? fmtDate(out.paid_date) : ''}`.trim() : 'To pay']]);
+    k.rows([['Pay to', out.supplier || '—'], ['For', out.title || ''], ...(out.notes ? [['Note', out.notes]] : [])]);
+    // The items at the supplier's price
+    const items = store.all('items').filter(i => i.project_id === out.project_id).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    k.heading('Order at your prices');
+    const cols = [M, R - 72, R - 40, R];
+    font('normal', 8, grey);
+    doc.text('Item', cols[0], k.y); doc.text('Qty', cols[1], k.y, { align: 'right' });
+    doc.text('Price / pc', cols[2], k.y, { align: 'right' }); doc.text('Total', cols[3], k.y, { align: 'right' });
+    k.y += 5;
+    let total = 0;
+    items.forEach(it => {
+      const q = Number(it.quantity) || 1;
+      const u = Number(it.unit_cost) || 0;
+      total += q * u;
+      const name = doc.splitTextToSize(`${itemNo(it)}  ${it.name}`, cols[1] - M - 14);
+      k.room(name.length * 4.4 + 2);
+      font('normal', 9.5);
+      doc.text(name, cols[0], k.y);
+      doc.text(String(q), cols[1], k.y, { align: 'right' });
+      doc.text(u ? m(u) : '—', cols[2], k.y, { align: 'right' });
+      doc.text(u ? m(q * u) : '—', cols[3], k.y, { align: 'right' });
+      k.y += name.length * 4.4 + 2;
+    });
+    doc.setDrawColor(...line); doc.setLineWidth(0.2); doc.line(M, k.y - 1, R, k.y - 1);
+    k.y += 4;
+    // Payments: earlier slips, this one, what is left
+    const slips = store.all('supplier_payouts').filter(x => x.project_id === out.project_id && x.status !== 'cancelled')
+      .sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
+    const before = slips.slice(0, slips.findIndex(x => x.id === out.id)).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+    const left = Math.max(0, Math.round((total - before - (Number(out.amount) || 0)) * 100) / 100);
+    const sums = [['Order total', m(total)], ...(before ? [['Paid / on earlier slips', m(before)]] : [])];
+    sums.forEach(([key, v]) => { font('normal', 9.5, grey); doc.text(key, R - 50, k.y, { align: 'right' }); font('bold', 9.5); doc.text(v, R, k.y, { align: 'right' }); k.y += 5.5; });
+    k.room(14);
+    doc.setFillColor(...accent);
+    doc.rect(R - 95, k.y - 4.5, 95, 9, 'F');
+    font('bold', 11, [255, 255, 255]);
+    doc.text(out.title || 'This payment', R - 92, k.y + 1.5);
+    doc.text(m(out.amount), R - 3, k.y + 1.5, { align: 'right' });
+    k.y += 11;
+    font('normal', 9.5, grey); doc.text('Still to pay after this', R - 50, k.y, { align: 'right' });
+    font('bold', 9.5); doc.text(m(left), R, k.y, { align: 'right' });
+    k.y += 8;
+    k.signature(['Approved by', 'Paid on (date)']);
+    finishDocument({ ...ctx, company: c.company, t: c.t });
+    res = { out: { blob: doc.output('blob'), fileName: `${safeFileName(`Supplier payout ${out.number || ref}`)}.pdf` }, c };
+  } catch (err) {
+    console.error(err);
+    toast(`Couldn't create the PDF: ${err.message || err}`);
+    return;
+  }
+  return presentPdf(res.out, { company: res.c.company });
+}

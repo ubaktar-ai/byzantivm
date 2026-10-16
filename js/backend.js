@@ -16,7 +16,7 @@ export const RELATIONS = {
     ['deliverables', 'project_id', 'cascade'], ['attachments', 'project_id', 'cascade'],
     ['quotes', 'project_id', 'cascade'], ['costs', 'project_id', 'cascade'], ['invoices', 'project_id', 'cascade'],
     ['items', 'project_id', 'cascade'], ['shipments', 'project_id', 'cascade'], ['social_posts', 'project_id', 'null'],
-    ...QC_TABLES.map(t => [t, 'project_id', 'cascade']), ['qc_links', 'project_id', 'cascade']],
+    ...QC_TABLES.map(t => [t, 'project_id', 'cascade']), ['qc_links', 'project_id', 'cascade'], ['supplier_payouts', 'project_id', 'cascade']],
   spec_versions: [['qc_approvals', 'version_id', 'cascade'], ['qc_inspections', 'version_id', 'cascade']],
   qc_inspections: [['qc_issues', 'inspection_id', 'cascade']],
   qc_issues: [['qc_issue_updates', 'issue_id', 'cascade']],
@@ -24,6 +24,7 @@ export const RELATIONS = {
   qc_requests: [['qc_request_updates', 'request_id', 'cascade']],
   items: [['deliverables', 'item_id', 'cascade'], ['attachments', 'item_id', 'null']],
   quotes: [['quote_items', 'quote_id', 'cascade']],
+  invoices: [['supplier_payouts', 'invoice_id', 'null']],
   tasks: [['comments', 'task_id', 'cascade'], ['attachments', 'task_id', 'cascade']],
   clients: [['contacts', 'client_id', 'cascade'], ['projects', 'client_id', 'null']],
   deliverables: [['feedback_rounds', 'deliverable_id', 'cascade']],
@@ -203,7 +204,7 @@ const DEFAULTS = {
   companies: () => ({ color: '#64748b', sort_order: 0 }),
   clients: () => ({ email: '', phone: '', website: '', address: '', notes: '' }),
   contacts: () => ({ role: '', email: '', phone: '', notes: '' }),
-  projects: () => ({ order_no: '', description: '', stage: 'inquiry', delivery_address: '', deposit_pct: 50, status: 'active', currency: 'EUR', lead_id: null, client_id: null, start_date: null, due_date: null, sort_order: 0 }),
+  projects: () => ({ order_no: '', client_po: '', client_po_date: null, description: '', stage: 'inquiry', delivery_address: '', deposit_pct: 50, status: 'active', currency: 'EUR', lead_id: null, client_id: null, start_date: null, due_date: null, sort_order: 0 }),
   tasks: () => ({ notes: '', stage: 'inquiry', done: false, priority: 'medium', assignee_id: null, due_date: null, completed_at: null, sort_order: 0 }),
   comments: () => ({ task_id: null, mentions: [], author_id: DEMO_USER.id }),
   deliverables: () => ({ description: '', max_rounds: 3, status: 'in_progress', due_date: null, sort_order: 0 }),
@@ -212,7 +213,7 @@ const DEFAULTS = {
   quotes: () => ({ number: '', title: '', issue_date: null, valid_until: null, status: 'draft', notes: '' }),
   quote_items: () => ({ quantity: 1, unit_price: 0, sort_order: 0 }),
   costs: () => ({ category: 'other', vendor: '', amount: 0, paid: false }),
-  invoices: () => ({ number: '', title: '', issue_date: null, due_date: null, amount: 0, status: 'draft', paid_date: null, notes: '', kind: 'other' }),
+  invoices: () => ({ number: '', title: '', issue_date: null, due_date: null, amount: 0, status: 'draft', paid_date: null, received_amount: null, notes: '', kind: 'other' }),
   items: () => ({ description: '', quantity: 1, dimensions: '', materials: '', weight_kg: null, supplier: '', supplier_ref: '', unit_cost: 0, unit_price: 0, production: 'not_started', sort_order: 0, category: 'furniture', spec: {}, item_no: '' }),
   spec_versions: () => ({ change_reason: '', requested_by: '', spec: {} }),
   qc_approvals: () => ({ person: '', method: '', note: '', files: [] }),
@@ -227,6 +228,7 @@ const DEFAULTS = {
   qc_submissions: () => ({ item_id: null, person: '', note: '', photos: [], link_id: null }),
   qc_links: () => ({ item_ids: [], label: '', revoked_at: null, purpose: 'qc', currency: '' }),
   supplier_prices: () => ({ item_id: null, item_name: '', link_id: null, party: 'us', person: '', currency: '', lead_time: '', notes: '', photos: [] }),
+  supplier_payouts: () => ({ kind: 'deposit', number: '', title: '', supplier: '', pct: null, amount: 0, invoice_id: null, status: 'to_pay', paid_date: null, notes: '' }),
   shipments: () => ({ carrier: '', tracking: '', status: 'preparing', shipped_date: null, delivered_date: null, cost: 0, packages: '', notes: '' }),
   social_posts: () => ({ project_id: null, status: 'draft', title: '', idea: '', body: '', hashtags: '', photo_ids: [], language: 'en', scheduled_for: null, posted_at: null, posted_url: '', sort_order: 0 }),
   social_contacts: () => ({ role: '', organisation: '', category: 'other', platform: 'linkedin', profile_url: '', status: 'to_connect', message: '', next_follow_up: null, notes: '' }),
@@ -256,7 +258,7 @@ export class LocalBackend {
       team_members: [{ email: DEMO_USER.email, added_at: now }],
       clients: [], contacts: [], projects: [], tasks: [], comments: [], activity: [],
       deliverables: [], feedback_rounds: [], attachments: [], quotes: [], quote_items: [], costs: [], invoices: [],
-      items: [], shipments: [], social_posts: [], social_contacts: [], ...Object.fromEntries(QC_TABLES.map(t => [t, []])), qc_links: [],
+      items: [], shipments: [], social_posts: [], social_contacts: [], ...Object.fromEntries(QC_TABLES.map(t => [t, []])), qc_links: [], supplier_payouts: [],
     };
   }
 
@@ -426,7 +428,7 @@ export class LocalBackend {
   deleteBlob(path) { return this.idbRun('readwrite', s => s.delete(path)).catch(() => {}); }
 
   log(table, action, row, details = {}) {
-    if (!['clients', 'projects', 'tasks', 'comments', 'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'costs', 'invoices', 'items', 'shipments', ...QC_TABLES].includes(table)) return;
+    if (!['clients', 'projects', 'tasks', 'comments', 'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'costs', 'invoices', 'items', 'shipments', 'supplier_payouts', ...QC_TABLES].includes(table)) return;
     const entry = {
       id: this.db.activity.length + 1,
       at: new Date().toISOString(),

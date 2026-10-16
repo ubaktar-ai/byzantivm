@@ -18,6 +18,7 @@ import { tearAction } from './views/tear.js';
 import { openFinder } from './finder.js';
 import { pricesAction } from './views/prices.js';
 import { stepsAction } from './views/steps.js';
+import { payAction } from './views/payments.js';
 import { viewMoney } from './views/money.js';
 import { viewCalendar } from './views/calendar.js';
 import { viewActivity } from './views/activity.js';
@@ -309,6 +310,7 @@ document.addEventListener('click', e => {
   if (action && action.startsWith('qc-')) { qcAction(action, el); return; }
   if (action && action.startsWith('tear-')) { tearAction(action, el); return; }
   if (action && action.startsWith('price-')) { pricesAction(action, el); return; }
+  if (action && action.startsWith('pay-')) { payAction(action, el); return; }
   if (action && (action.startsWith('card-') || action.startsWith('flow-'))) { stepsAction(action, el); return; }
   if (action === 'finder-open') { openFinder(el.dataset.id); return; }
   if (action === 'finder-item') { const it = store.get('items', el.dataset.id); if (it) openFinder(it.project_id, { itemId: it.id }); return; }

@@ -1,6 +1,7 @@
 // "Steps": the whole order on one screen, one card per step, one or two buttons each (lighting).
 //   1 Client's request → AI product cards   2 Ask the supplier for prices   3 Supplier's prices back
-//   4 Cost sheet & your prices              5 Proposal & tear sheets for the client   6 Quality control
+//   4 Cost sheet & your prices              5 Proposal & tear sheets for the client   6–7 Client's reply, revisions
+//   8 Client's PO → invoice   9 Payments → supplier payout slips   10 Ready to ship → balance   11 Quality control
 // Everything else (spec details, approvals, inspections…) stays in its own tab, out of the way.
 import { esc, icon, money, toast, openSheet, closeSheet, sheetHeader, $ } from '../lib.js';
 import { store, productsOf, nextSortOrder } from '../store.js';
@@ -10,6 +11,7 @@ import { lightingOf, fieldHtml, readSpec, wireSpecFields, photoPicker, wirePhoto
 import { openProposal, acceptedProposal, createOrUpdateProposal } from './order.js';
 import { pricesOf, pricesReady } from './prices.js';
 import { uploadFiles } from '../files.js';
+import { paySteps } from './payments.js';
 import { roundsSteps, openClientReply, markSent, readNewPrices, makeRevisedProposal, withChanges, unsent } from './rounds.js';
 
 const num = v => Number(v) || 0;
@@ -129,8 +131,8 @@ export function stepsTab(p) {
       ${step(4, 'Cost sheet & your prices', cards.length ? `${selling.length}/${cards.length} with your price${margin != null ? ` · margin ${margin}%` : ''}` : '', s4, { done: cards.length > 0 && selling.length === cards.length })}
       ${step(5, 'Proposal & tear sheets for the client', proposal ? (proposal.status === 'approved' ? 'accepted' : 'sent') : '', s5, { done: !!proposal })}
       ${roundsSteps(p, step)}
-      ${step(8, 'Quality control', '', s6)}
-      <p class="muted small flow-next">Coming next: the client's PO and invoice, payments and supplier payout slips.</p>
+      ${paySteps(p, step)}
+      ${step(11, 'Quality control', '', s6)}
     </div>`;
 }
 

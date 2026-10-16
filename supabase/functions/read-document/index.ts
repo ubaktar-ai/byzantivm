@@ -1,5 +1,5 @@
 // Supabase Edge Function "read-document"
-// Reads a client inquiry or a supplier quote (PDF or photo from the "files" storage bucket) with Claude
+// Reads a client inquiry, a supplier quote or a client's purchase order (PDF or photo from the "files" storage bucket) with Claude
 // and returns what it found as JSON. The app shows the result for checking before anything is saved.
 //
 // Setup (once): add the secret ANTHROPIC_API_KEY under Edge Functions → Secrets, then deploy this file
@@ -46,6 +46,19 @@ const SCHEMAS = {
     shipping_cost: numb,
     notes: str,
   }),
+  po: obj({
+    po_number: str,
+    po_date: str,
+    client: str,
+    currency: str,
+    total: numb,
+    deposit_pct: numb,
+    payment_terms: str,
+    delivery_address: str,
+    delivery_date: str,
+    lines: { type: 'array', items: obj({ description: str, quantity: numb, unit_price: numb }) },
+    notes: str,
+  }),
 };
 
 const SYSTEM = `You help a small company that makes made-to-order furniture and lighting (Byzantivm in Miami, USA and Demya in Amstelveen, the Netherlands). You read documents they receive and copy the facts into a fixed JSON form. Copy what the document says; do not invent anything. Use an empty string for text you cannot find and 0 for numbers you cannot find. Documents may be in English, Dutch or another language; write the values in the document's language, except currency codes (ISO, e.g. EUR or USD) and dates (YYYY-MM-DD).`;
@@ -68,6 +81,18 @@ const PROMPTS = {
 - shipping_cost: any separate transport/delivery/crating cost, excluding VAT, or 0.
 - notes: lead time, validity, payment terms or other conditions, briefly.
 Do not include VAT, discounts or totals as lines; apply discounts that belong to a line to its unit cost.`,
+  po: `This is a purchase order (PO) from a client to the furniture company, ordering products they were offered. Fill in:
+- po_number: the client's purchase order number.
+- po_date: the date of the PO (YYYY-MM-DD).
+- client: the client's company (or their name if private) — the buyer, not the furniture company.
+- currency: the currency of the prices.
+- total: the order total excluding VAT/sales tax (if only a total including tax is given, use that).
+- deposit_pct: the deposit/advance percentage in the payment terms (e.g. 50), or 0 if not stated.
+- payment_terms: the payment terms as written, briefly.
+- delivery_address: where the products must be delivered.
+- delivery_date: the required delivery date (YYYY-MM-DD), or "".
+- lines: one entry per ordered product, with description, quantity and unit_price (per piece, excluding VAT).
+- notes: other conditions or special requests, briefly.`,
 };
 
 // ---------- Request ----------
@@ -82,7 +107,7 @@ Deno.serve(async req => {
   let body: { path?: unknown; mode?: unknown };
   try { body = await req.json(); } catch { return json({ error: 'Invalid request' }, 400); }
   const path = typeof body.path === 'string' ? body.path : '';
-  const mode = body.mode === 'inquiry' || body.mode === 'supplier' ? body.mode : null;
+  const mode = body.mode === 'inquiry' || body.mode === 'supplier' || body.mode === 'po' ? body.mode : null;
   if (!path || path.includes('..') || !mode) return json({ error: 'Invalid request' }, 400);
 
   // Act as the signed-in user: only team members get through, and storage rules still apply.

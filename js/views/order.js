@@ -55,7 +55,7 @@ function copyDocFields(q) {
   return out;
 }
 
-const moveStage = (p, stage, extra = {}) => store.update('projects', p.id, { stage, ...extra });
+export const moveStage = (p, stage, extra = {}) => store.update('projects', p.id, { stage, ...extra });
 
 // ---------- Workflow steps (buttons on the Next step card) ----------
 
@@ -112,21 +112,27 @@ export async function createOrUpdateProposal(p, { notes, revised = false } = {})
   makePdf('quote', q.id);
 }
 
-async function acceptProposal(p) {
+// The client accepted (e.g. sent their PO): the proposal is approved and the deposit invoice is made.
+export async function acceptProposal(p, { notes = '', pct } = {}) {
   const q = openProposal(p.id) || acceptedProposal(p.id);
-  if (!q) { toast('Create the proposal first'); return; }
+  if (!q) { toast('Create the proposal first'); return null; }
   if (q.status !== 'approved') await store.update('quotes', q.id, { status: 'approved' });
+  // Earlier versions the client didn't take are closed, so only the accepted one counts.
+  for (const old of quotesOf(p.id)) if (old.id !== q.id && (old.status === 'draft' || old.status === 'sent')) await store.update('quotes', old.id, { status: 'rejected' });
   let inv = depositInvoice(p.id);
   if (!inv) {
-    const pct = num(p.deposit_pct) || 50;
+    pct = num(pct) || num(p.deposit_pct) || 50;
     inv = await store.insert('invoices', {
       id: uuid(), project_id: p.id, kind: 'deposit', number: nextNumber('invoices', p.id),
       title: `Deposit (${pct}%)`, amount: round2(quoteTotal(q) * pct / 100), status: 'sent',
-      issue_date: todayStr(), due_date: addDays(todayStr(), 14), notes: '', ...copyDocFields(q),
+      issue_date: todayStr(), due_date: addDays(todayStr(), 14), notes, ...copyDocFields(q),
     });
+  } else if (notes && !String(inv.notes || '').includes(notes)) {
+    inv = await store.update('invoices', inv.id, { notes: [inv.notes, notes].filter(Boolean).join('\n') }) || inv;
   }
   await moveStage(p, 'deposit');
   makePdf('invoice', inv.id);
+  return inv;
 }
 
 async function markPaid(p, inv, nextStage, message) {
@@ -142,7 +148,7 @@ async function startProduction(p) {
   toast('Production started');
 }
 
-async function createBalance(p) {
+export async function createBalance(p, { pdf = true } = {}) {
   let inv = balanceInvoice(p.id);
   if (!inv) {
     const q = acceptedProposal(p.id);
@@ -156,7 +162,8 @@ async function createBalance(p) {
     });
   }
   await moveStage(p, 'balance');
-  makePdf('invoice', inv.id);
+  if (pdf) makePdf('invoice', inv.id);
+  return inv;
 }
 
 async function markShipped(p) {

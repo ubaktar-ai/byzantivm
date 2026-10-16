@@ -233,6 +233,24 @@ sends a price per piece, lead time and notes. Prices arrive in the same section 
 prices that came by email); **Accept** sets the product's cost and supplier. **Price request PDF** is the same
 request on paper. Every price is kept permanently with the name and the date.
 
+### 11. Client PO, payments and supplier payouts (Steps 8–10)
+
+Run `supabase/migrations/011_payouts.sql` once (it adds the PO number on an order, the amount received on an
+invoice and a *supplier payouts* list). After that, on a project's **Steps** tab:
+
+- **8 · Client's PO → invoice**: upload the client's purchase order. The AI (the `read-document` function from
+  step 6 — redeploy it so it knows POs) reads the PO number, date, total and deposit; the check screen warns when
+  the total differs from the proposal. Saving accepts the proposal and makes the deposit invoice with
+  *Your PO: …* on it. Without AI, type the PO number in.
+- **9 · Payments → supplier payout slips**: **Payment received** records the amount and date, then makes a
+  payout slip for the supplier (deposit % of the supplier's total, or the rest for the balance). The slip shows
+  the supplier's prices only — never the client or your selling prices. **Paid to supplier** ticks it off.
+- **10 · Ready to ship → balance**: when the lights are ready, the app asks whether the client has paid the
+  balance. *Not yet* makes (or re-opens) the balance invoice; *Yes* records the payment and makes the balance
+  payout slip.
+
+Payouts are kept apart from Costs: the supplier's price already counts as product cost, so profit stays right.
+
 ## Demo mode
 
 Without a key, or by tapping **Try demo mode** on the sign-in screen, the app runs with data stored only on that device.
