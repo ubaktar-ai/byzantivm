@@ -1194,3 +1194,36 @@ details.flow-step[data-current] { box-shadow: 0 0 0 2px var(--accent), var(--sha
 .flow-status + .flow-chev { margin-left: 6px; }
 .flow-head h3 + .flow-chev { margin-left: auto; }
 details.flow-step[open] .flow-chev { transform: rotate(-135deg); margin-top: 4px; }
+
+/* ---------- Design studio page (design.html) and its links on the Team screen ---------- */
+.portal.design { max-width: 1040px; }
+.design-form { display: grid; gap: 14px; }
+.design-add { justify-self: start; }
+.design-picks { display: flex; flex-wrap: wrap; gap: 8px; }
+.design-picks:empty { display: none; }
+.design-pick { position: relative; width: 96px; height: 96px; }
+.design-pick img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); }
+.design-pick .btn { position: absolute; top: 4px; right: 4px; min-height: 32px; width: 32px; padding: 0; }
+.design-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.design-concept { display: flex; flex-direction: column; overflow: hidden; }
+.design-concept.chosen { outline: 3px solid var(--accent); outline-offset: -1px; }
+.design-img { position: relative; aspect-ratio: 4 / 3; background: var(--surface-2); }
+.design-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.design-toggle { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 4px; }
+.design-body { display: grid; gap: 8px; align-content: start; flex: 1; }
+.design-body h3 { margin: 0; font-size: 18px; }
+.design-body p { margin: 0; }
+.design-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.design-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.design-busy { display: flex; align-items: center; gap: 12px; }
+.design-sent-pics { display: flex; flex-wrap: wrap; gap: 6px; }
+.design-sent-pics img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+.design-list { display: grid; gap: 10px; }
+.design-row { display: flex; align-items: center; gap: 14px; padding: 10px; text-align: left; cursor: pointer; color: var(--text); font: inherit; width: 100%; }
+.design-row > span:last-child { display: grid; gap: 2px; }
+.design-row img, .design-row-ph { width: 72px; height: 54px; object-fit: cover; border-radius: 8px; background: var(--surface-2); flex: none; }
+.design-team-pics { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+.design-team-pics figure { margin: 0; display: grid; gap: 4px; }
+.design-team-pics img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: var(--surface-2); border-radius: 10px; }
+.design-team-pics figcaption { font-size: 13px; color: var(--text-2); }
+.design-busy .spinner { flex: none; }

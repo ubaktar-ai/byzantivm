@@ -258,7 +258,7 @@ export class LocalBackend {
       team_members: [{ email: DEMO_USER.email, added_at: now }],
       clients: [], contacts: [], projects: [], tasks: [], comments: [], activity: [],
       deliverables: [], feedback_rounds: [], attachments: [], quotes: [], quote_items: [], costs: [], invoices: [],
-      items: [], shipments: [], social_posts: [], social_contacts: [], ...Object.fromEntries(QC_TABLES.map(t => [t, []])), qc_links: [], supplier_payouts: [],
+      items: [], shipments: [], social_posts: [], social_contacts: [], ...Object.fromEntries(QC_TABLES.map(t => [t, []])), qc_links: [], supplier_payouts: [], design_links: [], design_requests: [],
     };
   }
 

@@ -106,6 +106,9 @@ it opens full-screen like a native app. Everyone signs in, and changes show up l
     *To connect → Request sent → Connected → In conversation → Client*, a follow-up date, and an AI-written
     connection note or follow-up message to send from their profile. One tap moves someone to the next step and sets the next follow-up.
     Requests are sent by hand on purpose: LinkedIn and Instagram block accounts that automate them.
+- **Design studio (for designers)**: a private link where an interior designer uploads a sketch, references and a photo
+  of the room, gets three AI concept images, sees a concept in their own room, and sends the one they choose to you
+  (setup: step 12 below).
 - **Activity feed**: a live record of who did what, for example *"Elena moved Logo concepts to Design"* or
   *"Umut marked invoice BYZ-2026-002 paid"*. You can filter it by person. Recent activity also shows on the Overview and on each project's Details tab.
 The database tables for all of these are already created by `supabase/schema.sql`.
@@ -255,6 +258,34 @@ invoice and a *supplier payouts* list). After that, on a project's **Steps** tab
 
 Payouts are kept apart from Costs: the supplier's price already counts as product cost, so profit stays right.
 
+### 12. Design studio for designers (optional)
+
+A private link for an interior designer or architect (`design.html#…`, no account needed). The designer uploads a
+sketch or reference photos and a photo of the room, and describes the piece. Claude reads the brief and writes three
+concept directions; Google's Gemini image model draws each one, can show a concept **in the designer's own room**,
+and can make changes ("make it deeper, in dark bronze"). The designer chooses one and sends it, with their name and
+email. You see it on the **Team** screen under *Design studio links → Sent by designers*.
+
+Each AI image costs roughly **$0.07** (Claude's reading of the brief adds a few cents). Every link has an image
+limit (60 by default, about $4) so a link can't run up the bill. *+ Images* raises it; *Switch off* stops it.
+
+1. Run [`supabase/migrations/012_design_studio.sql`](supabase/migrations/012_design_studio.sql) in the SQL Editor (new databases get it from `schema.sql`).
+2. **Get a Gemini key**: sign in at [aistudio.google.com](https://aistudio.google.com) → **Get API key** → **Create API key**.
+   Image generation may need billing switched on for the key's Google Cloud project.
+3. **Store it in Supabase**: *Edge Functions* → *Secrets* → **Add new secret**: name `GEMINI_API_KEY`, value = the key.
+   The function also uses `ANTHROPIC_API_KEY` from step 6.
+4. *Edge Functions* → **Deploy a new function** → *Via Editor*. Name it exactly `design-studio`, paste everything from
+   [`supabase/functions/design-studio/index.ts`](supabase/functions/design-studio/index.ts) → **Deploy**.
+5. In the function's settings, turn **off** *Verify JWT*: designers have no account. The long random code in each
+   link is the key, and the image limit caps what it can cost.
+6. In the app: **Team** → *Design studio links* → **New design link** → share it.
+
+With the Supabase CLI: `supabase secrets set GEMINI_API_KEY=…` and `supabase functions deploy design-studio --no-verify-jwt`.
+
+The function uses Gemini's `gemini-3.1-flash-image` model. Google renames its image models often: if the page says the
+model was not found, add a secret `GEMINI_IMAGE_MODEL` with the current model name from Google's documentation. The
+concept images show a direction, not exact sizes; dimensioned drawings still come from your team.
+
 ## Demo mode
 
 Without a key, or by tapping **Try demo mode** on the sign-in screen, the app runs with data stored only on that device.
@@ -272,6 +303,7 @@ Use **Load sample data** to look around. (*Read with AI* only works with the tea
 | `js/files.js` | File uploads (photo downscaling), document cards per tab, thumbnails, viewer, delete |
 | `js/views/qc.js`, `js/views/qc-more.js`, `js/qc-spec.js`, `js/qc-pdf.js` | Quality control: QC tab, specification cards, samples, requests, links, templates, the lighting spec & checklists, QC PDFs |
 | `portal.html`, `js/portal.js` | The page behind a supplier / client link |
+| `design.html`, `js/design.js`, `js/views/design-links.js` | The design studio page behind a designer's link, and its links on the Team screen |
 | `js/social.js`, `js/views/social.js` | *Social* (Demya): post queue, AI drafts and ideas, sharing, the network list |
 | `js/ai.js` | *Read with AI*: calls the `read-document` function and shows the check-before-saving sheets |
 | `js/money.js` | Quote / cost / invoice sheets, totals, numbering, amount parsing |
@@ -281,6 +313,7 @@ Use **Load sample data** to look around. (*Read with AI* only works with the tea
 | `supabase/schema.sql` | Database tables, security rules, activity log, live updates, file storage |
 | `supabase/functions/social-writer/` | Edge Function that drafts posts, post ideas and networking messages with Claude |
 | `supabase/functions/qc-portal/` | Edge Function behind the supplier / client links |
+| `supabase/functions/design-studio/` | Edge Function behind the design links: Claude writes the concepts, Gemini draws them |
 | `supabase/functions/read-document/` | Edge Function that reads an inquiry / supplier quote with Claude (key kept in Supabase secrets) |
 | `vendor/supabase.js` | Supabase JS client v2.117.2 (MIT), bundled so the app needs no CDN |
 | `vendor/jspdf.umd.min.js`, `vendor/fonts/` | jsPDF 4.2.1 (MIT) and the Inter font (SIL OFL), loaded only when a PDF is made |

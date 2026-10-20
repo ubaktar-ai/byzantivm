@@ -12,7 +12,7 @@ const normalize = (table, row) =>
 const CORE = ['companies', 'profiles', 'team_members', 'clients', 'contacts', 'projects', 'tasks', 'comments'];
 const TABLES = ['companies', 'profiles', 'team_members', 'clients', 'contacts', 'projects', 'tasks', 'comments',
   'deliverables', 'feedback_rounds', 'attachments', 'quotes', 'quote_items', 'costs', 'invoices', 'items', 'shipments',
-  'social_posts', 'social_contacts', ...QC_TABLES, 'qc_links', 'supplier_payouts'];
+  'social_posts', 'social_contacts', ...QC_TABLES, 'qc_links', 'supplier_payouts', 'design_links', 'design_requests'];
 
 export const store = {
   backend: null,

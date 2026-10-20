@@ -2,6 +2,7 @@ import { esc, icon, avatar, PERSON_COLORS, CURRENCIES, openSheet, sheetHeader, o
 import { builtInLogo } from '../pdf.js';
 import { docsReady, countryReady, companyCountry, companyCurrency } from '../money.js';
 import { store, companies, me } from '../store.js';
+import { designLinksCard } from './design-links.js';
 
 export function viewTeam() {
   const myProfile = me();
@@ -63,6 +64,8 @@ export function viewTeam() {
         ${docsReady() ? `<p class="muted small">Document details (address, tax number, bank, logo) are printed on PDF quotes and invoices.</p>`
           : `<p class="notice warn small">To print PDF quotes and invoices, the database needs a small update: run <code>supabase/migrations/002_documents.sql</code> in the Supabase SQL Editor.</p>`}
       </div>
+
+      ${designLinksCard()}
 
       <div class="card-surface pad">
         <h3 class="card-title">Account</h3>
