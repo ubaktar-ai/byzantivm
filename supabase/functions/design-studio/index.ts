@@ -101,6 +101,8 @@ async function gemini(prompt: string, images: { mime: string; data: string }[], 
     console.error(res.status, JSON.stringify(out).slice(0, 2000));
     if (res.status === 400 && /api key/i.test(out?.error?.message || '')) throw new Problem('The Gemini API key is not valid — check GEMINI_API_KEY in Supabase.', 502);
     if (res.status === 404) throw new Problem(`The image model "${IMAGE_MODEL}" was not found — set GEMINI_IMAGE_MODEL in Supabase to a current model.`, 502);
+    // Google's free tier allows no image generation ("free_tier… limit: 0"): billing must be on for the key.
+    if (res.status === 429 && /free_tier/.test(out?.error?.message || '')) throw new Problem('The image AI isn’t switched on yet: turn on billing for the Gemini API key (Google AI Studio → Billing).', 502);
     if (res.status === 429) throw new Problem('The image AI is busy right now — try again in a minute.', 503);
     throw new Problem(`Image AI error: ${out?.error?.message || res.status}`, 502);
   }
